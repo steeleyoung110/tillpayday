@@ -88,20 +88,24 @@ export function ProjectionChart({
               orients without distracting. */}
           <defs>
             <linearGradient id="tp-positive" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#10b981" stopOpacity={0.13} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+              <stop offset="0%" stopColor="#34d399" stopOpacity={0.28} />
+              <stop offset="45%" stopColor="#34d399" stopOpacity={0.09} />
+              <stop offset="100%" stopColor="#34d399" stopOpacity={0.02} />
             </linearGradient>
             <linearGradient id="tp-negative" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.16} />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+              <stop offset="0%" stopColor="#f87171" stopOpacity={0.3} />
+              <stop offset="45%" stopColor="#f87171" stopOpacity={0.11} />
+              <stop offset="100%" stopColor="#f87171" stopOpacity={0.03} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="#1e293b" vertical={false} />
           {/* Recharts v3: a missing y1 means "from the top of the domain",
               a missing y2 means "to the bottom" — so y2={0} is the positive
               region (top → zero) and y1={0} the negative (zero → bottom). */}
-          <ReferenceArea y2={0} fill="url(#tp-positive)" stroke="none" />
-          <ReferenceArea y1={0} fill="url(#tp-negative)" stroke="none" />
+          {/* fillOpacity=1 overrides Recharts' default 0.5, which would halve
+              the gradient and render it nearly invisible on the dark surface. */}
+          <ReferenceArea y2={0} fill="url(#tp-positive)" fillOpacity={1} stroke="none" />
+          <ReferenceArea y1={0} fill="url(#tp-negative)" fillOpacity={1} stroke="none" />
           <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
           <XAxis
             dataKey="date"
