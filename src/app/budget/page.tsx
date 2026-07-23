@@ -95,7 +95,7 @@ export default async function BudgetPage() {
     (s) => ({
       name: s.name,
       amount: s.amount,
-      percent: s.percent,
+      share: s.percent,
       color: colorFor(s.bucketId),
     }),
   );
@@ -133,7 +133,7 @@ export default async function BudgetPage() {
                       {s.name}
                     </span>
                     <span className="text-slate-400">
-                      {`${currency.format(s.amount)} · ${s.percent}%`}
+                      {`${currency.format(s.amount)} · ${s.share}%`}
                     </span>
                   </li>
                 ))}

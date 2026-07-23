@@ -16,7 +16,10 @@ const currency = new Intl.NumberFormat("en-US", {
 export interface PieSlice {
   name: string;
   amount: number;
-  percent: number;
+  /** Share of the paycheck, 0–100. Named `share` because Recharts injects its
+   * own `percent` (a 0–1 fraction) into label callbacks — a `percent` data key
+   * shadows it and renders things like "7500%". */
+  share: number;
   color: string;
 }
 
@@ -41,9 +44,12 @@ export function PaycheckPie({
             stroke="#0f172a"
             strokeWidth={2}
             isAnimationActive={false}
-            label={({ percent, name }) =>
-              Number(percent) >= 0.08 ? `${name} ${Math.round(Number(percent) * 100)}%` : ""
-            }
+            label={(props) => {
+              const slice = props.payload as PieSlice;
+              return slice.share >= 8
+                ? `${slice.name} ${Math.round(slice.share)}%`
+                : "";
+            }}
             labelLine={false}
             fontSize={12}
           >
@@ -53,7 +59,7 @@ export function PaycheckPie({
           </Pie>
           <Tooltip
             formatter={(value, name, entry) => [
-              `${currency.format(Number(value))} (${(entry?.payload as PieSlice)?.percent}%)`,
+              `${currency.format(Number(value))} (${(entry?.payload as PieSlice)?.share}%)`,
               String(name),
             ]}
             labelStyle={{ color: "#e2e8f0" }}
