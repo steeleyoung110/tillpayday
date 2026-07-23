@@ -11,6 +11,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -97,6 +98,8 @@ function Curves({
   nameB,
   showZero = false,
   window,
+  payoffDots = [],
+  celebrateMonth = null,
 }: {
   a: CurvePoint[];
   b: CurvePoint[];
@@ -104,6 +107,10 @@ function Curves({
   nameB: string;
   showZero?: boolean;
   window?: MonthWindow;
+  /** Dots marking where a curve hits $0 (loan payoff moments). */
+  payoffDots?: { month: number; value: number; color: string }[];
+  /** Vertical "🎉 debt-free here" marker at this month. */
+  celebrateMonth?: number | null;
 }) {
   const byMonth = new Map<number, { month: number; a?: number; b?: number }>();
   for (const p of a) byMonth.set(p.month, { month: p.month, a: p.value });
@@ -128,6 +135,30 @@ function Curves({
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
           <CartesianGrid stroke="#1e293b" vertical={false} />
           {showZero && <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />}
+          {celebrateMonth !== null && (
+            <ReferenceLine
+              x={celebrateMonth}
+              stroke="#34d399"
+              strokeDasharray="4 4"
+              label={{
+                value: "🎉 debt-free here",
+                position: "insideTop",
+                fill: "#34d399",
+                fontSize: 12,
+              }}
+            />
+          )}
+          {payoffDots.map((d) => (
+            <ReferenceDot
+              key={`${d.month}-${d.color}`}
+              x={d.month}
+              y={d.value}
+              r={5}
+              fill={d.color}
+              stroke="#0f172a"
+              strokeWidth={2}
+            />
+          ))}
           <XAxis
             dataKey="month"
             tickFormatter={(m: number) =>
@@ -360,6 +391,15 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
               nameA={`At ${apr1}%`}
               nameB={`At ${apr2}%`}
               window={monthWindow}
+              payoffDots={[
+                ...(a.months !== null ? [{ month: a.months, value: 0, color: COLOR_A }] : []),
+                ...(b.months !== null ? [{ month: b.months, value: 0, color: COLOR_B }] : []),
+              ]}
+              celebrateMonth={
+                a.months !== null || b.months !== null
+                  ? Math.min(a.months ?? Infinity, b.months ?? Infinity)
+                  : null
+              }
             />
             {anyNever ? (
               <Verdict tone="warn">
