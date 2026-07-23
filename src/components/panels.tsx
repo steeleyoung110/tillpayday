@@ -34,6 +34,14 @@ const currency = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
+/** Plain words for repeat schedules (8H: no "cadence" jargon on screen). */
+const REPEAT_LABELS: Record<string, string> = {
+  one_time: "one-time",
+  monthly: "every month",
+  quarterly: "every 3 months",
+  yearly: "once a year",
+};
+
 const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-400";
 const btnCls =
@@ -216,7 +224,7 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
               )}
               {Number(b.apy) > 0 && (
                 <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
-                  {Number(b.apy)}% APY
+                  {`earns ${Number(b.apy)}%`}
                 </span>
               )}
               {b.is_flexible && (
@@ -286,7 +294,8 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
                   step="0.001"
                   min="0"
                   defaultValue={Number(b.apy) > 0 ? Number(b.apy) : undefined}
-                  placeholder="APY %"
+                  placeholder="% rate"
+                  title="The interest rate (APY) your bank pays on this money"
                   className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                 />
                 <button className="text-xs text-slate-500 transition hover:text-emerald-300">
@@ -349,8 +358,8 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
         </select>
         <input name="allocation_value" type="number" step="0.01" min="0" placeholder="Amount or %" required className={inputCls} />
         <label className="col-span-2 text-xs text-slate-400">
-          APY % of the account behind it — e.g. 3 for a high-yield savings
-          account, 0.02 for a big bank (leave blank for none)
+          Interest your bank pays on this money, per year (%) — like 3 for a
+          high-yield savings account. Leave blank for none.
           <input name="apy" type="number" step="0.001" min="0" placeholder="0" className={`${inputCls} mt-1`} />
         </label>
         <label className="col-span-2 flex items-center gap-2 text-xs text-slate-400">
@@ -379,7 +388,7 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
     data.buckets.find((b) => b.id === id)?.name ?? "Savings/leftover";
 
   return (
-    <Panel title="Planned expenses">
+    <Panel title="Upcoming bills">
       <ul className="mb-4 space-y-2">
         {data.expenses.map((e) => (
           <li
@@ -391,7 +400,7 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
             <span className="text-slate-200">
               {e.name}{" "}
               <span className="text-slate-400">
-                {`— ${currency.format(Number(e.amount))} · ${e.cadence.replace("_", "-")} · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
+                {`— ${currency.format(Number(e.amount))} · ${REPEAT_LABELS[e.cadence] ?? e.cadence} · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
               </span>
               {e.is_paused && (
                 <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
@@ -419,7 +428,9 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
           </li>
         ))}
         {data.expenses.length === 0 && (
-          <li className="text-sm text-slate-500">No expenses yet.</li>
+          <li className="text-sm text-slate-500">
+            No bills yet — add rent, subscriptions, anything with a due date.
+          </li>
         )}
       </ul>
 
@@ -427,17 +438,17 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
         <input name="name" placeholder="Expense (e.g. Rent)" required className={`${inputCls} col-span-2`} />
         <input name="amount" type="number" step="0.01" min="0" placeholder="Amount" required className={inputCls} />
         <select name="cadence" className={inputCls} defaultValue="monthly">
-          <option value="one_time">One-time</option>
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
+          <option value="one_time">Just once</option>
+          <option value="monthly">Every month</option>
+          <option value="quarterly">Every 3 months</option>
+          <option value="yearly">Once a year</option>
         </select>
         <label className="text-xs text-slate-400">
           First due date
           <input name="due_date" type="date" required className={`${inputCls} mt-1`} />
         </label>
         <label className="text-xs text-slate-400">
-          Paid from bucket
+          Comes out of
           <select name="bucket_id" className={`${inputCls} mt-1`} defaultValue="">
             <option value="">Savings / leftover</option>
             {data.buckets.map((b) => (
@@ -539,7 +550,7 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
           <input name="target_date" type="date" required className={`${inputCls} mt-1`} />
         </label>
         <label className="col-span-2 text-xs text-slate-400">
-          Paid from bucket
+          Comes out of
           <select name="bucket_id" className={`${inputCls} mt-1`} defaultValue="">
             <option value="">Savings / leftover</option>
             {data.buckets.map((b) => (

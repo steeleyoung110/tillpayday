@@ -263,19 +263,19 @@ export function ProjectionSection({
       {/* Headline stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`Projected savings ${windowLabel}`}</p>
+          <p className="text-sm text-slate-400">{`Savings ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(windowEnd?.savings ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`Total on hand ${windowLabel}`}</p>
+          <p className="text-sm text-slate-400">{`All your money ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(windowEnd?.total ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`Projected net worth ${windowLabel}`}</p>
+          <p className="text-sm text-slate-400">{`Net worth ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(projectedNetWorth)}
           </p>
@@ -292,7 +292,7 @@ export function ProjectionSection({
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-white">
-            Projection — every bucket&apos;s route
+            Where your money&apos;s headed
           </h2>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex rounded-lg border border-slate-700 p-0.5 text-sm">
@@ -370,13 +370,14 @@ export function ProjectionSection({
                 ? `Starts from ${currency.format(liquid)} — your cash + savings from the net-worth section. `
                 : "Add your cash and savings accounts in the net-worth section above to start the projection from what you actually have. "}
               {savings && (savings.apy ?? 0) > 0
-                ? `Savings compounds at ${savings.apy}% APY.`
-                : "Set your savings bucket's APY below so interest compounds in the projection."}
+                ? `Your savings grows at the ${savings.apy}% interest your bank pays.`
+                : "Add your savings account's interest rate below and we'll count that growth too."}
             </p>
           </>
         ) : (
           <p className="py-16 text-center text-slate-400">
-            Add an income source below to see your projection.
+            Add your paycheck below and we&apos;ll map out where your money&apos;s
+            headed.
           </p>
         )}
 

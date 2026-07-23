@@ -51,7 +51,7 @@ function ItemList({ items }: { items: NetWorthRow[] }) {
             {i.name}{" "}
             <span className="text-slate-400">
               {`— ${currency.format(Number(i.amount))} · ${CATEGORY_LABELS[i.category]}`}
-              {Number(i.apy) > 0 && ` · ${Number(i.apy)}% APY`}
+              {Number(i.apy) > 0 && ` · earns ${Number(i.apy)}%`}
             </span>
           </span>
           <InstantAction
@@ -102,8 +102,8 @@ function AddForm({ kind }: { kind: "asset" | "liability" }) {
       </select>
       <label className="col-span-2 text-xs text-slate-400">
         {kind === "asset"
-          ? "APY % — the interest this account earns (e.g. 3 for a high-yield savings account, 0.02 for a big bank)"
-          : "Interest rate % this debt charges (optional)"}
+          ? "Interest it earns per year (%) — like 3 for a high-yield savings account. Optional."
+          : "Interest this debt charges per year (%) — optional."}
         <input
           name="apy"
           type="number"
@@ -135,13 +135,13 @@ export function NetWorthSection({ data }: { data: DashboardData }) {
     <section className="space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Total assets</p>
+          <p className="text-sm text-slate-400">Everything you own</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(totalAssets)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Total debts</p>
+          <p className="text-sm text-slate-400">Everything you owe</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(totalLiabilities)}
           </p>
