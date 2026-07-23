@@ -447,6 +447,56 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
   };
 }
 
+export interface PaycheckSlice {
+  /** null = the leftover that flows to savings when no savings bucket exists. */
+  bucketId: string | null;
+  name: string;
+  amount: number;
+  /** Share of the paycheck, 0–100. */
+  percent: number;
+}
+
+/**
+ * How one paycheck splits across buckets — the same waterfall the projection
+ * runs (fixed by priority, then percents of the remainder floored to the
+ * cent, leftover to savings; paused buckets sit out), for a single check.
+ * Slices always sum to the full paycheck.
+ */
+export function splitPaycheck(buckets: Bucket[], amount: number): PaycheckSlice[] {
+  if (amount <= 0) return [];
+  const savings = buckets.find((b) => b.isSavings);
+  const spending = buckets
+    .map((b, i) => ({ b, i }))
+    .filter(({ b }) => !b.isSavings && !b.isPaused)
+    .sort((x, y) => (x.b.priority ?? x.i) - (y.b.priority ?? y.i) || x.i - y.i)
+    .map(({ b }) => b);
+
+  const slices: PaycheckSlice[] = [];
+  let available = round2(amount);
+
+  for (const b of spending.filter((x) => x.allocationType === "fixed")) {
+    const give = Math.min(round2(b.allocationValue), available);
+    available = round2(available - give);
+    if (give > 0) slices.push({ bucketId: b.id, name: b.name, amount: give, percent: 0 });
+  }
+  const base = available;
+  for (const b of spending.filter((x) => x.allocationType === "percent")) {
+    const give = Math.min(floorCent(base * (b.allocationValue / 100)), available);
+    available = round2(available - give);
+    if (give > 0) slices.push({ bucketId: b.id, name: b.name, amount: give, percent: 0 });
+  }
+  if (available > 0) {
+    slices.push({
+      bucketId: savings ? savings.id : null,
+      name: savings ? savings.name : "Savings / leftover",
+      amount: available,
+      percent: 0,
+    });
+  }
+  for (const s of slices) s.percent = Math.round((s.amount / amount) * 1000) / 10;
+  return slices;
+}
+
 /** Turn a day count into a friendly setback label. */
 export function labelSetback(days: number): string {
   if (days <= 0) return "no measurable setback";

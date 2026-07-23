@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LegalFooter } from "@/components/LegalFooter";
+import { PaycheckPie, type PieSlice } from "@/components/PaycheckPie";
+import { BUCKET_COLORS } from "@/components/ProjectionChart";
 import {
   BucketsPanel,
   ExpensesPanel,
@@ -8,7 +10,11 @@ import {
   WhatIfPanel,
 } from "@/components/panels";
 import { getDashboardData } from "@/lib/data";
-import { irregularWeeklyBaseline, runProjection } from "@/lib/engine";
+import {
+  irregularWeeklyBaseline,
+  runProjection,
+  splitPaycheck,
+} from "@/lib/engine";
 import {
   bucketToEngine,
   expenseToEngine,
@@ -79,6 +85,25 @@ export default async function BudgetPage() {
     ? { id: funBucketRow.id, name: funBucketRow.name }
     : null;
 
+  // The paycheck pie: how one typical check splits, colored to match the
+  // projection chart's per-bucket lines (same order-based palette).
+  const colorFor = (bucketId: string | null) => {
+    const i = data.buckets.findIndex((b) => b.id === bucketId);
+    return i >= 0 ? BUCKET_COLORS[i % BUCKET_COLORS.length] : "#64748b";
+  };
+  const pieSlices: PieSlice[] = splitPaycheck(engineBuckets, typicalPaycheck).map(
+    (s) => ({
+      name: s.name,
+      amount: s.amount,
+      percent: s.percent,
+      color: colorFor(s.bucketId),
+    }),
+  );
+  const currency = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
+
   return (
     <AppShell active="budget">
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
@@ -89,6 +114,34 @@ export default async function BudgetPage() {
             and the Dashboard updates instantly.
           </p>
         </div>
+        {pieSlices.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="mb-3 font-semibold text-white">
+              Where each paycheck goes
+            </h2>
+            <div className="flex flex-wrap items-center gap-8">
+              <PaycheckPie slices={pieSlices} paycheck={typicalPaycheck} />
+              <ul className="min-w-52 flex-1 space-y-2 text-sm">
+                {pieSlices.map((s) => (
+                  <li key={s.name} className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-slate-200">
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm"
+                        style={{ backgroundColor: s.color }}
+                        aria-hidden
+                      />
+                      {s.name}
+                    </span>
+                    <span className="text-slate-400">
+                      {`${currency.format(s.amount)} · ${s.percent}%`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <IncomePanel
             data={data}

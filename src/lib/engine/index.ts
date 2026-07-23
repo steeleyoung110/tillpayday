@@ -6,6 +6,8 @@ export {
   generateOccurrences,
   irregularWeeklyBaseline,
   runProjection,
+  splitPaycheck,
+  type PaycheckSlice,
   evaluateWhatIf,
   buildVerdict,
   labelSetback,

@@ -7,6 +7,7 @@ import {
   runProjection,
   evaluateWhatIf,
   labelSetback,
+  splitPaycheck,
 } from "./projection";
 import type {
   Bucket,
@@ -787,6 +788,60 @@ describe("evaluateWhatIf", () => {
       bucketId: null,
     });
     expect(reckless.causesNegative).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// splitPaycheck — the Budget pie's math (same waterfall, one check)
+// ---------------------------------------------------------------------------
+describe("splitPaycheck", () => {
+  it("mirrors the waterfall: fixed, percent of remainder, leftover to savings", () => {
+    const slices = splitPaycheck(buckets, 3000);
+    expect(slices).toEqual([
+      { bucketId: "rent", name: "Rent", amount: 1000, percent: 33.3 },
+      { bucketId: "fun", name: "Fun money", amount: 200, percent: 6.7 },
+      { bucketId: "save", name: "Savings", amount: 1800, percent: 60 },
+    ]);
+    // Slices always account for the entire check.
+    expect(slices.reduce((s, x) => s + x.amount, 0)).toBe(3000);
+  });
+
+  it("matches what the projection actually allocates on a payday", () => {
+    const r = runProjection(baseInput);
+    const slices = splitPaycheck(buckets, 3000);
+    const byId = Object.fromEntries(slices.map((s) => [s.bucketId, s.amount]));
+    expect(r.points[0].buckets.rent).toBe(byId.rent);
+    expect(r.points[0].buckets.fun).toBe(byId.fun);
+    expect(r.points[0].buckets.save).toBe(byId.save);
+  });
+
+  it("paused buckets sit out and their share flows onward", () => {
+    const slices = splitPaycheck(
+      buckets.map((b) => (b.id === "rent" ? { ...b, isPaused: true } : b)),
+      3000,
+    );
+    expect(slices.find((s) => s.bucketId === "rent")).toBeUndefined();
+    expect(slices.find((s) => s.bucketId === "fun")!.amount).toBe(300); // 10% of full 3000
+    expect(slices.find((s) => s.bucketId === "save")!.amount).toBe(2700);
+  });
+
+  it("a small check funds by priority and produces no zero or savings slice", () => {
+    const slices = splitPaycheck(
+      [
+        { id: "a", name: "A", allocationType: "fixed", allocationValue: 400, isSavings: false, priority: 0 },
+        { id: "b", name: "B", allocationType: "fixed", allocationValue: 300, isSavings: false, priority: 1 },
+        { id: "save", name: "Savings", allocationType: "fixed", allocationValue: 0, isSavings: true },
+      ],
+      500,
+    );
+    expect(slices).toEqual([
+      { bucketId: "a", name: "A", amount: 400, percent: 80 },
+      { bucketId: "b", name: "B", amount: 100, percent: 20 },
+    ]);
+  });
+
+  it("returns nothing for a zero paycheck", () => {
+    expect(splitPaycheck(buckets, 0)).toEqual([]);
   });
 });
 
