@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { applyShortfallFix, rightSizeBucket } from "@/app/actions";
 import {
   PRESET_MONTHS,
   presetLabel,
@@ -372,26 +373,62 @@ export function ProjectionSection({
         )}
       </div>
 
-      {/* Underfunded + shortfall warnings */}
+      {/* Warnings — every problem arrives with its fix (8D) */}
       {(withPurchase ?? baseline).warnings.length > 0 && hasIncome && (
-        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-5">
-          <h3 className="font-semibold text-red-300">Heads up — your plan doesn&apos;t quite fit</h3>
-          <ul className="mt-2 space-y-1 text-sm text-red-200">
-            {(withPurchase ?? baseline).warnings.map((w) => (
-              <li key={`${w.type}-${w.bucketId}-${w.date}`}>
-                {w.type === "underfunded" ? (
-                  <>
-                    <strong>{w.bucketName}</strong>
-                    {` only gets ${currency.format(w.funded)} of its ${currency.format(w.requested)} on paydays (first on ${w.date}) — a paycheck can't stretch that far.`}
-                  </>
-                ) : (
-                  <>
-                    <strong>{w.bucketName}</strong>
-                    {` comes up ${currency.format(w.amount)} short in ${w.month}.`}
-                  </>
-                )}
-              </li>
-            ))}
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5">
+          <h3 className="font-semibold text-amber-300">
+            Heads up — a few things to smooth out
+          </h3>
+          <ul className="mt-3 space-y-3 text-sm text-amber-100">
+            {(withPurchase ?? baseline).warnings.map((w) => {
+              const bucketRow = data.buckets.find((b) => b.id === w.bucketId);
+              const savingsTarget = !bucketRow || bucketRow.is_savings;
+              return (
+                <li
+                  key={`${w.type}-${w.bucketId}-${w.date}`}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  {w.type === "shortfall" ? (
+                    <>
+                      <span>
+                        <strong>{w.bucketName}</strong>
+                        {` will be ${currency.format(w.amount)} short in ${w.month}`}
+                        {w.fixPerPaycheck !== null
+                          ? ` — setting aside ${currency.format(w.fixPerPaycheck)} from each paycheck starting now covers it.`
+                          : ` — no paycheck lands before then, so it needs money moved in today.`}
+                      </span>
+                      {w.fixPerPaycheck !== null && !savingsTarget && (
+                        <form action={applyShortfallFix}>
+                          <input type="hidden" name="bucket_id" value={w.bucketId} />
+                          <input type="hidden" name="extra" value={w.fixPerPaycheck} />
+                          <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">
+                            {`Set aside ${currency.format(w.fixPerPaycheck)}/paycheck`}
+                          </button>
+                        </form>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        <strong>{w.bucketName}</strong>
+                        {` asks for ${currency.format(w.requested)} but paychecks run out at ${currency.format(w.funded)} (first on ${w.date}).`}
+                        {bucketRow?.allocation_type === "percent" &&
+                          " Your percentages add up past what a check can cover — trimming one brings it back in line."}
+                      </span>
+                      {bucketRow?.allocation_type === "fixed" && (
+                        <form action={rightSizeBucket}>
+                          <input type="hidden" name="bucket_id" value={w.bucketId} />
+                          <input type="hidden" name="value" value={w.funded} />
+                          <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">
+                            {`Right-size to ${currency.format(w.funded)}`}
+                          </button>
+                        </form>
+                      )}
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

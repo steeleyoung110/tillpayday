@@ -212,6 +212,63 @@ export async function completeOnboarding(formData: FormData) {
   revalidatePath("/");
 }
 
+/**
+ * One-tap fix for a shortfall warning: set aside a little more from every
+ * paycheck into the short bucket. Fixed buckets get the dollars added to
+ * their refill; percent buckets get the equivalent percent bump, sized
+ * against the smallest paycheck (rounded up) so it covers on every check.
+ */
+export async function applyShortfallFix(formData: FormData) {
+  const supabase = await createClient();
+  const bucketId = str(formData, "bucket_id");
+  const extra = num(formData, "extra");
+  if (!bucketId || extra <= 0) return;
+
+  const { data: bucket } = await supabase
+    .from("buckets")
+    .select("allocation_type, allocation_value, is_savings")
+    .eq("id", bucketId)
+    .single();
+  if (!bucket || bucket.is_savings) return;
+
+  if (bucket.allocation_type === "fixed") {
+    await supabase
+      .from("buckets")
+      .update({ allocation_value: Number(bucket.allocation_value) + extra })
+      .eq("id", bucketId);
+  } else {
+    const { data: sources } = await supabase
+      .from("income_sources")
+      .select("amount")
+      .eq("kind", "paycheck")
+      .gt("amount", 0);
+    const amounts = (sources ?? []).map((s) => Number(s.amount));
+    if (amounts.length === 0) return;
+    const smallest = Math.min(...amounts);
+    const bump = Math.ceil((extra / smallest) * 10000) / 100; // % with 2dp, up
+    await supabase
+      .from("buckets")
+      .update({ allocation_value: Number(bucket.allocation_value) + bump })
+      .eq("id", bucketId);
+  }
+  revalidatePath("/");
+}
+
+/**
+ * One-tap fix for an underfunded fixed bucket: shrink its refill to what a
+ * paycheck can actually cover, so the plan matches reality.
+ */
+export async function rightSizeBucket(formData: FormData) {
+  const supabase = await createClient();
+  const value = num(formData, "value");
+  await supabase
+    .from("buckets")
+    .update({ allocation_value: value })
+    .eq("id", str(formData, "bucket_id"))
+    .eq("allocation_type", "fixed");
+  revalidatePath("/");
+}
+
 export async function setBucketGoal(formData: FormData) {
   const supabase = await createClient();
   await supabase
