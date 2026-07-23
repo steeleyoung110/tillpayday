@@ -12,12 +12,18 @@ import {
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
 import { Onboarding } from "@/components/Onboarding";
 import { getDashboardData } from "@/lib/data";
-import { paydayRecap, safeToSpend } from "@/lib/engine";
+import {
+  irregularWeeklyBaseline,
+  paydayRecap,
+  runProjection,
+  safeToSpend,
+} from "@/lib/engine";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
   bucketToEngine,
   expenseToEngine,
+  incomeEntryToEngine,
   incomeToEngine,
 } from "@/lib/rows";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -54,7 +60,54 @@ export default async function Home() {
   const engineIncome = data.income.map(incomeToEngine);
   const engineBuckets = data.buckets.map(bucketToEngine);
   const engineExpenses = data.expenses.map(expenseToEngine);
-  const sts = safeToSpend(engineIncome, engineBuckets, engineExpenses, todayISO);
+  const engineEntries = data.incomeEntries.map(incomeEntryToEngine);
+  const sts = safeToSpend(
+    engineIncome,
+    engineBuckets,
+    engineExpenses,
+    todayISO,
+    engineEntries,
+  );
+
+  // Windfall context (8F): what counts as "above a typical paycheck", which
+  // buckets are currently flagged short, and where fun money would go.
+  const regularMax = Math.max(
+    0,
+    ...data.income
+      .filter((s) => s.kind === "paycheck" && s.frequency !== "irregular")
+      .map((s) => Number(s.amount)),
+  );
+  const hasIrregular = data.income.some((s) => s.frequency === "irregular");
+  const typicalPaycheck = Math.max(
+    regularMax,
+    hasIrregular ? irregularWeeklyBaseline(engineEntries, todayISO) : 0,
+  );
+  const nearTerm = runProjection({
+    startDate: todayISO,
+    months: 3,
+    incomeSources: engineIncome,
+    buckets: engineBuckets,
+    expenses: engineExpenses,
+    incomeEntries: engineEntries,
+  });
+  const seenShort = new Set<string>();
+  const shortfalls = nearTerm.warnings
+    .filter((w) => w.type === "shortfall")
+    .filter((w) => {
+      const b = data.buckets.find((x) => x.id === w.bucketId);
+      if (!b || b.is_savings || seenShort.has(w.bucketId)) return false;
+      seenShort.add(w.bucketId);
+      return true;
+    })
+    .map((w) => ({
+      bucketId: w.bucketId,
+      bucketName: w.bucketName,
+      amount: w.type === "shortfall" ? w.amount : 0,
+    }));
+  const funBucketRow = data.buckets.find((b) => b.is_flexible && !b.is_savings);
+  const funBucket = funBucketRow
+    ? { id: funBucketRow.id, name: funBucketRow.name }
+    : null;
 
   // Payday celebration: recap the latest payday unless it was already shown.
   const savingsRow = data.buckets.find((b) => b.is_savings);
@@ -71,6 +124,7 @@ export default async function Home() {
     engineExpenses,
     startingSavings,
     todayISO,
+    engineEntries,
   );
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
@@ -168,7 +222,13 @@ export default async function Home() {
         <ProjectionSection data={data} todayISO={todayISO} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <IncomePanel data={data} />
+          <IncomePanel
+            data={data}
+            typicalPaycheck={typicalPaycheck}
+            shortfalls={shortfalls}
+            funBucket={funBucket}
+            todayISO={todayISO}
+          />
           <BucketsPanel data={data} />
           <ExpensesPanel data={data} />
           <WhatIfPanel data={data} />

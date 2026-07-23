@@ -103,6 +103,7 @@ const UNDOABLE_TABLES = new Set([
   "expenses",
   "whatif_items",
   "net_worth_items",
+  "income_entries",
 ]);
 
 export async function undoRestore(formData: FormData) {
@@ -157,6 +158,57 @@ export async function deleteIncome(formData: FormData): Promise<UndoRecipe | nul
   await supabase.from("income_sources").delete().eq("id", id);
   revalidatePath("/");
   return row ? { inserts: [{ table: "income_sources", row }] } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Logged income (8F): money as it actually arrives. Windfalls carry a split.
+// ---------------------------------------------------------------------------
+
+export async function logIncome(formData: FormData) {
+  const supabase = await createClient();
+  const amount = num(formData, "amount");
+  const date = str(formData, "received_date");
+  if (amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+
+  const isWindfall = str(formData, "is_windfall") === "true";
+  let allocation: { bucket_id: string | null; amount: number }[] | null = null;
+  if (isWindfall) {
+    try {
+      const raw = JSON.parse(str(formData, "allocation"));
+      if (Array.isArray(raw)) {
+        allocation = raw
+          .filter(
+            (a) =>
+              (a.bucket_id === null || typeof a.bucket_id === "string") &&
+              Number(a.amount) > 0,
+          )
+          .map((a) => ({ bucket_id: a.bucket_id, amount: Number(a.amount) }));
+        // A split can never hand out more than arrived.
+        const total = allocation.reduce((s, a) => s + a.amount, 0);
+        if (total > amount + 0.005) allocation = null;
+      }
+    } catch {
+      allocation = null;
+    }
+  }
+
+  await supabase.from("income_entries").insert({
+    amount,
+    received_date: date,
+    note: str(formData, "note") || null,
+    is_windfall: isWindfall,
+    windfall_allocation: allocation,
+  });
+  revalidatePath("/");
+}
+
+export async function deleteIncomeEntry(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const row = await captureRow("income_entries", id);
+  await supabase.from("income_entries").delete().eq("id", id);
+  revalidatePath("/");
+  return row ? { inserts: [{ table: "income_entries", row }] } : null;
 }
 
 // ---------------------------------------------------------------------------

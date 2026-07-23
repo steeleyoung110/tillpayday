@@ -4,6 +4,7 @@
  */
 import { CoolingCountdown } from "@/components/CoolingCountdown";
 import { InstantAction } from "@/components/InstantAction";
+import { LogIncome, type ShortfallTarget } from "@/components/LogIncome";
 import { coolingState } from "@/lib/coolingOff";
 import {
   addBucket,
@@ -15,6 +16,7 @@ import {
   deleteBucket,
   deleteExpense,
   deleteIncome,
+  deleteIncomeEntry,
   deleteWhatIf,
   makeSavingsBucket,
   setBucketApy,
@@ -48,7 +50,20 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 // ---------------------------------------------------------------------------
 
-export function IncomePanel({ data }: { data: DashboardData }) {
+export function IncomePanel({
+  data,
+  typicalPaycheck,
+  shortfalls,
+  funBucket,
+  todayISO,
+}: {
+  data: DashboardData;
+  typicalPaycheck: number;
+  shortfalls: ShortfallTarget[];
+  funBucket: { id: string; name: string } | null;
+  todayISO: string;
+}) {
+  const recentEntries = [...data.incomeEntries].reverse().slice(0, 5);
   return (
     <Panel title="Income sources">
       <ul className="mb-4 space-y-2">
@@ -99,6 +114,39 @@ export function IncomePanel({ data }: { data: DashboardData }) {
         </select>
         <button className={btnCls}>Add income</button>
       </form>
+
+      <LogIncome
+        typicalPaycheck={typicalPaycheck}
+        shortfalls={shortfalls}
+        funBucket={funBucket}
+        todayISO={todayISO}
+      />
+
+      {recentEntries.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer text-slate-400">
+            {`Logged income (${data.incomeEntries.length})`}
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {recentEntries.map((e) => (
+              <li key={e.id} className="flex items-center justify-between text-slate-400">
+                <span>
+                  {`${e.is_windfall ? "💰 " : ""}${currency.format(Number(e.amount))} on ${e.received_date}${e.note ? ` · ${e.note}` : ""}`}
+                </span>
+                <InstantAction
+                  action={deleteIncomeEntry}
+                  undoAction={undoRestore}
+                  values={{ id: e.id }}
+                  message={`Removed the ${currency.format(Number(e.amount))} entry.`}
+                  className={delCls}
+                >
+                  ×
+                </InstantAction>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </Panel>
   );
 }
