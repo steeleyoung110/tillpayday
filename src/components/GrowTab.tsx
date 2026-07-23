@@ -17,7 +17,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { debtVsInvest, loanPayoff, savingsGrowth, type CurvePoint } from "@/lib/grow";
+import {
+  debtVsInvest,
+  loanPayoff,
+  padCurve,
+  savingsGrowth,
+  type CurvePoint,
+} from "@/lib/grow";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -79,18 +85,25 @@ function Field({
   );
 }
 
+interface MonthWindow {
+  from: number | null;
+  to: number | null;
+}
+
 function Curves({
   a,
   b,
   nameA,
   nameB,
   showZero = false,
+  window,
 }: {
   a: CurvePoint[];
   b: CurvePoint[];
   nameA: string;
   nameB: string;
   showZero?: boolean;
+  window?: MonthWindow;
 }) {
   const byMonth = new Map<number, { month: number; a?: number; b?: number }>();
   for (const p of a) byMonth.set(p.month, { month: p.month, a: p.value });
@@ -99,7 +112,15 @@ function Curves({
     row.b = p.value;
     byMonth.set(p.month, row);
   }
-  const data = [...byMonth.values()].sort((x, y) => x.month - y.month);
+  let data = [...byMonth.values()].sort((x, y) => x.month - y.month);
+  // Optional zoom: look closely at the beginning, the end, any slice.
+  const from = window?.from ?? null;
+  const to = window?.to ?? null;
+  if (from !== null || to !== null) {
+    data = data.filter(
+      (d) => (from === null || d.month >= from) && (to === null || d.month <= to),
+    );
+  }
 
   return (
     <div className="h-72 w-full">
@@ -195,6 +216,54 @@ function PrefillChips({
 export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
   const [mode, setMode] = useState<Mode>("loan");
 
+  // Zoom window shared by the loan and head-to-head charts ("" = show all).
+  const [zoomFrom, setZoomFrom] = useState("");
+  const [zoomTo, setZoomTo] = useState("");
+  const monthWindow: MonthWindow = {
+    from: zoomFrom !== "" && Number(zoomFrom) >= 0 ? Number(zoomFrom) : null,
+    to: zoomTo !== "" && Number(zoomTo) > 0 ? Number(zoomTo) : null,
+  };
+  const zoomControls = (
+    <div className="mb-4 flex flex-wrap items-end gap-3 text-xs text-slate-400">
+      <label>
+        Zoom in — from month
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          placeholder="start"
+          value={zoomFrom}
+          onChange={(e) => setZoomFrom(e.target.value)}
+          className={`${inputCls} mt-1 w-24`}
+        />
+      </label>
+      <label>
+        to month
+        <input
+          type="number"
+          inputMode="numeric"
+          min="1"
+          placeholder="end"
+          value={zoomTo}
+          onChange={(e) => setZoomTo(e.target.value)}
+          className={`${inputCls} mt-1 w-24`}
+        />
+      </label>
+      {(zoomFrom !== "" || zoomTo !== "") && (
+        <button
+          type="button"
+          onClick={() => {
+            setZoomFrom("");
+            setZoomTo("");
+          }}
+          className="pb-2 text-sky-300 transition hover:text-sky-200"
+        >
+          show everything
+        </button>
+      )}
+    </div>
+  );
+
   // 10A
   const [loanBalance, setLoanBalance] = useState(10000);
   const [payment, setPayment] = useState(300);
@@ -243,7 +312,20 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
         const a = loanPayoff(loanBalance, apr1, pay);
         const b = loanPayoff(loanBalance, apr2, pay);
         const baseA = extra > 0 ? loanPayoff(loanBalance, apr1, payment) : null;
+        const baseB = extra > 0 ? loanPayoff(loanBalance, apr2, payment) : null;
         const anyNever = a.neverPaysOff || b.neverPaysOff;
+        // Pin the timeline to the no-extra baseline: paying off early shows a
+        // line diving to $0 and running flat — months of visible freedom —
+        // instead of the axis shrinking to hide the win.
+        const lastMonth = (pts: CurvePoint[]) => pts[pts.length - 1]?.month ?? 0;
+        const horizon = Math.max(
+          lastMonth(a.points),
+          lastMonth(b.points),
+          baseA ? lastMonth(baseA.points) : 0,
+          baseB ? lastMonth(baseB.points) : 0,
+        );
+        const aPts = padCurve(a.points, horizon);
+        const bPts = padCurve(b.points, horizon);
         return (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <PrefillChips
@@ -271,7 +353,14 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
                 className="mt-1 w-full accent-emerald-500"
               />
             </label>
-            <Curves a={a.points} b={b.points} nameA={`At ${apr1}%`} nameB={`At ${apr2}%`} />
+            {zoomControls}
+            <Curves
+              a={aPts}
+              b={bPts}
+              nameA={`At ${apr1}%`}
+              nameB={`At ${apr2}%`}
+              window={monthWindow}
+            />
             {anyNever ? (
               <Verdict tone="warn">
                 {`⚠️ ${currency.format(pay)}/month doesn't even cover the interest at ${
@@ -358,12 +447,14 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
                 className="mt-1 w-full accent-emerald-500"
               />
             </label>
+            {zoomControls}
             <Curves
               a={res.debtFirst}
               b={res.investFirst}
               nameA="Kill the debt first"
               nameB="Invest the extra"
               showZero
+              window={monthWindow}
             />
             <Verdict>
               {res.winner === "debt"

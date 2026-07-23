@@ -1,5 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { debtVsInvest, loanPayoff, savingsGrowth } from "./grow";
+import { debtVsInvest, loanPayoff, padCurve, savingsGrowth } from "./grow";
+
+describe("padCurve", () => {
+  it("holds the final value out to the horizon (paid-off loans stay at $0)", () => {
+    const paidOff = loanPayoff(10000, 10, 400); // ~28 months
+    const padded = padCurve(paidOff.points, 40);
+    expect(padded[padded.length - 1]).toEqual({ month: 40, value: 0 });
+    // Every padded month sits at zero — the visible "freedom" tail.
+    const tail = padded.filter((p) => p.month > paidOff.months!);
+    expect(tail.every((p) => p.value === 0)).toBe(true);
+  });
+
+  it("leaves curves alone when they already reach the horizon", () => {
+    const res = loanPayoff(10000, 10, 300);
+    expect(padCurve(res.points, 10)).toEqual(res.points);
+  });
+});
 
 describe("loanPayoff", () => {
   it("matches the closed-form payoff month count", () => {

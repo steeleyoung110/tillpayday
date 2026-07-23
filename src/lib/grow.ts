@@ -80,6 +80,22 @@ export function loanPayoff(
   };
 }
 
+/**
+ * Extend a curve to a fixed horizon by holding its final value (a paid-off
+ * loan stays flat at $0). Keeps the chart's timeline pinned so paying off
+ * early LOOKS early instead of the axis shrinking to hide the win.
+ */
+export function padCurve(points: CurvePoint[], horizonMonths: number): CurvePoint[] {
+  if (points.length === 0) return points;
+  const last = points[points.length - 1];
+  if (last.month >= horizonMonths) return points;
+  const out = [...points];
+  for (let m = last.month + 1; m <= horizonMonths; m += 1) {
+    out.push({ month: m, value: last.value });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // 10B — grow savings
 // ---------------------------------------------------------------------------
