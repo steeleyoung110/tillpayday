@@ -9,9 +9,12 @@ import { coolingState } from "@/lib/coolingOff";
 import {
   addBucket,
   addExpense,
+  addGoal,
   addIncome,
   addWhatIf,
   decideWhatIf,
+  deleteGoal,
+  markGoalAchieved,
   startCoolingOff,
   deleteBucket,
   deleteExpense,
@@ -191,6 +194,98 @@ export function IncomePanel({
                   undoAction={undoRestore}
                   values={{ id: e.id }}
                   message={`Removed the ${currency.format(Number(e.amount))} entry.`}
+                  className={delCls}
+                >
+                  ×
+                </InstantAction>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+export function GoalsPanel({ data }: { data: DashboardData }) {
+  const active = data.goals.filter((g) => !g.achieved_at && !g.is_archived);
+  const achieved = data.goals.filter((g) => g.achieved_at);
+
+  return (
+    <Panel title="Goals 🎯" className="lg:col-span-2">
+      <ul className="mb-4 space-y-2">
+        {active.map((g) => (
+          <li
+            key={g.id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
+          >
+            <span className="text-slate-200">
+              {g.name}{" "}
+              <span className="text-slate-400">
+                {`— ${currency.format(Number(g.target_amount))} by ${g.target_date}`}
+              </span>
+              {g.notes && (
+                <span className="ml-2 text-xs text-slate-500">{g.notes}</span>
+              )}
+            </span>
+            <span className="flex items-center gap-3">
+              <InstantAction
+                action={markGoalAchieved}
+                undoAction={undoRestore}
+                values={{ id: g.id }}
+                message={`🎉 ${g.name} — done! That one's yours forever.`}
+                className="text-xs text-slate-500 transition hover:text-emerald-300"
+              >
+                I did it! 🎉
+              </InstantAction>
+              <InstantAction
+                action={deleteGoal}
+                undoAction={undoRestore}
+                values={{ id: g.id }}
+                message={`Removed the goal ${g.name}.`}
+                className={delCls}
+              >
+                remove
+              </InstantAction>
+            </span>
+          </li>
+        ))}
+        {active.length === 0 && (
+          <li className="text-sm text-slate-500">
+            What are you saving toward? A cushion, a trip, a down payment —
+            give it a name, a number, and a date, and the Dashboard will show
+            your path to it.
+          </li>
+        )}
+      </ul>
+
+      <form action={addGoal} className="grid grid-cols-2 gap-2 sm:max-w-md">
+        <input name="name" placeholder="Goal (e.g. House down payment)" required className={`${inputCls} col-span-2`} />
+        <input name="target_amount" type="number" step="0.01" min="1" placeholder="Amount to reach" required className={inputCls} />
+        <label className="text-xs text-slate-400">
+          By when
+          <input name="target_date" type="date" required className={`${inputCls} mt-1`} />
+        </label>
+        <input name="notes" placeholder="Note (optional — e.g. 20% of $200k)" className={`${inputCls} col-span-2`} />
+        <button className={`${btnCls} col-span-2`}>Add goal</button>
+      </form>
+
+      {achieved.length > 0 && (
+        <details className="mt-4 text-sm">
+          <summary className="cursor-pointer text-slate-400">
+            {`Achieved (${achieved.length}) 🏆`}
+          </summary>
+          <ul className="mt-2 space-y-1">
+            {achieved.map((g) => (
+              <li key={g.id} className="flex items-center justify-between text-slate-400">
+                <span>{`🏆 ${g.name} — ${currency.format(Number(g.target_amount))}`}</span>
+                <InstantAction
+                  action={deleteGoal}
+                  undoAction={undoRestore}
+                  values={{ id: g.id }}
+                  message={`Removed the goal ${g.name}.`}
                   className={delCls}
                 >
                   ×

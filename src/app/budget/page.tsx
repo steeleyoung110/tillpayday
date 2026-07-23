@@ -6,6 +6,7 @@ import { BUCKET_COLORS } from "@/components/ProjectionChart";
 import {
   BucketsPanel,
   ExpensesPanel,
+  GoalsPanel,
   IncomePanel,
   WhatIfPanel,
 } from "@/components/panels";
@@ -151,6 +152,7 @@ export default async function BudgetPage() {
             todayISO={todayISO}
           />
           <BucketsPanel data={data} />
+          <GoalsPanel data={data} />
           <ExpensesPanel data={data} />
           <WhatIfPanel data={data} />
         </div>

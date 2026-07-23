@@ -96,6 +96,11 @@ const FIXTURES: {
     row: { snapshot_date: "2020-01-06", total_assets: 1, total_liabilities: 0, net_worth: 1 },
     mutate: { snapshot_date: "2020-01-07" },
   },
+  {
+    table: "goals",
+    row: { name: "RLS probe", target_amount: 1, target_date: "2020-01-08" },
+    mutate: { name: "hijacked" },
+  },
 ];
 
 const TIMEOUT = 30_000;

@@ -14,11 +14,14 @@ import {
 } from "@/lib/chartWindow";
 import {
   UNALLOCATED_KEY,
+  addMonths,
   evaluateWhatIf,
+  parseISO,
   runProjection,
   type ProjectionInput,
   type ProjectionPoint,
 } from "@/lib/engine";
+import { goalOutlook } from "@/lib/goals";
 import {
   LIQUID_CATEGORIES,
   bucketToEngine,
@@ -33,6 +36,7 @@ import {
   TOTAL_COLOR,
   type ChartRow,
   type ChartSeries,
+  type GoalLine,
 } from "./ProjectionChart";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -234,6 +238,37 @@ export function ProjectionSection({
     return out;
   }, [lines, result.withPurchase, selected, savingsLine]);
 
+  // Goals: outlooks run on their own long projection so a 2028 goal isn't
+  // blinded by a 1-month chart zoom. Capped at 10 years.
+  const activeGoals = data.goals.filter((g) => !g.achieved_at && !g.is_archived);
+  const goalOutlooks = useMemo(() => {
+    if (activeGoals.length === 0 || data.income.length === 0) return [];
+    const latestTarget = activeGoals
+      .map((g) => g.target_date)
+      .sort()
+      .pop()!;
+    let months = 12;
+    const today = parseISO(todayISO);
+    while (addMonths(today, months) < parseISO(latestTarget) && months < 108) {
+      months += 12;
+    }
+    const long = runProjection({ ...input, months: months + 12 });
+    const savingsPts = long.points.map((p) => ({ date: p.date, savings: p.savings }));
+    return activeGoals.map((g) => ({
+      goal: g,
+      outlook: goalOutlook(
+        savingsPts,
+        { targetAmount: Number(g.target_amount), targetDate: g.target_date },
+        todayISO,
+      ),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.goals, input, todayISO]);
+
+  const goalLines: GoalLine[] = activeGoals
+    .slice(0, 3)
+    .map((g) => ({ value: Number(g.target_amount), label: g.name }));
+
   const savedByNo = data.whatIf
     .filter((w) => w.status === "skipped")
     .reduce((sum, w) => sum + Number(w.amount), 0);
@@ -362,7 +397,12 @@ export function ProjectionSection({
 
         {hasIncome ? (
           <>
-            <ProjectionChart data={chartRows} series={series} granularity={plan.granularity} />
+            <ProjectionChart
+              data={chartRows}
+              series={series}
+              granularity={plan.granularity}
+              goalLines={goalLines}
+            />
             <p className="mt-2 text-xs text-slate-500">
               {baseline.irregularWeekly !== null &&
                 `Based on your typical income — about ${currency.format(baseline.irregularWeekly)}/week from what you've logged, counted at a careful 85%. `}
@@ -401,6 +441,54 @@ export function ProjectionSection({
           </div>
         )}
       </div>
+
+      {/* Goal outlooks: where each goal stands against the savings line */}
+      {goalOutlooks.length > 0 && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Your goals 🎯</h3>
+          <ul className="mt-3 space-y-4">
+            {goalOutlooks.map(({ goal, outlook: o }) => {
+              const target = Number(goal.target_amount);
+              const pct = Math.min(100, Math.max(0, (startingSavings / target) * 100));
+              return (
+                <li key={goal.id}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+                    <span className="font-semibold text-slate-200">{goal.name}</span>
+                    <span className="text-slate-400">
+                      {`${currency.format(startingSavings)} of ${currency.format(target)} · by ${prettyDate(goal.target_date)}`}
+                    </span>
+                  </div>
+                  <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className={`h-full rounded-full ${o.onTrack ? "bg-emerald-500" : "bg-amber-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <p className="mt-1.5 text-sm text-slate-400">
+                    {o.achievedNow
+                      ? "🎉 You're already there — pop over to Budget and mark it done."
+                      : o.reachDate && o.onTrack
+                        ? `On pace: you get there around ${prettyDate(o.reachDate)} — ${o.monthsAway} month${o.monthsAway === 1 ? "" : "s"} away.${
+                            o.boostedMonthsAway !== null && o.boostedMonthsAway < (o.monthsAway ?? 0)
+                              ? ` Add ${currency.format(o.boostAmount)}/month to savings and it's ${o.boostedMonthsAway} month${o.boostedMonthsAway === 1 ? "" : "s"}.`
+                              : ""
+                          }`
+                        : o.reachDate
+                          ? `At today's pace you'd get there around ${prettyDate(o.reachDate)} — past your date.${
+                              o.requiredExtraPerMonth
+                                ? ` Setting aside ${currency.format(o.requiredExtraPerMonth)}/month more hits it on time.`
+                                : ""
+                            }`
+                          : o.requiredExtraPerMonth
+                            ? `This pace doesn't reach it yet — about ${currency.format(o.requiredExtraPerMonth)}/month toward savings gets there by your date.`
+                            : `This one needs a bigger push than the current plan gives — a good thing to know early.`}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* Warnings — every problem arrives with its fix (8D) */}
       {(withPurchase ?? baseline).warnings.length > 0 && hasIncome && (

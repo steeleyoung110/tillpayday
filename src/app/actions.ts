@@ -123,6 +123,7 @@ const UNDOABLE_TABLES = new Set([
   "income_entries",
   "assets",
   "liabilities",
+  "goals",
 ]);
 
 export async function undoRestore(formData: FormData) {
@@ -582,6 +583,47 @@ export async function deleteExpense(formData: FormData): Promise<UndoRecipe | nu
   await supabase.from("expenses").delete().eq("id", id);
   revalidatePath("/");
   return row ? { inserts: [{ table: "expenses", row }] } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Goals: things worth saving toward.
+// ---------------------------------------------------------------------------
+
+export async function addGoal(formData: FormData) {
+  const supabase = await createClient();
+  const target = num(formData, "target_amount");
+  const date = str(formData, "target_date");
+  if (target <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
+  await supabase.from("goals").insert({
+    name: str(formData, "name"),
+    target_amount: target,
+    target_date: date,
+    notes: str(formData, "notes") || null,
+  });
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+export async function deleteGoal(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const row = await captureRow("goals", id);
+  await supabase.from("goals").delete().eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return row ? { inserts: [{ table: "goals", row }] } : null;
+}
+
+export async function markGoalAchieved(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  await supabase
+    .from("goals")
+    .update({ achieved_at: new Date().toISOString() })
+    .eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return { patches: [{ table: "goals", id, patch: { achieved_at: null } }] };
 }
 
 // ---------------------------------------------------------------------------

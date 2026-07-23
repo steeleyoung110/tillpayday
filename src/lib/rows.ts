@@ -79,6 +79,18 @@ export interface SnapshotRow {
   created_at: string;
 }
 
+/** Something worth saving toward, measured against the savings line. */
+export interface GoalRow {
+  id: string;
+  name: string;
+  target_amount: number;
+  target_date: string;
+  notes: string | null;
+  achieved_at: string | null;
+  is_archived: boolean;
+  created_at: string;
+}
+
 /** A payday whose celebration screen has already been shown. */
 export interface CelebratedPaydayRow {
   id: string;
@@ -157,6 +169,7 @@ export interface DashboardData {
   netWorth: NetWorthRow[];
   celebrated: CelebratedPaydayRow[];
   incomeEntries: IncomeEntryRow[];
+  goals: GoalRow[];
 }
 
 export function incomeToEngine(r: IncomeRow): IncomeSource {

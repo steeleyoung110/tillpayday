@@ -68,14 +68,22 @@ function tickLabel(iso: string, granularity: TickGranularity): string {
   return month;
 }
 
+export interface GoalLine {
+  value: number;
+  label: string;
+}
+
 export function ProjectionChart({
   data,
   series,
   granularity,
+  goalLines = [],
 }: {
   data: ChartRow[];
   series: ChartSeries[];
   granularity: TickGranularity;
+  /** Horizontal target lines (goals) — extend the domain so they're visible. */
+  goalLines?: GoalLine[];
 }) {
   const nameByKey = new Map(series.map((s) => [s.key, s.name]));
 
@@ -107,6 +115,21 @@ export function ProjectionChart({
           <ReferenceArea y2={0} fill="url(#tp-positive)" fillOpacity={1} stroke="none" />
           <ReferenceArea y1={0} fill="url(#tp-negative)" fillOpacity={1} stroke="none" />
           <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
+          {goalLines.map((g) => (
+            <ReferenceLine
+              key={`${g.label}-${g.value}`}
+              y={g.value}
+              stroke="#E4A93C"
+              strokeDasharray="6 4"
+              ifOverflow="extendDomain"
+              label={{
+                value: `🎯 ${g.label}`,
+                position: "insideBottomRight",
+                fill: "#E4A93C",
+                fontSize: 12,
+              }}
+            />
+          ))}
           <XAxis
             dataKey="date"
             tickFormatter={(iso: string) => tickLabel(iso, granularity)}
