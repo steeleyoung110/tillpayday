@@ -9,6 +9,7 @@ import {
 } from "@/app/actions";
 import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
+import { LegalFooter } from "@/components/LegalFooter";
 import { NavTabs } from "@/components/NavTabs";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
@@ -309,6 +310,7 @@ export default async function NetWorthPage() {
           </details>
         )}
       </div>
+      <LegalFooter />
     </main>
   );
 }

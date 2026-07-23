@@ -381,9 +381,6 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
         );
       })()}
 
-      <p className="text-center text-xs text-slate-600">
-        Educational math based on the numbers you enter — not financial advice.
-      </p>
     </div>
   );
 }

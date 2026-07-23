@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/actions";
 import { GrowTab, type LoanPrefill } from "@/components/GrowTab";
+import { LegalFooter } from "@/components/LegalFooter";
 import { NavTabs } from "@/components/NavTabs";
 import { getNetWorthData } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -62,6 +63,7 @@ export default async function GrowPage() {
         </div>
         <GrowTab prefills={prefills} />
       </div>
+      <LegalFooter disclaimer />
     </main>
   );
 }

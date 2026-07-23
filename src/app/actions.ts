@@ -50,12 +50,27 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
+  // Phase 11: signing up requires acknowledging what the app is (and isn't).
+  // The acceptance moment is stored on the user's profile metadata.
+  if (formData.get("legal_ack") !== "on") {
+    redirect(
+      `/login?error=${encodeURIComponent(
+        "One more step — check the box acknowledging Till Payday is an educational tool, then hit Sign up again.",
+      )}`,
+    );
+  }
+
   const supabase = await createClient();
   const name = str(formData, "name");
   const { data, error } = await supabase.auth.signUp({
     email: str(formData, "email"),
     password: String(formData.get("password") ?? ""),
-    options: name ? { data: { full_name: name } } : undefined,
+    options: {
+      data: {
+        ...(name ? { full_name: name } : {}),
+        legal_accepted_at: new Date().toISOString(),
+      },
+    },
   });
   if (error) redirect(`/login?error=${encodeURIComponent(error.message)}`);
   // With email confirmation off, sign-up returns a live session — go straight in.

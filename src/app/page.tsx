@@ -10,6 +10,7 @@ import {
 } from "@/components/panels";
 import Link from "next/link";
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
+import { LegalFooter } from "@/components/LegalFooter";
 import { NavTabs } from "@/components/NavTabs";
 import { Onboarding } from "@/components/Onboarding";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
@@ -166,6 +167,7 @@ export default async function Home() {
       <main className="min-h-screen bg-slate-950 pb-16">
         {header}
         <Onboarding hasIncome={data.income.length > 0} todayISO={todayISO} />
+        <LegalFooter />
       </main>
     );
   }
@@ -253,6 +255,7 @@ export default async function Home() {
           <WhatIfPanel data={data} />
         </div>
       </div>
+      <LegalFooter disclaimer />
     </main>
   );
 }
