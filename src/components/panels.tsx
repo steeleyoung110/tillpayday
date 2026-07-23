@@ -24,6 +24,7 @@ import {
   setBucketStartingBalance,
   toggleBucketFlexible,
   toggleBucketRollsOver,
+  togglePaused,
   undoRestore,
 } from "@/app/actions";
 import type { DashboardData } from "@/lib/rows";
@@ -38,6 +39,42 @@ const inputCls =
 const btnCls =
   "rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400";
 const delCls = "text-xs text-slate-500 transition hover:text-red-400";
+
+/** Pause/resume link + toast, shared by bucket and expense rows. */
+function PauseToggle({
+  table,
+  id,
+  name,
+  isPaused,
+}: {
+  table: "buckets" | "expenses";
+  id: string;
+  name: string;
+  isPaused: boolean;
+}) {
+  return (
+    <InstantAction
+      action={togglePaused}
+      undoAction={undoRestore}
+      values={{ table, id, paused: String(!isPaused) }}
+      message={
+        isPaused
+          ? `${name} is back on.`
+          : `Paused ${name} — it sits out until you resume it.`
+      }
+      className="text-xs text-slate-500 transition hover:text-amber-300"
+      title={
+        isPaused
+          ? "Resume — it rejoins your plan right away."
+          : table === "buckets"
+            ? "Pause — stops refilling from paychecks until you resume."
+            : "Pause — this bill stops coming out until you resume."
+      }
+    >
+      {isPaused ? "resume" : "pause"}
+    </InstantAction>
+  );
+}
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -160,7 +197,9 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
         {data.buckets.map((b) => (
           <li
             key={b.id}
-            className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
+            className={`flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
+              b.is_paused ? "opacity-50" : ""
+            }`}
           >
             <span className="text-slate-200">
               {b.name}{" "}
@@ -190,8 +229,21 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
                   rolls over 🎯
                 </span>
               )}
+              {b.is_paused && (
+                <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
+                  paused ⏸
+                </span>
+              )}
             </span>
             <span className="flex items-center gap-3">
+              {!b.is_savings && (
+                <PauseToggle
+                  table="buckets"
+                  id={b.id}
+                  name={b.name}
+                  isPaused={b.is_paused}
+                />
+              )}
               {b.is_savings && (
                 <form action={setBucketGoal} className="flex items-center gap-1">
                   <input type="hidden" name="id" value={b.id} />
@@ -332,23 +384,38 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
         {data.expenses.map((e) => (
           <li
             key={e.id}
-            className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
+            className={`flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
+              e.is_paused ? "opacity-50" : ""
+            }`}
           >
             <span className="text-slate-200">
               {e.name}{" "}
               <span className="text-slate-400">
                 {`— ${currency.format(Number(e.amount))} · ${e.cadence.replace("_", "-")} · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
               </span>
+              {e.is_paused && (
+                <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
+                  paused ⏸
+                </span>
+              )}
             </span>
-            <InstantAction
-              action={deleteExpense}
-              undoAction={undoRestore}
-              values={{ id: e.id }}
-              message={`Removed ${e.name}.`}
-              className={delCls}
-            >
-              remove
-            </InstantAction>
+            <span className="flex items-center gap-3">
+              <PauseToggle
+                table="expenses"
+                id={e.id}
+                name={e.name}
+                isPaused={e.is_paused}
+              />
+              <InstantAction
+                action={deleteExpense}
+                undoAction={undoRestore}
+                values={{ id: e.id }}
+                message={`Removed ${e.name}.`}
+                className={delCls}
+              >
+                remove
+              </InstantAction>
+            </span>
           </li>
         ))}
         {data.expenses.length === 0 && (

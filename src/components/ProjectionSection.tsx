@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { applyShortfallFix, rightSizeBucket } from "@/app/actions";
 import {
+  DEFAULT_PRESET,
   PRESET_MONTHS,
   presetLabel,
   presetWindow,
@@ -100,9 +101,36 @@ export function ProjectionSection({
   const considering = data.whatIf.filter((w) => w.status === "considering");
   const [selectedId, setSelectedId] = useState<string>("");
   // View window: zoom presets (1 month … 10 years) or a custom date range.
+  // Defaults to 1 year; the last choice is remembered on this device (8G).
   const [win, setWin] = useState<ChartViewWindow & { preset: number | null }>(
-    () => ({ ...presetWindow(todayISO, 60), preset: 60 }),
+    () => ({ ...presetWindow(todayISO, DEFAULT_PRESET), preset: DEFAULT_PRESET }),
   );
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("tp-chart-window") ?? "");
+      if (
+        typeof saved?.preset === "number" &&
+        (PRESET_MONTHS as readonly number[]).includes(saved.preset)
+      ) {
+        setWin({ ...presetWindow(todayISO, saved.preset), preset: saved.preset });
+      } else if (saved?.from && saved?.to) {
+        setWin({ ...sanitizeWindow(saved.from, saved.to, todayISO), preset: null });
+      }
+    } catch {
+      // nothing saved yet — keep the default
+    }
+  }, [todayISO]);
+  const updateWin = (w: ChartViewWindow & { preset: number | null }) => {
+    setWin(w);
+    try {
+      localStorage.setItem(
+        "tp-chart-window",
+        JSON.stringify(w.preset ? { preset: w.preset } : { from: w.from, to: w.to }),
+      );
+    } catch {
+      // private mode etc. — remembering is best-effort
+    }
+  };
   const plan = windowPlan(win, todayISO);
   const selected =
     considering.find((w) => w.id === selectedId) ?? considering[0] ?? null;
@@ -272,7 +300,7 @@ export function ProjectionSection({
                 <button
                   key={m}
                   onClick={() =>
-                    setWin({ ...presetWindow(todayISO, m), preset: m })
+                    updateWin({ ...presetWindow(todayISO, m), preset: m })
                   }
                   className={`rounded-md px-2.5 py-1 transition ${
                     win.preset === m
@@ -290,7 +318,7 @@ export function ProjectionSection({
                 value={win.from}
                 min={todayISO}
                 onChange={(e) =>
-                  setWin({
+                  updateWin({
                     ...sanitizeWindow(e.target.value, win.to, todayISO),
                     preset: null,
                   })
@@ -304,7 +332,7 @@ export function ProjectionSection({
                 value={win.to}
                 min={todayISO}
                 onChange={(e) =>
-                  setWin({
+                  updateWin({
                     ...sanitizeWindow(win.from, e.target.value, todayISO),
                     preset: null,
                   })

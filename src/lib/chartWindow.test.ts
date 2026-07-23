@@ -18,7 +18,9 @@ describe("presetWindow / presetLabel", () => {
   it("labels presets in months under a year, years after", () => {
     expect(presetLabel(1)).toBe("1 month");
     expect(presetLabel(3)).toBe("3 months");
+    expect(presetLabel(6)).toBe("6 months");
     expect(presetLabel(12)).toBe("1 year");
+    expect(presetLabel(24)).toBe("2 years");
     expect(presetLabel(120)).toBe("10 years");
   });
 });

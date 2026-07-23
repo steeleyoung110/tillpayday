@@ -444,6 +444,23 @@ async function sendPaydayRecapEmail(payday: string) {
   await sendEmail(buildPaydayRecapEmail(user.email, name, recap, goal));
 }
 
+/**
+ * Pause / resume a bucket or expense (8G). Paused buckets stop refilling and
+ * sweeping; paused expenses stop deducting. Returns an undo recipe so the
+ * toast can flip it right back.
+ */
+export async function togglePaused(formData: FormData): Promise<UndoRecipe | null> {
+  const table = str(formData, "table");
+  if (table !== "buckets" && table !== "expenses") return null;
+  const id = str(formData, "id");
+  const paused = str(formData, "paused") === "true";
+
+  const supabase = await createClient();
+  await supabase.from(table).update({ is_paused: paused }).eq("id", id);
+  revalidatePath("/");
+  return { patches: [{ table, id, patch: { is_paused: !paused } }] };
+}
+
 export async function toggleBucketFlexible(formData: FormData) {
   const supabase = await createClient();
   await supabase

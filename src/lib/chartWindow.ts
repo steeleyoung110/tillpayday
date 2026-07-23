@@ -23,7 +23,10 @@ export interface WindowPlan {
   monthsToProject: number;
 }
 
-export const PRESET_MONTHS = [1, 3, 12, 36, 60, 120] as const;
+export const PRESET_MONTHS = [1, 3, 6, 12, 24, 60, 120] as const;
+
+/** Default zoom: one year out. */
+export const DEFAULT_PRESET = 12;
 
 export function presetLabel(months: number): string {
   if (months < 12) return `${months} month${months === 1 ? "" : "s"}`;
