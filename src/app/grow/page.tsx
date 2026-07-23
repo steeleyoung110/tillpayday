@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { signOut } from "@/app/actions";
+import { AppShell } from "@/components/AppShell";
 import { GrowTab, type LoanPrefill } from "@/components/GrowTab";
 import { LegalFooter } from "@/components/LegalFooter";
-import { NavTabs } from "@/components/NavTabs";
 import { getNetWorthData } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -31,26 +30,7 @@ export default async function GrowPage() {
     }));
 
   return (
-    <main className="min-h-screen bg-slate-950 pb-16">
-      <header className="border-b border-slate-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-white">
-              Till <span className="text-emerald-400">Payday</span>
-            </h1>
-            <NavTabs active="grow" />
-          </div>
-          <div className="flex items-center gap-4 text-sm text-slate-400">
-            <span>{user.email}</span>
-            <form action={signOut}>
-              <button className="rounded-lg border border-slate-700 px-3 py-1.5 transition hover:border-slate-500">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-
+    <AppShell active="grow">
       <div className="mx-auto max-w-6xl space-y-4 px-6 pt-6">
         <div>
           <h2 className="text-lg font-semibold text-white">
@@ -64,6 +44,6 @@ export default async function GrowPage() {
         <GrowTab prefills={prefills} />
       </div>
       <LegalFooter disclaimer />
-    </main>
+    </AppShell>
   );
 }

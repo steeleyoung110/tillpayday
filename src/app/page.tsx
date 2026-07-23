@@ -1,25 +1,13 @@
-import { redirect } from "next/navigation";
-import { signOut } from "@/app/actions";
-import { ProjectionSection } from "@/components/ProjectionSection";
-import { SetupNotice } from "@/components/SetupNotice";
-import {
-  BucketsPanel,
-  ExpensesPanel,
-  IncomePanel,
-  WhatIfPanel,
-} from "@/components/panels";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { AppShell } from "@/components/AppShell";
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
 import { LegalFooter } from "@/components/LegalFooter";
-import { NavTabs } from "@/components/NavTabs";
 import { Onboarding } from "@/components/Onboarding";
+import { ProjectionSection } from "@/components/ProjectionSection";
+import { SetupNotice } from "@/components/SetupNotice";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
-import {
-  irregularWeeklyBaseline,
-  paydayRecap,
-  runProjection,
-  safeToSpend,
-} from "@/lib/engine";
+import { paydayRecap, safeToSpend } from "@/lib/engine";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -38,6 +26,10 @@ const heroCurrency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+/**
+ * Dashboard: the read-only daily glance — safe-to-spend, payday countdown,
+ * projection, warnings, celebrations. All managing happens on /budget.
+ */
 export default async function Home() {
   if (!isSupabaseConfigured()) {
     return <SetupNotice />;
@@ -79,46 +71,6 @@ export default async function Home() {
     engineEntries,
   );
 
-  // Windfall context (8F): what counts as "above a typical paycheck", which
-  // buckets are currently flagged short, and where fun money would go.
-  const regularMax = Math.max(
-    0,
-    ...data.income
-      .filter((s) => s.kind === "paycheck" && s.frequency !== "irregular")
-      .map((s) => Number(s.amount)),
-  );
-  const hasIrregular = data.income.some((s) => s.frequency === "irregular");
-  const typicalPaycheck = Math.max(
-    regularMax,
-    hasIrregular ? irregularWeeklyBaseline(engineEntries, todayISO) : 0,
-  );
-  const nearTerm = runProjection({
-    startDate: todayISO,
-    months: 3,
-    incomeSources: engineIncome,
-    buckets: engineBuckets,
-    expenses: engineExpenses,
-    incomeEntries: engineEntries,
-  });
-  const seenShort = new Set<string>();
-  const shortfalls = nearTerm.warnings
-    .filter((w) => w.type === "shortfall")
-    .filter((w) => {
-      const b = data.buckets.find((x) => x.id === w.bucketId);
-      if (!b || b.is_savings || seenShort.has(w.bucketId)) return false;
-      seenShort.add(w.bucketId);
-      return true;
-    })
-    .map((w) => ({
-      bucketId: w.bucketId,
-      bucketName: w.bucketName,
-      amount: w.type === "shortfall" ? w.amount : 0,
-    }));
-  const funBucketRow = data.buckets.find((b) => b.is_flexible && !b.is_savings);
-  const funBucket = funBucketRow
-    ? { id: funBucketRow.id, name: funBucketRow.name }
-    : null;
-
   // Payday celebration: recap the latest payday unless it was already shown.
   const savingsRow = data.buckets.find((b) => b.is_savings);
   const liquid = data.netWorth
@@ -139,48 +91,25 @@ export default async function Home() {
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
 
-  const header = (
-    <header className="border-b border-slate-800">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-6">
-          <h1 className="text-xl font-bold text-white">
-            Till <span className="text-emerald-400">Payday</span>
-          </h1>
-          <NavTabs active="budget" />
-        </div>
-        <div className="flex items-center gap-4 text-sm text-slate-400">
-          <span>{user.email}</span>
-          <form action={signOut}>
-            <button className="rounded-lg border border-slate-700 px-3 py-1.5 transition hover:border-slate-500">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </div>
-    </header>
-  );
-
   // First visit (no buckets yet): the three-question setup replaces the
   // dashboard until it's done.
   if (data.buckets.length === 0) {
     return (
-      <main className="min-h-screen bg-slate-950 pb-16">
-        {header}
+      <AppShell active="dashboard">
         <Onboarding hasIncome={data.income.length > 0} todayISO={todayISO} />
         <LegalFooter />
-      </main>
+      </AppShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 pb-16">
+    <AppShell active="dashboard">
       {showCelebration && recap && (
         <CelebrationOverlay
           recap={recap}
           goal={savingsRow ? Number(savingsRow.goal_amount) : 0}
         />
       )}
-      {header}
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
         {staleNetWorth && (
@@ -230,32 +159,40 @@ export default async function Home() {
             </div>
           ) : sts ? (
             <p className="mt-3 text-lg text-slate-300">
-              {'Mark a bucket as "flexible" 💸 below and this becomes your daily '}
-              safe-to-spend number.
+              {'Mark a bucket as "flexible" 💸 in your '}
+              <Link href="/budget" className="text-sky-300 hover:text-sky-200">
+                Budget
+              </Link>
+              {" and this becomes your daily safe-to-spend number."}
             </p>
           ) : (
             <p className="mt-3 text-lg text-slate-300">
-              Add your paycheck below to unlock your daily safe-to-spend number.
+              {"Add your paycheck in your "}
+              <Link href="/budget" className="text-sky-300 hover:text-sky-200">
+                Budget
+              </Link>
+              {" to unlock your daily safe-to-spend number."}
             </p>
           )}
         </div>
 
         <ProjectionSection data={data} todayISO={todayISO} />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <IncomePanel
-            data={data}
-            typicalPaycheck={typicalPaycheck}
-            shortfalls={shortfalls}
-            funBucket={funBucket}
-            todayISO={todayISO}
-          />
-          <BucketsPanel data={data} />
-          <ExpensesPanel data={data} />
-          <WhatIfPanel data={data} />
-        </div>
+        {/* The glance ends here — changes live in Budget. */}
+        <Link
+          href="/budget"
+          className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-6 py-4 transition hover:border-emerald-400/50"
+        >
+          <span className="text-sm text-slate-300">
+            🪣 Need to change something? Buckets, income, bills, and what-ifs
+            live in your Budget.
+          </span>
+          <span className="text-sm font-semibold text-emerald-300">
+            Manage budget →
+          </span>
+        </Link>
       </div>
       <LegalFooter disclaimer />
-    </main>
+    </AppShell>
   );
 }

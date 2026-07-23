@@ -2,15 +2,14 @@ import { redirect } from "next/navigation";
 import {
   addAsset,
   addLiability,
-  signOut,
   toggleArchived,
   toggleNetWorthBridge,
   undoRestore,
 } from "@/app/actions";
+import { AppShell } from "@/components/AppShell";
 import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
-import { NavTabs } from "@/components/NavTabs";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import { paydayRecap } from "@/lib/engine";
@@ -143,26 +142,7 @@ export default async function NetWorthPage() {
   );
 
   return (
-    <main className="min-h-screen bg-slate-950 pb-16">
-      <header className="border-b border-slate-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-white">
-              Till <span className="text-emerald-400">Payday</span>
-            </h1>
-            <NavTabs active="networth" />
-          </div>
-          <div className="flex items-center gap-4 text-sm text-slate-400">
-            <span>{user.email}</span>
-            <form action={signOut}>
-              <button className="rounded-lg border border-slate-700 px-3 py-1.5 transition hover:border-slate-500">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-
+    <AppShell active="networth">
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
         {/* Hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
@@ -311,6 +291,6 @@ export default async function NetWorthPage() {
         )}
       </div>
       <LegalFooter />
-    </main>
+    </AppShell>
   );
 }
