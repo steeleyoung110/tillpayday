@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-/** Top-level navigation: Budget and Net worth are separate modules (phase 9). */
-export function NavTabs({ active }: { active: "budget" | "networth" }) {
+/** Top-level navigation: Budget, Net worth, and Grow are separate modules. */
+export function NavTabs({ active }: { active: "budget" | "networth" | "grow" }) {
   const tab = (href: string, key: string, label: string) => (
     <Link
       href={href}
@@ -18,6 +18,7 @@ export function NavTabs({ active }: { active: "budget" | "networth" }) {
     <nav className="flex items-center gap-1">
       {tab("/", "budget", "Budget")}
       {tab("/net-worth", "networth", "Net worth")}
+      {tab("/grow", "grow", "Grow")}
     </nav>
   );
 }
