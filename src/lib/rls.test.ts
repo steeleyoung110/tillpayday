@@ -81,6 +81,21 @@ const FIXTURES: {
     row: { amount: 1, received_date: "2020-01-03" },
     mutate: { received_date: "2021-06-06" },
   },
+  {
+    table: "assets",
+    row: { name: "RLS probe", category: "cash", current_value: 1 },
+    mutate: { name: "hijacked" },
+  },
+  {
+    table: "liabilities",
+    row: { name: "RLS probe", category: "credit_card", current_balance: 1 },
+    mutate: { name: "hijacked" },
+  },
+  {
+    table: "net_worth_snapshots",
+    row: { snapshot_date: "2020-01-06", total_assets: 1, total_liabilities: 0, net_worth: 1 },
+    mutate: { snapshot_date: "2020-01-07" },
+  },
 ];
 
 const TIMEOUT = 30_000;
@@ -184,6 +199,31 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
       });
     });
   }
+
+  describe("net_worth_snapshots — at most one per user per day", () => {
+    const day = "2020-02-02";
+
+    afterAll(async () => {
+      await a.from("net_worth_snapshots").delete().eq("snapshot_date", day);
+    }, TIMEOUT);
+
+    it("a second write on the same day updates in place", { timeout: TIMEOUT }, async () => {
+      await a.from("net_worth_snapshots").upsert(
+        { snapshot_date: day, total_assets: 100, total_liabilities: 40, net_worth: 60 },
+        { onConflict: "user_id,snapshot_date" },
+      );
+      await a.from("net_worth_snapshots").upsert(
+        { snapshot_date: day, total_assets: 250, total_liabilities: 50, net_worth: 200 },
+        { onConflict: "user_id,snapshot_date" },
+      );
+      const { data } = await a
+        .from("net_worth_snapshots")
+        .select("net_worth")
+        .eq("snapshot_date", day);
+      expect(data).toHaveLength(1); // one row per day, updated in place
+      expect(Number(data![0].net_worth)).toBe(200);
+    });
+  });
 });
 
 describe.runIf(!configured)("row-level security (skipped)", () => {

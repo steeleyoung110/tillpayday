@@ -15,10 +15,12 @@ import { getDashboardData } from "@/lib/data";
 import { buildPaydayRecapEmail } from "@/lib/email/paydayRecap";
 import { sendEmail } from "@/lib/email/send";
 import { paydayRecap } from "@/lib/engine";
+import { computeTotals } from "@/lib/netWorth";
 import {
   LIQUID_CATEGORIES,
   bucketToEngine,
   expenseToEngine,
+  incomeEntryToEngine,
   incomeToEngine,
 } from "@/lib/rows";
 import { getTemplate } from "@/lib/templates";
@@ -104,6 +106,8 @@ const UNDOABLE_TABLES = new Set([
   "whatif_items",
   "net_worth_items",
   "income_entries",
+  "assets",
+  "liabilities",
 ]);
 
 export async function undoRestore(formData: FormData) {
@@ -121,6 +125,15 @@ export async function undoRestore(formData: FormData) {
   for (const p of recipe.patches ?? []) {
     if (!UNDOABLE_TABLES.has(p.table) || typeof p.id !== "string") continue;
     await supabase.from(p.table).update(p.patch).eq("id", p.id);
+  }
+  // Undoing a net-worth change re-snapshots today so history stays truthful.
+  const touched = [
+    ...(recipe.inserts ?? []).map((i) => i.table),
+    ...(recipe.patches ?? []).map((p) => p.table),
+  ];
+  if (touched.some((t) => t === "assets" || t === "liabilities")) {
+    await writeSnapshot();
+    revalidatePath("/net-worth");
   }
   revalidatePath("/");
 }
@@ -554,6 +567,142 @@ export async function deleteExpense(formData: FormData): Promise<UndoRecipe | nu
   await supabase.from("expenses").delete().eq("id", id);
   revalidatePath("/");
   return row ? { inserts: [{ table: "expenses", row }] } : null;
+}
+
+// ---------------------------------------------------------------------------
+// Net Worth module (phase 9): assets, liabilities, automatic daily snapshots,
+// and the opt-in budget bridge.
+// ---------------------------------------------------------------------------
+
+const ASSET_CATS = new Set([
+  "cash", "savings", "investment", "retirement", "property", "vehicle", "other",
+]);
+const LIABILITY_CATS = new Set([
+  "credit_card", "auto_loan", "student_loan", "mortgage", "personal_loan", "other",
+]);
+
+/** Budget savings balance for the bridge — 0 unless the savings bucket opted in. */
+async function bridgeValue(): Promise<number> {
+  const data = await getDashboardData();
+  const savings = data.buckets.find((b) => b.is_savings);
+  if (!savings || !savings.include_in_net_worth) return 0;
+
+  const liquid = data.netWorth
+    .filter((i) => i.kind === "asset" && LIQUID_CATEGORIES.includes(i.category))
+    .reduce((sum, i) => sum + Number(i.amount), 0);
+  const startingSavings =
+    Number(savings.starting_balance) > 0 ? Number(savings.starting_balance) : liquid;
+  const recap = paydayRecap(
+    data.income.map(incomeToEngine),
+    data.buckets.map(bucketToEngine),
+    data.expenses.map(expenseToEngine),
+    startingSavings,
+    new Date().toISOString().slice(0, 10),
+    data.incomeEntries.map(incomeEntryToEngine),
+  );
+  return recap?.savingsTotal ?? startingSavings;
+}
+
+/**
+ * Write (or overwrite) today's snapshot — called after every value change, so
+ * history accrues automatically: at most one row per user per day.
+ */
+async function writeSnapshot(): Promise<void> {
+  const supabase = await createClient();
+  const [{ data: assets }, { data: liabilities }, bridge] = await Promise.all([
+    supabase.from("assets").select("current_value, is_archived"),
+    supabase.from("liabilities").select("current_balance, is_archived"),
+    bridgeValue(),
+  ]);
+  const totals = computeTotals(assets ?? [], liabilities ?? [], bridge);
+  await supabase.from("net_worth_snapshots").upsert(
+    {
+      snapshot_date: new Date().toISOString().slice(0, 10),
+      total_assets: totals.totalAssets,
+      total_liabilities: totals.totalLiabilities,
+      net_worth: totals.netWorth,
+    },
+    { onConflict: "user_id,snapshot_date" },
+  );
+}
+
+function revalidateNetWorth() {
+  revalidatePath("/");
+  revalidatePath("/net-worth");
+}
+
+export async function addAsset(formData: FormData) {
+  const category = str(formData, "category");
+  if (!ASSET_CATS.has(category)) return;
+  const supabase = await createClient();
+  await supabase.from("assets").insert({
+    name: str(formData, "name"),
+    category,
+    current_value: num(formData, "current_value"),
+    notes: str(formData, "notes") || null,
+  });
+  await writeSnapshot();
+  revalidateNetWorth();
+}
+
+export async function addLiability(formData: FormData) {
+  const category = str(formData, "category");
+  if (!LIABILITY_CATS.has(category)) return;
+  const supabase = await createClient();
+  const rate = num(formData, "interest_rate");
+  await supabase.from("liabilities").insert({
+    name: str(formData, "name"),
+    category,
+    current_balance: num(formData, "current_balance"),
+    interest_rate: rate > 0 ? rate : null,
+    notes: str(formData, "notes") || null,
+  });
+  await writeSnapshot();
+  revalidateNetWorth();
+}
+
+/** Inline value edit (9B): auto-saves, snapshots, and hands back an undo. */
+export async function updateItemValue(formData: FormData): Promise<UndoRecipe | null> {
+  const table = str(formData, "table");
+  if (table !== "assets" && table !== "liabilities") return null;
+  const field = table === "assets" ? "current_value" : "current_balance";
+  const id = str(formData, "id");
+  const value = num(formData, "value");
+
+  const supabase = await createClient();
+  const { data: old } = await supabase.from(table).select(field).eq("id", id).single();
+  if (!old) return null;
+  await supabase.from(table).update({ [field]: value }).eq("id", id);
+  await writeSnapshot();
+  revalidateNetWorth();
+  return {
+    patches: [{ table, id, patch: { [field]: Number((old as Record<string, unknown>)[field]) } }],
+  };
+}
+
+export async function toggleArchived(formData: FormData): Promise<UndoRecipe | null> {
+  const table = str(formData, "table");
+  if (table !== "assets" && table !== "liabilities") return null;
+  const id = str(formData, "id");
+  const archived = str(formData, "archived") === "true";
+
+  const supabase = await createClient();
+  await supabase.from(table).update({ is_archived: archived }).eq("id", id);
+  await writeSnapshot();
+  revalidateNetWorth();
+  return { patches: [{ table, id, patch: { is_archived: !archived } }] };
+}
+
+/** 9D: the savings bucket opting in/out of appearing as a read-only asset. */
+export async function toggleNetWorthBridge(formData: FormData) {
+  const supabase = await createClient();
+  await supabase
+    .from("buckets")
+    .update({ include_in_net_worth: str(formData, "enabled") === "true" })
+    .eq("id", str(formData, "id"))
+    .eq("is_savings", true);
+  await writeSnapshot();
+  revalidateNetWorth();
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/actions";
-import { NetWorthSection } from "@/components/NetWorthSection";
 import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
 import {
@@ -9,9 +8,11 @@ import {
   IncomePanel,
   WhatIfPanel,
 } from "@/components/panels";
+import Link from "next/link";
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
+import { NavTabs } from "@/components/NavTabs";
 import { Onboarding } from "@/components/Onboarding";
-import { getDashboardData } from "@/lib/data";
+import { getDashboardData, getNetWorthData } from "@/lib/data";
 import {
   irregularWeeklyBaseline,
   paydayRecap,
@@ -47,8 +48,16 @@ export default async function Home() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const data = await getDashboardData();
+  const [data, nw] = await Promise.all([getDashboardData(), getNetWorthData()]);
   const todayISO = new Date().toISOString().slice(0, 10);
+
+  // 9E: friendly check-in nudge when net-worth values are 30+ days old.
+  const nwTouches = [...nw.assets, ...nw.liabilities].map((i) =>
+    new Date(i.updated_at).getTime(),
+  );
+  const staleNetWorth =
+    nwTouches.length > 0 &&
+    Date.now() - Math.max(...nwTouches) > 30 * 24 * 60 * 60 * 1000;
 
   const meta = user.user_metadata as Record<string, unknown>;
   const displayName =
@@ -132,9 +141,12 @@ export default async function Home() {
   const header = (
     <header className="border-b border-slate-800">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <h1 className="text-xl font-bold text-white">
-          Till <span className="text-emerald-400">Payday</span>
-        </h1>
+        <div className="flex items-center gap-6">
+          <h1 className="text-xl font-bold text-white">
+            Till <span className="text-emerald-400">Payday</span>
+          </h1>
+          <NavTabs active="budget" />
+        </div>
         <div className="flex items-center gap-4 text-sm text-slate-400">
           <span>{user.email}</span>
           <form action={signOut}>
@@ -169,6 +181,21 @@ export default async function Home() {
       {header}
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+        {staleNetWorth && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4">
+            <p className="text-sm text-sky-200">
+              Quick net-worth check-in? Takes 2 minutes — numbers drift, and
+              that&apos;s completely normal.
+            </p>
+            <Link
+              href="/net-worth"
+              className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-200 transition hover:bg-sky-500/30"
+            >
+              Update my numbers →
+            </Link>
+          </div>
+        )}
+
         {/* Safe-to-spend hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -211,14 +238,6 @@ export default async function Home() {
           )}
         </div>
 
-        <h2 className="pt-2 text-lg font-semibold text-white">
-          Step 1 — What you&apos;re worth today
-        </h2>
-        <NetWorthSection data={data} />
-
-        <h2 className="pt-4 text-lg font-semibold text-white">
-          Step 2 — Where your paychecks take you
-        </h2>
         <ProjectionSection data={data} todayISO={todayISO} />
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

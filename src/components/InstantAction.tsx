@@ -19,6 +19,11 @@ interface Toast {
 let pushToast: ((t: Omit<Toast, "id">) => void) | null = null;
 let nextId = 1;
 
+/** Fire a toast from any client code (same bus the InstantAction button uses). */
+export function showToast(message: string, undo?: () => void): void {
+  pushToast?.({ message, undo });
+}
+
 /** Mount once (in the root layout). Renders the toast stack. */
 export function Toaster() {
   const [toasts, setToasts] = useState<Toast[]>([]);

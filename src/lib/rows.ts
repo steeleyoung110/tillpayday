@@ -32,10 +32,50 @@ export interface BucketRow {
   is_flexible: boolean;
   rolls_over: boolean;
   is_paused: boolean;
+  include_in_net_worth: boolean;
   sort_order: number;
   apy: number;
   starting_balance: number;
   goal_amount: number;
+  created_at: string;
+}
+
+// --- Net Worth module (phase 9) ---
+
+export type AssetCategory =
+  | "cash" | "savings" | "investment" | "retirement" | "property" | "vehicle" | "other";
+export type LiabilityCategory =
+  | "credit_card" | "auto_loan" | "student_loan" | "mortgage" | "personal_loan" | "other";
+
+export interface AssetRow {
+  id: string;
+  name: string;
+  category: AssetCategory;
+  current_value: number;
+  notes: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LiabilityRow {
+  id: string;
+  name: string;
+  category: LiabilityCategory;
+  current_balance: number;
+  interest_rate: number | null;
+  notes: string | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SnapshotRow {
+  id: string;
+  snapshot_date: string;
+  total_assets: number;
+  total_liabilities: number;
+  net_worth: number;
   created_at: string;
 }
 
