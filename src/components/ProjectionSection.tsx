@@ -2,11 +2,20 @@
 
 import { useMemo, useState } from "react";
 import {
+  PRESET_MONTHS,
+  presetLabel,
+  presetWindow,
+  sampleWindow,
+  sanitizeWindow,
+  windowPlan,
+  type ChartViewWindow,
+} from "@/lib/chartWindow";
+import {
   UNALLOCATED_KEY,
   evaluateWhatIf,
   runProjection,
   type ProjectionInput,
-  type ProjectionResult,
+  type ProjectionPoint,
 } from "@/lib/engine";
 import {
   LIQUID_CATEGORIES,
@@ -29,8 +38,20 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-const HORIZONS = [1, 3, 5, 10] as const;
-type Horizon = (typeof HORIZONS)[number];
+function prettyDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Preset pill labels: 1m, 3m, 1y, 3y, 5y, 10y. */
+function pillLabel(months: number): string {
+  return months < 12 ? `${months}m` : `${months / 12}y`;
+}
 
 const TOTAL_KEY = "__total__";
 const WHATIF_KEY = "__whatif__";
@@ -48,32 +69,23 @@ interface BucketLine {
   isSavings: boolean;
 }
 
-/**
- * Sample the daily points down to sparse rows so the chart stays light: weekly
- * for a 1-year view, monthly for 10 years. Always keeps the last day.
- */
+/** Turn already-windowed projection points into chart rows. */
 function toChartRows(
-  baseline: ProjectionResult,
-  withPurchase: ProjectionResult | null,
+  windowPoints: ProjectionPoint[],
+  whatifByDate: Map<string, number> | null,
   lines: BucketLine[],
-  years: Horizon,
 ): ChartRow[] {
-  const step = years === 1 ? 7 : years <= 3 ? 14 : 30;
-  const pts = baseline.points;
-  const rows: ChartRow[] = [];
-  for (let i = 0; i < pts.length; i += 1) {
-    if (i % step !== 0 && i !== pts.length - 1) continue;
-    const row: ChartRow = { date: pts[i].date, [TOTAL_KEY]: pts[i].total };
+  return windowPoints.map((p) => {
+    const row: ChartRow = { date: p.date, [TOTAL_KEY]: p.total };
     for (const line of lines) {
       row[line.key] = line.ids.reduce(
-        (sum, id) => sum + (pts[i].buckets[id] ?? 0),
+        (sum, id) => sum + (p.buckets[id] ?? 0),
         0,
       );
     }
-    if (withPurchase) row[WHATIF_KEY] = withPurchase.points[i]?.savings;
-    rows.push(row);
-  }
-  return rows;
+    if (whatifByDate) row[WHATIF_KEY] = whatifByDate.get(p.date);
+    return row;
+  });
 }
 
 export function ProjectionSection({
@@ -85,7 +97,11 @@ export function ProjectionSection({
 }) {
   const considering = data.whatIf.filter((w) => w.status === "considering");
   const [selectedId, setSelectedId] = useState<string>("");
-  const [years, setYears] = useState<Horizon>(5);
+  // View window: zoom presets (1 month … 10 years) or a custom date range.
+  const [win, setWin] = useState<ChartViewWindow & { preset: number | null }>(
+    () => ({ ...presetWindow(todayISO, 60), preset: 60 }),
+  );
+  const plan = windowPlan(win, todayISO);
   const selected =
     considering.find((w) => w.id === selectedId) ?? considering[0] ?? null;
 
@@ -108,13 +124,13 @@ export function ProjectionSection({
   const input: ProjectionInput = useMemo(
     () => ({
       startDate: todayISO,
-      months: years * 12,
+      months: plan.monthsToProject,
       startingBalances: { [savings ? savings.id : UNALLOCATED_KEY]: startingSavings },
       incomeSources: data.income.map(incomeToEngine),
       buckets,
       expenses: data.expenses.map(expenseToEngine),
     }),
-    [data, todayISO, years, buckets, savings, startingSavings],
+    [data, todayISO, plan.monthsToProject, buckets, savings, startingSavings],
   );
 
   const result = useMemo(() => {
@@ -192,32 +208,43 @@ export function ProjectionSection({
     .reduce((sum, w) => sum + Number(w.amount), 0);
 
   const { baseline, withPurchase, verdict } = result;
-  const chartRows = toChartRows(baseline, withPurchase, lines, years);
+  const windowPoints = sampleWindow(baseline.points, win, plan.stepDays);
+  const whatifByDate = withPurchase
+    ? new Map(withPurchase.points.map((p) => [p.date, p.savings]))
+    : null;
+  const chartRows = toChartRows(windowPoints, whatifByDate, lines);
   const hasIncome = data.income.length > 0;
-  const yearsLabel = years === 1 ? "1 year" : `${years} years`;
 
-  // Cash accumulated over the horizon, added to today's net worth. (Whatever
-  // seeded the projection's start is already counted inside endingTotal.)
-  const projectedNetWorth = netWorthNow + baseline.endingTotal - startingSavings;
+  // Stats read from the end of the visible window, so zooming re-frames them.
+  const windowEnd =
+    windowPoints[windowPoints.length - 1] ??
+    baseline.points[baseline.points.length - 1];
+  const windowLabel = win.preset
+    ? `in ${presetLabel(win.preset)}`
+    : `by ${prettyDate(win.to)}`;
+
+  // Cash accumulated by the window's end, added to today's net worth. (Whatever
+  // seeded the projection's start is already counted inside the total.)
+  const projectedNetWorth = netWorthNow + (windowEnd?.total ?? 0) - startingSavings;
 
   return (
     <section className="space-y-4">
       {/* Headline stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Projected savings in {yearsLabel}</p>
+          <p className="text-sm text-slate-400">{`Projected savings ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
-            {currency.format(baseline.endingSavings)}
+            {currency.format(windowEnd?.savings ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Total on hand in {yearsLabel}</p>
+          <p className="text-sm text-slate-400">{`Total on hand ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
-            {currency.format(baseline.endingTotal)}
+            {currency.format(windowEnd?.total ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Projected net worth in {yearsLabel}</p>
+          <p className="text-sm text-slate-400">{`Projected net worth ${windowLabel}`}</p>
           <p className="mt-1 text-3xl font-bold text-white">
             {currency.format(projectedNetWorth)}
           </p>
@@ -234,23 +261,54 @@ export function ProjectionSection({
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-white">
-            {`${yearsLabel} projection — every bucket's route`}
+            Projection — every bucket&apos;s route
           </h2>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex rounded-lg border border-slate-700 p-0.5 text-sm">
-              {HORIZONS.map((h) => (
+              {PRESET_MONTHS.map((m) => (
                 <button
-                  key={h}
-                  onClick={() => setYears(h)}
+                  key={m}
+                  onClick={() =>
+                    setWin({ ...presetWindow(todayISO, m), preset: m })
+                  }
                   className={`rounded-md px-2.5 py-1 transition ${
-                    years === h
+                    win.preset === m
                       ? "bg-emerald-500 font-semibold text-slate-950"
                       : "text-slate-300 hover:text-white"
                   }`}
                 >
-                  {h}y
+                  {pillLabel(m)}
                 </button>
               ))}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+              <input
+                type="date"
+                value={win.from}
+                min={todayISO}
+                onChange={(e) =>
+                  setWin({
+                    ...sanitizeWindow(e.target.value, win.to, todayISO),
+                    preset: null,
+                  })
+                }
+                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white"
+                aria-label="Chart start date"
+              />
+              →
+              <input
+                type="date"
+                value={win.to}
+                min={todayISO}
+                onChange={(e) =>
+                  setWin({
+                    ...sanitizeWindow(win.from, e.target.value, todayISO),
+                    preset: null,
+                  })
+                }
+                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white"
+                aria-label="Chart end date"
+              />
             </div>
             {considering.length > 0 && (
               <label className="flex items-center gap-2 text-sm text-slate-300">
@@ -273,7 +331,7 @@ export function ProjectionSection({
 
         {hasIncome ? (
           <>
-            <ProjectionChart data={chartRows} series={series} multiYear={years > 1} />
+            <ProjectionChart data={chartRows} series={series} granularity={plan.granularity} />
             <p className="mt-2 text-xs text-slate-500">
               {liquid > 0
                 ? `Starts from ${currency.format(liquid)} — your cash + savings from the net-worth section. `
@@ -301,7 +359,7 @@ export function ProjectionSection({
             <p>
               <strong>Buying &ldquo;{selected.name}&rdquo;</strong> leaves you with{" "}
               {currency.format(verdict.endingWith)} instead of{" "}
-              {`${currency.format(verdict.endingWithout)} in ${yearsLabel} — it sets you back `}
+              {`${currency.format(verdict.endingWithout)} ${windowLabel} — it sets you back `}
               <strong>{verdict.setbackLabel}</strong>.
               {verdict.causesNegative &&
                 " ⚠️ It also pushes a bucket into the red at some point — see warnings below."}

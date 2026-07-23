@@ -53,23 +53,27 @@ const currency = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-function tickLabel(iso: string, multiYear: boolean): string {
-  const [y, m] = iso.split("-").map(Number);
+export type TickGranularity = "day" | "month" | "monthYear";
+
+function tickLabel(iso: string, granularity: TickGranularity): string {
+  const [y, m, d] = iso.split("-").map(Number);
   const month = new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-US", {
     month: "short",
     timeZone: "UTC",
   });
-  return multiYear ? `${month} '${String(y).slice(2)}` : month;
+  if (granularity === "day") return `${month} ${d}`;
+  if (granularity === "monthYear") return `${month} '${String(y).slice(2)}`;
+  return month;
 }
 
 export function ProjectionChart({
   data,
   series,
-  multiYear,
+  granularity,
 }: {
   data: ChartRow[];
   series: ChartSeries[];
-  multiYear: boolean;
+  granularity: TickGranularity;
 }) {
   const nameByKey = new Map(series.map((s) => [s.key, s.name]));
 
@@ -80,9 +84,9 @@ export function ProjectionChart({
           <CartesianGrid stroke="#1e293b" vertical={false} />
           <XAxis
             dataKey="date"
-            tickFormatter={(iso: string) => tickLabel(iso, multiYear)}
+            tickFormatter={(iso: string) => tickLabel(iso, granularity)}
             interval="preserveStartEnd"
-            minTickGap={multiYear ? 60 : 40}
+            minTickGap={granularity === "month" ? 40 : 60}
             tick={{ fill: "#94a3b8", fontSize: 12 }}
             axisLine={{ stroke: "#334155" }}
             tickLine={false}
