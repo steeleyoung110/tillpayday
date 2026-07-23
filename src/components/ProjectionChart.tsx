@@ -5,6 +5,8 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceArea,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -81,7 +83,26 @@ export function ProjectionChart({
     <div className="h-80 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+          {/* Positive/negative wash: a soft green tint above $0 and red below,
+              strongest at the zero line and fading into the background so it
+              orients without distracting. */}
+          <defs>
+            <linearGradient id="tp-positive" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="#10b981" stopOpacity={0.13} />
+              <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="tp-negative" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ef4444" stopOpacity={0.16} />
+              <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid stroke="#1e293b" vertical={false} />
+          {/* Recharts v3: a missing y1 means "from the top of the domain",
+              a missing y2 means "to the bottom" — so y2={0} is the positive
+              region (top → zero) and y1={0} the negative (zero → bottom). */}
+          <ReferenceArea y2={0} fill="url(#tp-positive)" stroke="none" />
+          <ReferenceArea y1={0} fill="url(#tp-negative)" stroke="none" />
+          <ReferenceLine y={0} stroke="#cbd5e1" strokeWidth={1.5} />
           <XAxis
             dataKey="date"
             tickFormatter={(iso: string) => tickLabel(iso, granularity)}
