@@ -21,6 +21,7 @@ import {
   LIQUID_CATEGORIES,
   bucketToEngine,
   expenseToEngine,
+  incomeEntryToEngine,
   incomeToEngine,
   type DashboardData,
 } from "@/lib/rows";
@@ -129,6 +130,7 @@ export function ProjectionSection({
       incomeSources: data.income.map(incomeToEngine),
       buckets,
       expenses: data.expenses.map(expenseToEngine),
+      incomeEntries: data.incomeEntries.map(incomeEntryToEngine),
     }),
     [data, todayISO, plan.monthsToProject, buckets, savings, startingSavings],
   );
@@ -333,6 +335,8 @@ export function ProjectionSection({
           <>
             <ProjectionChart data={chartRows} series={series} granularity={plan.granularity} />
             <p className="mt-2 text-xs text-slate-500">
+              {baseline.irregularWeekly !== null &&
+                `Based on your typical income — about ${currency.format(baseline.irregularWeekly)}/week from what you've logged, counted at a careful 85%. `}
               {liquid > 0
                 ? `Starts from ${currency.format(liquid)} — your cash + savings from the net-worth section. `
                 : "Add your cash and savings accounts in the net-worth section above to start the projection from what you actually have. "}

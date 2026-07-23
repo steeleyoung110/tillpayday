@@ -8,6 +8,7 @@ import type {
   Cadence,
   Expense,
   Frequency,
+  IncomeEntry,
   IncomeKind,
   IncomeSource,
 } from "@/lib/engine";
@@ -30,6 +31,7 @@ export interface BucketRow {
   is_savings: boolean;
   is_flexible: boolean;
   rolls_over: boolean;
+  is_paused: boolean;
   sort_order: number;
   apy: number;
   starting_balance: number;
@@ -51,6 +53,18 @@ export interface ExpenseRow {
   bucket_id: string | null;
   due_date: string;
   cadence: Cadence;
+  is_paused: boolean;
+  created_at: string;
+}
+
+/** A logged income event (powers irregular mode and windfalls). */
+export interface IncomeEntryRow {
+  id: string;
+  amount: number;
+  received_date: string;
+  note: string | null;
+  is_windfall: boolean;
+  windfall_allocation: { bucket_id: string | null; amount: number }[] | null;
   created_at: string;
 }
 
@@ -102,6 +116,7 @@ export interface DashboardData {
   whatIf: WhatIfRow[];
   netWorth: NetWorthRow[];
   celebrated: CelebratedPaydayRow[];
+  incomeEntries: IncomeEntryRow[];
 }
 
 export function incomeToEngine(r: IncomeRow): IncomeSource {
@@ -124,6 +139,7 @@ export function bucketToEngine(r: BucketRow): Bucket {
     isSavings: r.is_savings,
     isFlexible: r.is_flexible,
     rollsOver: r.rolls_over,
+    isPaused: r.is_paused,
     priority: r.sort_order,
     startingBalance: Number(r.starting_balance ?? 0),
     apy: Number(r.apy ?? 0),
@@ -138,5 +154,21 @@ export function expenseToEngine(r: ExpenseRow): Expense {
     bucketId: r.bucket_id,
     dueDate: r.due_date,
     cadence: r.cadence,
+    isPaused: r.is_paused,
+  };
+}
+
+export function incomeEntryToEngine(r: IncomeEntryRow): IncomeEntry {
+  return {
+    id: r.id,
+    amount: Number(r.amount),
+    receivedDate: r.received_date,
+    note: r.note,
+    isWindfall: r.is_windfall,
+    allocation:
+      r.windfall_allocation?.map((a) => ({
+        bucketId: a.bucket_id,
+        amount: Number(a.amount),
+      })) ?? null,
   };
 }

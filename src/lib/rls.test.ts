@@ -76,6 +76,11 @@ const FIXTURES: {
     row: { payday: "2020-01-02" },
     mutate: { payday: "2021-12-31" },
   },
+  {
+    table: "income_entries",
+    row: { amount: 1, received_date: "2020-01-03" },
+    mutate: { received_date: "2021-06-06" },
+  },
 ];
 
 const TIMEOUT = 30_000;

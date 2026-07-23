@@ -4,6 +4,7 @@ export {
   UNALLOCATED_KEY,
   generatePayDates,
   generateOccurrences,
+  irregularWeeklyBaseline,
   runProjection,
   evaluateWhatIf,
   buildVerdict,

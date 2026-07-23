@@ -8,6 +8,7 @@ import type {
   CelebratedPaydayRow,
   DashboardData,
   ExpenseRow,
+  IncomeEntryRow,
   IncomeRow,
   NetWorthRow,
   WhatIfRow,
@@ -15,11 +16,11 @@ import type {
 
 export type { DashboardData } from "@/lib/rows";
 
-/** Fetch all six tables for the signed-in user. */
+/** Fetch all seven tables for the signed-in user. */
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
 
-  const [income, buckets, expenses, whatIf, netWorth, celebrated] =
+  const [income, buckets, expenses, whatIf, netWorth, celebrated, entries] =
     await Promise.all([
       supabase.from("income_sources").select("*").order("created_at"),
       supabase.from("buckets").select("*").order("sort_order").order("created_at"),
@@ -27,6 +28,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       supabase.from("whatif_items").select("*").order("created_at"),
       supabase.from("net_worth_items").select("*").order("created_at"),
       supabase.from("celebrated_paydays").select("*").order("payday"),
+      supabase.from("income_entries").select("*").order("received_date"),
     ]);
 
   return {
@@ -36,5 +38,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     whatIf: (whatIf.data as WhatIfRow[]) ?? [],
     netWorth: (netWorth.data as NetWorthRow[]) ?? [],
     celebrated: (celebrated.data as CelebratedPaydayRow[]) ?? [],
+    incomeEntries: (entries.data as IncomeEntryRow[]) ?? [],
   };
 }

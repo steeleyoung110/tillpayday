@@ -3,11 +3,18 @@ import { addDays, addMonths, diffDays, parseISO, toISO } from "./dates";
 import {
   generateOccurrences,
   generatePayDates,
+  irregularWeeklyBaseline,
   runProjection,
   evaluateWhatIf,
   labelSetback,
 } from "./projection";
-import type { Bucket, IncomeSource, ProjectionInput } from "./types";
+import type {
+  Bucket,
+  IncomeEntry,
+  IncomeSource,
+  ProjectionInput,
+  ShortfallWarning,
+} from "./types";
 
 // ---------------------------------------------------------------------------
 // Date helpers
@@ -449,6 +456,229 @@ describe("runProjection — rounding and penny conservation", () => {
       ) / 100;
       expect(p.total, `drift on ${p.date}`).toBe(running);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 8B — pause, irregular income, windfalls, shortfall fixes
+// ---------------------------------------------------------------------------
+describe("runProjection — paused buckets and expenses", () => {
+  it("a paused bucket is frozen: no refill, no sweep, balance carries", () => {
+    const r = runProjection({
+      ...baseInput,
+      startingBalances: { rent: 400 },
+      buckets: buckets.map((b) => (b.id === "rent" ? { ...b, isPaused: true } : b)),
+    });
+    for (const p of [r.points[0], r.points[r.points.length - 1]]) {
+      expect(p.buckets.rent).toBe(400); // untouched all year
+    }
+    // Rent paused → no fixed allocation at all, so percent buckets work from
+    // the full paycheck: fun takes 10% of 3000 = 300; savings gets 2700.
+    expect(r.points[0].buckets.fun).toBe(300);
+    expect(r.points[0].buckets.save).toBe(2700);
+  });
+
+  it("a paused expense doesn't deduct while paused", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 2,
+      expenses: [
+        { id: "e1", name: "Gym", amount: 50, bucketId: "fun", dueDate: "2026-01-10", cadence: "monthly", isPaused: true },
+      ],
+    });
+    const jan10 = r.points.find((p) => p.date === "2026-01-10")!;
+    expect(jan10.buckets.fun).toBe(200); // untouched
+    expect(r.warnings).toHaveLength(0);
+  });
+
+  it("penny conservation holds with paused pieces in play", () => {
+    const r = runProjection({
+      ...baseInput,
+      startingBalances: { rent: 400 },
+      buckets: buckets.map((b) => (b.id === "rent" ? { ...b, isPaused: true } : b)),
+      expenses: [
+        { id: "e1", name: "Fun spend", amount: 100, bucketId: "fun", dueDate: "2026-01-10", cadence: "monthly" },
+        { id: "e2", name: "Paused", amount: 999, bucketId: "fun", dueDate: "2026-01-11", cadence: "monthly", isPaused: true },
+      ],
+    });
+    // 12 active expense hits; the paused one never fires.
+    expect(r.endingTotal).toBe(400 + 3000 * PAYCHECKS - 100 * 12);
+  });
+});
+
+describe("irregularWeeklyBaseline", () => {
+  const entry = (amount: number, receivedDate: string, isWindfall = false): IncomeEntry => ({
+    id: `e-${receivedDate}`,
+    amount,
+    receivedDate,
+    isWindfall,
+  });
+
+  it("is 85% of the trailing 8-week average", () => {
+    // 8 weekly entries of $1,000 in the 56 days before start → avg 1000/wk.
+    const entries = Array.from({ length: 8 }, (_, i) =>
+      entry(1000, toISO(addDays(parseISO("2026-03-01"), -(7 * i + 1)))),
+    );
+    expect(irregularWeeklyBaseline(entries, "2026-03-01")).toBe(850);
+  });
+
+  it("ignores windfalls and entries outside the window", () => {
+    const entries = [
+      entry(1000, "2026-02-20"),
+      entry(5000, "2026-02-21", true), // windfall — excluded
+      entry(9999, "2025-11-01"), // too old — excluded
+      entry(9999, "2026-03-05"), // after start — excluded
+    ];
+    // 1000 over 8 weeks = 125/wk → 85% = 106.25
+    expect(irregularWeeklyBaseline(entries, "2026-03-01")).toBe(106.25);
+  });
+
+  it("is zero with no history", () => {
+    expect(irregularWeeklyBaseline([], "2026-03-01")).toBe(0);
+  });
+});
+
+describe("runProjection — irregular income mode", () => {
+  const irregularJob: IncomeSource = {
+    id: "gig",
+    name: "Gig work",
+    amount: 0,
+    frequency: "irregular",
+    kind: "paycheck",
+    anchorDate: "2026-01-01",
+  };
+  const history: IncomeEntry[] = Array.from({ length: 8 }, (_, i) => ({
+    id: `h${i}`,
+    amount: 1000,
+    receivedDate: toISO(addDays(parseISO("2026-01-01"), -(7 * i + 1))),
+  }));
+
+  it("projects a conservative weekly stream and reports the baseline", () => {
+    const r = runProjection({
+      startDate: "2026-01-01",
+      months: 1,
+      incomeSources: [irregularJob],
+      buckets,
+      expenses: [],
+      incomeEntries: history,
+    });
+    expect(r.irregularWeekly).toBe(850);
+    // First projected payday is a week out, then weekly: Jan 8/15/22/29.
+    expect(r.points[0].total).toBe(0);
+    const jan8 = r.points.find((p) => p.date === "2026-01-08")!;
+    expect(jan8.total).toBe(850);
+    expect(r.totalIncome).toBe(850 * 4);
+    // The waterfall applies normally: rent wants 1000, gets 850 → underfunded.
+    expect(r.warnings.some((w) => w.type === "underfunded" && w.bucketId === "rent")).toBe(true);
+  });
+
+  it("reports null baseline when income is on a regular schedule", () => {
+    expect(runProjection(baseInput).irregularWeekly).toBeNull();
+  });
+});
+
+describe("runProjection — windfalls", () => {
+  const windfall: IncomeEntry = {
+    id: "bonus",
+    amount: 1000,
+    receivedDate: "2026-01-10",
+    isWindfall: true,
+    allocation: [
+      { bucketId: "rent", amount: 200 },
+      { bucketId: null, amount: 300 },
+    ],
+  };
+
+  it("injects on its date, split per allocation, remainder to savings", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      incomeEntries: [windfall],
+    });
+    const jan9 = r.points.find((p) => p.date === "2026-01-09")!;
+    const jan10 = r.points.find((p) => p.date === "2026-01-10")!;
+    expect(jan10.buckets.rent - jan9.buckets.rent).toBe(200);
+    // Savings: 300 explicit + 500 unallocated remainder.
+    expect(jan10.buckets.save - jan9.buckets.save).toBe(800);
+    expect(r.totalIncome).toBe(3000 * 2 + 1000);
+    // Conservation: everything sums.
+    expect(r.endingTotal).toBe(3000 * 2 + 1000);
+  });
+
+  it("windfalls outside the horizon are ignored", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      incomeEntries: [{ ...windfall, receivedDate: "2030-01-01" }],
+    });
+    expect(r.totalIncome).toBe(3000 * 2);
+  });
+});
+
+describe("runProjection — shortfall fixes", () => {
+  it("computes the smallest per-paycheck amount that prevents the shortfall", () => {
+    // Biweekly checks Jan 2/16/30 + Feb 13; $140 short on Feb 20 → 4 paydays
+    // land first → $35/paycheck.
+    const r = runProjection({
+      startDate: "2026-01-01",
+      months: 2,
+      incomeSources: [
+        { id: "j", name: "Job", amount: 2000, frequency: "biweekly", kind: "paycheck", anchorDate: "2026-01-02" },
+      ],
+      buckets: [
+        { id: "bills", name: "Bills", allocationType: "fixed", allocationValue: 100, isSavings: false, priority: 0 },
+        { id: "save", name: "Savings", allocationType: "fixed", allocationValue: 0, isSavings: true },
+      ],
+      expenses: [
+        { id: "big", name: "Insurance", amount: 240, bucketId: "bills", dueDate: "2026-02-20", cadence: "one_time" },
+      ],
+    });
+    const w = r.warnings.find((x) => x.type === "shortfall") as ShortfallWarning;
+    // Bucket resets to 100 each payday; 240 due → 140 short.
+    expect(w.amount).toBe(140);
+    expect(w.paydaysUntil).toBe(4);
+    expect(w.fixPerPaycheck).toBe(35);
+  });
+
+  it("rounds the fix up to the cent so it always suffices", () => {
+    const r = runProjection({
+      startDate: "2026-01-01",
+      months: 1,
+      incomeSources: [
+        { id: "j", name: "Job", amount: 500, frequency: "weekly", kind: "paycheck", anchorDate: "2026-01-05" },
+      ],
+      buckets: [
+        { id: "b", name: "Bills", allocationType: "fixed", allocationValue: 0, isSavings: false, priority: 0 },
+        { id: "save", name: "Savings", allocationType: "fixed", allocationValue: 0, isSavings: true },
+      ],
+      expenses: [
+        { id: "e", name: "Bill", amount: 100, bucketId: "b", dueDate: "2026-01-20", cadence: "one_time" },
+      ],
+    });
+    const w = r.warnings.find((x) => x.type === "shortfall") as ShortfallWarning;
+    expect(w.paydaysUntil).toBe(3); // Jan 5, 12, 19
+    expect(w.fixPerPaycheck).toBe(33.34); // 100/3 rounded UP
+    expect(w.fixPerPaycheck! * w.paydaysUntil).toBeGreaterThanOrEqual(w.amount);
+  });
+
+  it("reports no fix when no paycheck lands in time", () => {
+    const r = runProjection({
+      startDate: "2026-01-01",
+      months: 1,
+      incomeSources: [
+        { id: "j", name: "Job", amount: 500, frequency: "monthly", kind: "paycheck", anchorDate: "2026-01-25" },
+      ],
+      buckets: [
+        { id: "b", name: "Bills", allocationType: "fixed", allocationValue: 0, isSavings: false, priority: 0 },
+        { id: "save", name: "Savings", allocationType: "fixed", allocationValue: 0, isSavings: true },
+      ],
+      expenses: [
+        { id: "e", name: "Bill", amount: 100, bucketId: "b", dueDate: "2026-01-10", cadence: "one_time" },
+      ],
+    });
+    const w = r.warnings.find((x) => x.type === "shortfall") as ShortfallWarning;
+    expect(w.paydaysUntil).toBe(0);
+    expect(w.fixPerPaycheck).toBeNull();
   });
 });
 

@@ -46,6 +46,11 @@ function floorCent(n: number): number {
   return Math.floor((n + Number.EPSILON) * 100) / 100;
 }
 
+/** Ceil to whole cents (fix amounts round UP so the fix always suffices). */
+function ceilCent(n: number): number {
+  return Math.ceil((n - Number.EPSILON) * 100) / 100;
+}
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -68,6 +73,10 @@ export function generatePayDates(
   start: Date,
   end: Date,
 ): Date[] {
+  // Irregular income has no schedule — the projection injects a weekly
+  // baseline stream for it instead (see irregularWeeklyBaseline).
+  if (source.frequency === "irregular") return [];
+
   const anchor = parseISO(source.anchorDate);
   const dates: Date[] = [];
 
@@ -114,6 +123,28 @@ export function generatePayDates(
   return dates.sort((a, b) => a.getTime() - b.getTime());
 }
 
+/**
+ * The conservative baseline for irregular income: the trailing 8-week average
+ * of logged (non-windfall) entries, taken at 85%. Deliberately cautious — a
+ * projection built on a typical-but-humble week beats one built on a great
+ * week. Returns dollars per week, rounded to the cent.
+ */
+export function irregularWeeklyBaseline(
+  entries: { amount: number; receivedDate: string; isWindfall?: boolean }[],
+  startDateISO: string,
+): number {
+  const start = parseISO(startDateISO);
+  const windowStart = addDays(start, -56);
+  const total = entries
+    .filter((e) => !e.isWindfall)
+    .filter((e) => {
+      const d = parseISO(e.receivedDate);
+      return d >= windowStart && d < start;
+    })
+    .reduce((sum, e) => sum + e.amount, 0);
+  return round2((total / 8) * 0.85);
+}
+
 /** Generate every occurrence of an expense within [start, end] (inclusive). */
 export function generateOccurrences(
   dueDate: string,
@@ -154,13 +185,16 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
   const savingsKey = savings ? savings.id : UNALLOCATED_KEY;
 
   // Spending buckets in funding priority order (lower first, ties by position).
+  // Paused buckets are frozen out of the waterfall entirely: no refill, no
+  // sweep — their balance just carries.
   const spending = input.buckets
     .map((b, i) => ({ b, i }))
     .filter(({ b }) => !b.isSavings)
     .sort((x, y) => (x.b.priority ?? x.i) - (y.b.priority ?? y.i) || x.i - y.i)
     .map(({ b }) => b);
-  const fixed = spending.filter((b) => b.allocationType === "fixed");
-  const percent = spending.filter((b) => b.allocationType === "percent");
+  const active = spending.filter((b) => !b.isPaused);
+  const fixed = active.filter((b) => b.allocationType === "fixed");
+  const percent = active.filter((b) => b.allocationType === "percent");
 
   // Seed starting balances (mid-cycle start).
   const balances: Record<string, number> = {};
@@ -184,8 +218,46 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
       });
     }
   }
+
+  // Irregular income: one conservative weekly stream, refreshed from logged
+  // entries. First projected payday is a week out — money already received
+  // this week lives in the starting balances, not the future.
+  const entries = input.incomeEntries ?? [];
+  const hasIrregular = input.incomeSources.some(
+    (s) => s.frequency === "irregular" && s.kind === "paycheck",
+  );
+  const irregularWeekly = hasIrregular
+    ? irregularWeeklyBaseline(entries, input.startDate)
+    : null;
+  if (irregularWeekly && irregularWeekly > 0) {
+    for (let d = addDays(start, 7); d <= end; d = addDays(d, 7)) {
+      const key = toISO(d);
+      (incomeByDate.get(key) ?? incomeByDate.set(key, []).get(key)!).push({
+        amount: irregularWeekly,
+        kind: "paycheck",
+      });
+    }
+  }
+
+  // Windfalls inject on their date, split per their allocation.
+  const windfallByDate = new Map<
+    string,
+    { amount: number; allocation: { bucketId: string | null; amount: number }[] }[]
+  >();
+  for (const e of entries) {
+    if (!e.isWindfall) continue;
+    const d = parseISO(e.receivedDate);
+    if (d < start || d > end) continue;
+    const key = toISO(d);
+    (windfallByDate.get(key) ?? windfallByDate.set(key, []).get(key)!).push({
+      amount: e.amount,
+      allocation: e.allocation ?? [],
+    });
+  }
+
   const expenseByDate = new Map<string, { amount: number; bucketId: string | null }[]>();
   for (const e of input.expenses) {
+    if (e.isPaused) continue; // paused expenses don't deduct while paused
     for (const d of generateOccurrences(e.dueDate, e.cadence, start, end)) {
       const key = toISO(d);
       (expenseByDate.get(key) ?? expenseByDate.set(key, []).get(key)!).push({
@@ -224,6 +296,7 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
   const underfundedOnce = new Set<string>();
   const shortfallOnce = new Set<string>();
   let totalIncome = 0;
+  let paydaysSoFar = 0;
 
   /** Rules 2–4 & 6: fixed by priority, then percents (floored) of the rest. */
   const allocatePaycheck = (amount: number, dateKey: string) => {
@@ -281,9 +354,11 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
 
     const paychecks = incomeByDate.get(key);
     if (paychecks && paychecks.length > 0) {
+      if (paychecks.some((p) => p.kind === "paycheck")) paydaysSoFar += 1;
       // Rule 1/3: payday sweep — spending buckets reset into savings.
-      // Sinking funds (rollsOver) are exempt: they accumulate cycle over cycle.
-      for (const b of spending) {
+      // Sinking funds (rollsOver) are exempt: they accumulate cycle over
+      // cycle. Paused buckets are frozen and don't sweep either.
+      for (const b of active) {
         if (!b.rollsOver && balances[b.id] !== 0) {
           balances[savingsKey] = round2(balances[savingsKey] + balances[b.id]);
           balances[b.id] = 0;
@@ -300,6 +375,19 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
       }
     }
 
+    // Windfalls: explicit portions to their buckets, the rest to savings.
+    for (const wf of windfallByDate.get(key) ?? []) {
+      totalIncome = round2(totalIncome + wf.amount);
+      let allocated = 0;
+      for (const part of wf.allocation) {
+        const target =
+          part.bucketId && part.bucketId in balances ? part.bucketId : savingsKey;
+        balances[target] = round2((balances[target] ?? 0) + part.amount);
+        allocated = round2(allocated + part.amount);
+      }
+      balances[savingsKey] = round2(balances[savingsKey] + (wf.amount - allocated));
+    }
+
     for (const ex of expenseByDate.get(key) ?? []) {
       const target = ex.bucketId ?? savingsKey;
       const before = balances[target] ?? 0;
@@ -308,13 +396,20 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
         const warnKey = `${target}:${monthLabel(d)}`;
         if (!shortfallOnce.has(warnKey)) {
           shortfallOnce.add(warnKey);
+          const short = round2(ex.amount - before);
           warnings.push({
             type: "shortfall",
             bucketId: target,
             bucketName: bucketName(target),
             date: key,
             month: monthLabel(d),
-            amount: round2(ex.amount - before),
+            amount: short,
+            // The fix: spread the missing amount across every paycheck that
+            // lands on or before the due date (paydays process first, so a
+            // same-day paycheck still helps). Round up so the fix suffices.
+            paydaysUntil: paydaysSoFar,
+            fixPerPaycheck:
+              paydaysSoFar > 0 ? ceilCent(short / paydaysSoFar) : null,
           });
         }
       }
@@ -348,6 +443,7 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
     endingSavings: last?.savings ?? 0,
     totalIncome,
     totalInterest,
+    irregularWeekly,
   };
 }
 

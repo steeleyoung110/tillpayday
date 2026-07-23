@@ -1,6 +1,12 @@
 /** Domain types shared by the projection engine and the UI. */
 
-export type Frequency = "weekly" | "biweekly" | "semimonthly" | "monthly";
+export type Frequency =
+  | "weekly"
+  | "biweekly"
+  | "semimonthly"
+  | "monthly"
+  /** "It varies" — projected from logged income entries, not a fixed schedule. */
+  | "irregular";
 export type IncomeKind = "paycheck" | "side";
 export type AllocationType = "fixed" | "percent";
 export type Cadence = "one_time" | "monthly" | "quarterly" | "yearly";
@@ -56,6 +62,23 @@ export interface Bucket {
    * accrues daily on positive balances and is credited monthly.
    */
   apy?: number;
+  /** Paused buckets are frozen: no refill, no sweep — balance stays put. */
+  isPaused?: boolean;
+}
+
+/** One real income event, logged as it arrived (powers irregular mode). */
+export interface IncomeEntry {
+  id: string;
+  amount: number;
+  receivedDate: string; // YYYY-MM-DD
+  note?: string | null;
+  /** One-time money above the usual — bonuses, tax refunds, gifts. */
+  isWindfall?: boolean;
+  /**
+   * Where a windfall goes: explicit portions per bucket (null bucketId =
+   * savings). Whatever the portions don't cover also lands in savings.
+   */
+  allocation?: { bucketId: string | null; amount: number }[] | null;
 }
 
 /** A planned expense that draws down a bucket on its due date, then repeats. */
@@ -67,6 +90,8 @@ export interface Expense {
   bucketId: string | null;
   dueDate: string; // YYYY-MM-DD (first occurrence)
   cadence: Cadence;
+  /** Paused expenses don't deduct while paused. */
+  isPaused?: boolean;
 }
 
 /** A purchase the user is considering — modeled as a one-time expense. */
@@ -89,6 +114,11 @@ export interface ProjectionInput {
   incomeSources: IncomeSource[];
   buckets: Bucket[];
   expenses: Expense[];
+  /**
+   * Logged income history. Feeds the irregular-income baseline, and windfall
+   * entries dated inside the horizon inject on their date.
+   */
+  incomeEntries?: IncomeEntry[];
 }
 
 /** One day of the projection. */
@@ -126,6 +156,14 @@ export interface ShortfallWarning {
   month: string;
   /** How many dollars short the bucket was. */
   amount: number;
+  /** Paydays between the simulation start and the shortfall (inclusive). */
+  paydaysUntil: number;
+  /**
+   * The fix: the smallest extra amount to set aside from each paycheck,
+   * starting now, that prevents this shortfall. Null when no paydays land
+   * before it (no paycheck can help in time).
+   */
+  fixPerPaycheck: number | null;
 }
 
 export type Warning = UnderfundedWarning | ShortfallWarning;
@@ -139,6 +177,13 @@ export interface ProjectionResult {
   totalIncome: number;
   /** Total interest credited across the horizon. */
   totalInterest: number;
+  /**
+   * When irregular income is in play: the conservative weekly amount the
+   * projection assumed (85% of the trailing 8-week average of logged
+   * entries). Null when no irregular income source exists. The UI labels
+   * such projections "based on your typical income."
+   */
+  irregularWeekly: number | null;
 }
 
 /** The verdict comparing a baseline projection to a "with purchase" projection. */
