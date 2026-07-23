@@ -84,9 +84,17 @@ function PauseToggle({
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  children,
+  className = "",
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+    <div className={`rounded-2xl border border-slate-800 bg-slate-900 p-5 ${className}`}>
       <h2 className="mb-3 font-semibold text-white">{title}</h2>
       {children}
     </div>
@@ -387,54 +395,83 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
   const bucketName = (id: string | null) =>
     data.buckets.find((b) => b.id === id)?.name ?? "Savings/leftover";
 
-  return (
-    <Panel title="Upcoming bills">
-      <ul className="mb-4 space-y-2">
-        {data.expenses.map((e) => (
-          <li
-            key={e.id}
-            className={`flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
-              e.is_paused ? "opacity-50" : ""
-            }`}
-          >
-            <span className="text-slate-200">
-              {e.name}{" "}
-              <span className="text-slate-400">
-                {`— ${currency.format(Number(e.amount))} · ${REPEAT_LABELS[e.cadence] ?? e.cadence} · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
-              </span>
-              {e.is_paused && (
-                <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
-                  paused ⏸
-                </span>
-              )}
-            </span>
-            <span className="flex items-center gap-3">
-              <PauseToggle
-                table="expenses"
-                id={e.id}
-                name={e.name}
-                isPaused={e.is_paused}
-              />
-              <InstantAction
-                action={deleteExpense}
-                undoAction={undoRestore}
-                values={{ id: e.id }}
-                message={`Removed ${e.name}.`}
-                className={delCls}
-              >
-                remove
-              </InstantAction>
-            </span>
-          </li>
-        ))}
-        {data.expenses.length === 0 && (
-          <li className="text-sm text-slate-500">
-            No bills yet — add rent, subscriptions, anything with a due date.
-          </li>
-        )}
-      </ul>
+  // Two columns: money that leaves once vs bills that keep coming back.
+  const oneTime = data.expenses.filter((e) => e.cadence === "one_time");
+  const repeating = data.expenses.filter((e) => e.cadence !== "one_time");
 
-      <form action={addExpense} className="grid grid-cols-2 gap-2">
+  const row = (e: DashboardData["expenses"][number], showCadence: boolean) => (
+    <li
+      key={e.id}
+      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
+        e.is_paused ? "opacity-50" : ""
+      }`}
+    >
+      <span className="text-slate-200">
+        {e.name}{" "}
+        <span className="text-slate-400">
+          {`— ${currency.format(Number(e.amount))}${
+            showCadence ? ` · ${REPEAT_LABELS[e.cadence] ?? e.cadence}` : ""
+          } · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
+        </span>
+        {e.is_paused && (
+          <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
+            paused ⏸
+          </span>
+        )}
+      </span>
+      <span className="flex items-center gap-3">
+        <PauseToggle
+          table="expenses"
+          id={e.id}
+          name={e.name}
+          isPaused={e.is_paused}
+        />
+        <InstantAction
+          action={deleteExpense}
+          undoAction={undoRestore}
+          values={{ id: e.id }}
+          message={`Removed ${e.name}.`}
+          className={delCls}
+        >
+          remove
+        </InstantAction>
+      </span>
+    </li>
+  );
+
+  return (
+    <Panel title="Upcoming bills" className="lg:col-span-2">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            One-time payments
+          </p>
+          <ul className="space-y-2">
+            {oneTime.map((e) => row(e, false))}
+            {oneTime.length === 0 && (
+              <li className="text-sm text-slate-500">
+                Nothing here — one-off things like a repair or concert tickets
+                land in this column.
+              </li>
+            )}
+          </ul>
+        </div>
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Repeating bills
+          </p>
+          <ul className="space-y-2">
+            {repeating.map((e) => row(e, true))}
+            {repeating.length === 0 && (
+              <li className="text-sm text-slate-500">
+                No repeating bills yet — rent, subscriptions, insurance.
+              </li>
+            )}
+          </ul>
+        </div>
+      </div>
+
+      <form action={addExpense} className="grid grid-cols-2 gap-2 sm:max-w-md">
         <input name="name" placeholder="Expense (e.g. Rent)" required className={`${inputCls} col-span-2`} />
         <input name="amount" type="number" step="0.01" min="0" placeholder="Amount" required className={inputCls} />
         <select name="cadence" className={inputCls} defaultValue="monthly">
@@ -472,7 +509,7 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
   const now = Date.now();
 
   return (
-    <Panel title="What if I bought…">
+    <Panel title="What if I bought…" className="lg:col-span-2">
       <ul className="mb-4 space-y-2">
         {considering.map((w) => {
           const cooling = coolingState(w.cooling_off_started_at, now);
