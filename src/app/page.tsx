@@ -10,7 +10,7 @@ import {
   WhatIfPanel,
 } from "@/components/panels";
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
-import { StarterTemplates } from "@/components/StarterTemplates";
+import { Onboarding } from "@/components/Onboarding";
 import { getDashboardData } from "@/lib/data";
 import { paydayRecap, safeToSpend } from "@/lib/engine";
 import { nextPayday, paydayLabel } from "@/lib/payday";
@@ -75,6 +75,35 @@ export default async function Home() {
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
 
+  const header = (
+    <header className="border-b border-slate-800">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+        <h1 className="text-xl font-bold text-white">
+          Till <span className="text-emerald-400">Payday</span>
+        </h1>
+        <div className="flex items-center gap-4 text-sm text-slate-400">
+          <span>{user.email}</span>
+          <form action={signOut}>
+            <button className="rounded-lg border border-slate-700 px-3 py-1.5 transition hover:border-slate-500">
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+  );
+
+  // First visit (no buckets yet): the three-question setup replaces the
+  // dashboard until it's done.
+  if (data.buckets.length === 0) {
+    return (
+      <main className="min-h-screen bg-slate-950 pb-16">
+        {header}
+        <Onboarding hasIncome={data.income.length > 0} todayISO={todayISO} />
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 pb-16">
       {showCelebration && recap && (
@@ -83,25 +112,9 @@ export default async function Home() {
           goal={savingsRow ? Number(savingsRow.goal_amount) : 0}
         />
       )}
-      <header className="border-b border-slate-800">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <h1 className="text-xl font-bold text-white">
-            Till <span className="text-emerald-400">Payday</span>
-          </h1>
-          <div className="flex items-center gap-4 text-sm text-slate-400">
-            <span>{user.email}</span>
-            <form action={signOut}>
-              <button className="rounded-lg border border-slate-700 px-3 py-1.5 transition hover:border-slate-500">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
+      {header}
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
-        {data.buckets.length === 0 && <StarterTemplates />}
-
         {/* Safe-to-spend hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-2">

@@ -143,19 +143,70 @@ export async function toggleBucketRollsOver(formData: FormData) {
 }
 
 /**
- * One-tap starter setup: creates a template's buckets. Guarded so it only
- * ever runs on an account that still has no buckets — it can never overwrite
- * an existing setup.
+ * Three-question onboarding, submitted in one go: income setup (regular
+ * schedule or irregular with logged history) plus a starter bucket template.
+ * Guarded so it can never overwrite an existing setup.
  */
-export async function applyTemplate(formData: FormData) {
-  const template = getTemplate(str(formData, "template"));
+export async function completeOnboarding(formData: FormData) {
+  let payload: {
+    mode?: string;
+    amount?: number;
+    frequency?: string;
+    nextPayday?: string;
+    entries?: { amount?: number; date?: string }[];
+    template?: string;
+  };
+  try {
+    payload = JSON.parse(str(formData, "payload"));
+  } catch {
+    return;
+  }
+  const template = getTemplate(payload.template ?? "");
   if (!template) return;
 
   const supabase = await createClient();
-  const { count } = await supabase
+  const { count: bucketCount } = await supabase
     .from("buckets")
     .select("id", { count: "exact", head: true });
-  if ((count ?? 0) > 0) return; // already set up — never clobber
+  if ((bucketCount ?? 0) > 0) return; // already set up — never clobber
+
+  const { count: incomeCount } = await supabase
+    .from("income_sources")
+    .select("id", { count: "exact", head: true });
+
+  const isDate = (s: unknown): s is string =>
+    typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+
+  if ((incomeCount ?? 0) === 0) {
+    if (payload.mode === "irregular") {
+      await supabase.from("income_sources").insert({
+        name: "My income",
+        amount: 0,
+        frequency: "irregular",
+        kind: "paycheck",
+        anchor_date: new Date().toISOString().slice(0, 10),
+      });
+      const entries = (payload.entries ?? [])
+        .filter((e) => Number(e.amount) > 0 && isDate(e.date))
+        .slice(0, 12)
+        .map((e) => ({ amount: Number(e.amount), received_date: e.date! }));
+      if (entries.length > 0) {
+        await supabase.from("income_entries").insert(entries);
+      }
+    } else if (
+      Number(payload.amount) > 0 &&
+      ["weekly", "biweekly", "semimonthly", "monthly"].includes(payload.frequency ?? "") &&
+      isDate(payload.nextPayday)
+    ) {
+      await supabase.from("income_sources").insert({
+        name: "My paycheck",
+        amount: Number(payload.amount),
+        frequency: payload.frequency,
+        kind: "paycheck",
+        anchor_date: payload.nextPayday,
+      });
+    }
+  }
 
   await supabase.from("buckets").insert(template.buckets);
   revalidatePath("/");
