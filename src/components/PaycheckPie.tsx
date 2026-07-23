@@ -5,7 +5,7 @@
  * projection chart's per-bucket lines so the two charts read as one system.
  * The breakdown list next to it is server-rendered by the Budget page.
  */
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -35,7 +35,9 @@ export function PaycheckPie({
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
-            data={slices}
+            // Recharts v3 reads each sector's color from the data entry's
+            // `fill` (Cells alone left everything the default gray).
+            data={slices.map((s) => ({ ...s, fill: s.color }))}
             dataKey="amount"
             nameKey="name"
             innerRadius="55%"
@@ -44,19 +46,29 @@ export function PaycheckPie({
             stroke="#0f172a"
             strokeWidth={2}
             isAnimationActive={false}
-            label={(props) => {
+            label={(props: {
+              x?: number;
+              y?: number;
+              textAnchor?: string;
+              payload?: unknown;
+            }) => {
               const slice = props.payload as PieSlice;
-              return slice.share >= 8
-                ? `${slice.name} ${Math.round(slice.share)}%`
-                : "";
+              if (!slice || slice.share < 8) return <g />;
+              return (
+                <text
+                  x={props.x}
+                  y={props.y}
+                  textAnchor={props.textAnchor as "start" | "middle" | "end"}
+                  dominantBaseline="central"
+                  fill="#e2e8f0"
+                  fontSize={12}
+                >
+                  {`${slice.name} ${Math.round(slice.share)}%`}
+                </text>
+              );
             }}
             labelLine={false}
-            fontSize={12}
-          >
-            {slices.map((s) => (
-              <Cell key={s.name} fill={s.color} />
-            ))}
-          </Pie>
+          />
           <Tooltip
             formatter={(value, name, entry) => [
               `${currency.format(Number(value))} (${(entry?.payload as PieSlice)?.share}%)`,
