@@ -4,7 +4,8 @@
  * seeds the projection's starting savings balance, so the chart begins from
  * what you actually have instead of zero.
  */
-import { addNetWorthItem, deleteNetWorthItem } from "@/app/actions";
+import { addNetWorthItem, deleteNetWorthItem, undoRestore } from "@/app/actions";
+import { InstantAction } from "@/components/InstantAction";
 import {
   LIQUID_CATEGORIES,
   type DashboardData,
@@ -53,10 +54,15 @@ function ItemList({ items }: { items: NetWorthRow[] }) {
               {Number(i.apy) > 0 && ` · ${Number(i.apy)}% APY`}
             </span>
           </span>
-          <form action={deleteNetWorthItem}>
-            <input type="hidden" name="id" value={i.id} />
-            <button className={delCls}>remove</button>
-          </form>
+          <InstantAction
+            action={deleteNetWorthItem}
+            undoAction={undoRestore}
+            values={{ id: i.id }}
+            message={`Removed ${i.name}.`}
+            className={delCls}
+          >
+            remove
+          </InstantAction>
         </li>
       ))}
     </ul>

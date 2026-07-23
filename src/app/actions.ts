@@ -87,6 +87,54 @@ export async function signOut() {
 }
 
 // ---------------------------------------------------------------------------
+// Undo (8E): routine actions apply instantly and return a recipe that can
+// put things back; undoRestore executes it. RLS guarantees a user can only
+// ever restore their own rows.
+// ---------------------------------------------------------------------------
+
+export interface UndoRecipe {
+  inserts?: { table: string; row: Record<string, unknown> }[];
+  patches?: { table: string; id: string; patch: Record<string, unknown> }[];
+}
+
+const UNDOABLE_TABLES = new Set([
+  "income_sources",
+  "buckets",
+  "expenses",
+  "whatif_items",
+  "net_worth_items",
+]);
+
+export async function undoRestore(formData: FormData) {
+  let recipe: UndoRecipe;
+  try {
+    recipe = JSON.parse(str(formData, "payload"));
+  } catch {
+    return;
+  }
+  const supabase = await createClient();
+  for (const ins of recipe.inserts ?? []) {
+    if (!UNDOABLE_TABLES.has(ins.table)) continue;
+    await supabase.from(ins.table).insert(ins.row);
+  }
+  for (const p of recipe.patches ?? []) {
+    if (!UNDOABLE_TABLES.has(p.table) || typeof p.id !== "string") continue;
+    await supabase.from(p.table).update(p.patch).eq("id", p.id);
+  }
+  revalidatePath("/");
+}
+
+/** Fetch a row before deleting it, so the delete can hand back an undo. */
+async function captureRow(
+  table: string,
+  id: string,
+): Promise<Record<string, unknown> | null> {
+  const supabase = await createClient();
+  const { data } = await supabase.from(table).select("*").eq("id", id).single();
+  return (data as Record<string, unknown>) ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Income sources
 // ---------------------------------------------------------------------------
 
@@ -102,10 +150,13 @@ export async function addIncome(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteIncome(formData: FormData) {
+export async function deleteIncome(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
-  await supabase.from("income_sources").delete().eq("id", str(formData, "id"));
+  const id = str(formData, "id");
+  const row = await captureRow("income_sources", id);
+  await supabase.from("income_sources").delete().eq("id", id);
   revalidatePath("/");
+  return row ? { inserts: [{ table: "income_sources", row }] } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -368,10 +419,36 @@ export async function setBucketApy(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteBucket(formData: FormData) {
+export async function deleteBucket(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
-  await supabase.from("buckets").delete().eq("id", str(formData, "id"));
+  const id = str(formData, "id");
+  const row = await captureRow("buckets", id);
+  if (!row) return null;
+
+  // Deleting a bucket nulls the bucket_id on its expenses and what-ifs, so
+  // the undo recipe restores those links too.
+  const [{ data: exps }, { data: wifs }] = await Promise.all([
+    supabase.from("expenses").select("id").eq("bucket_id", id),
+    supabase.from("whatif_items").select("id").eq("bucket_id", id),
+  ]);
+
+  await supabase.from("buckets").delete().eq("id", id);
   revalidatePath("/");
+  return {
+    inserts: [{ table: "buckets", row }],
+    patches: [
+      ...(exps ?? []).map((e) => ({
+        table: "expenses",
+        id: e.id as string,
+        patch: { bucket_id: id },
+      })),
+      ...(wifs ?? []).map((w) => ({
+        table: "whatif_items",
+        id: w.id as string,
+        patch: { bucket_id: id },
+      })),
+    ],
+  };
 }
 
 export async function makeSavingsBucket(formData: FormData) {
@@ -401,10 +478,13 @@ export async function addExpense(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteExpense(formData: FormData) {
+export async function deleteExpense(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
-  await supabase.from("expenses").delete().eq("id", str(formData, "id"));
+  const id = str(formData, "id");
+  const row = await captureRow("expenses", id);
+  await supabase.from("expenses").delete().eq("id", id);
   revalidatePath("/");
+  return row ? { inserts: [{ table: "expenses", row }] } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -437,10 +517,13 @@ export async function addNetWorthItem(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function deleteNetWorthItem(formData: FormData) {
+export async function deleteNetWorthItem(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
-  await supabase.from("net_worth_items").delete().eq("id", str(formData, "id"));
+  const id = str(formData, "id");
+  const row = await captureRow("net_worth_items", id);
+  await supabase.from("net_worth_items").delete().eq("id", id);
   revalidatePath("/");
+  return row ? { inserts: [{ table: "net_worth_items", row }] } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,10 +555,10 @@ export async function startCoolingOff(formData: FormData) {
   revalidatePath("/");
 }
 
-export async function decideWhatIf(formData: FormData) {
+export async function decideWhatIf(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
   const status = str(formData, "status"); // "bought" | "skipped"
-  if (status !== "bought" && status !== "skipped") return;
+  if (status !== "bought" && status !== "skipped") return null;
 
   // Server-side enforcement of the cooling-off rule: "bought" is only valid
   // once the 48h timer has been started AND has fully expired. Skipping is
@@ -490,18 +573,31 @@ export async function decideWhatIf(formData: FormData) {
       (item?.cooling_off_started_at as string | null) ?? null,
       Date.now(),
     );
-    if (state.phase !== "ready") return; // timer missing or still running
+    if (state.phase !== "ready") return null; // timer missing or still running
   }
 
+  const id = str(formData, "id");
   await supabase
     .from("whatif_items")
     .update({ status, decided_at: new Date().toISOString() })
-    .eq("id", str(formData, "id"));
+    .eq("id", id);
   revalidatePath("/");
+  return {
+    patches: [
+      {
+        table: "whatif_items",
+        id,
+        patch: { status: "considering", decided_at: null },
+      },
+    ],
+  };
 }
 
-export async function deleteWhatIf(formData: FormData) {
+export async function deleteWhatIf(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
-  await supabase.from("whatif_items").delete().eq("id", str(formData, "id"));
+  const id = str(formData, "id");
+  const row = await captureRow("whatif_items", id);
+  await supabase.from("whatif_items").delete().eq("id", id);
   revalidatePath("/");
+  return row ? { inserts: [{ table: "whatif_items", row }] } : null;
 }

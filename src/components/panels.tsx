@@ -3,6 +3,7 @@
  * server components: each form posts straight to a Server Action.
  */
 import { CoolingCountdown } from "@/components/CoolingCountdown";
+import { InstantAction } from "@/components/InstantAction";
 import { coolingState } from "@/lib/coolingOff";
 import {
   addBucket,
@@ -21,6 +22,7 @@ import {
   setBucketStartingBalance,
   toggleBucketFlexible,
   toggleBucketRollsOver,
+  undoRestore,
 } from "@/app/actions";
 import type { DashboardData } from "@/lib/rows";
 
@@ -62,10 +64,15 @@ export function IncomePanel({ data }: { data: DashboardData }) {
                 {s.kind === "side" ? " (side income)" : ""}
               </span>
             </span>
-            <form action={deleteIncome}>
-              <input type="hidden" name="id" value={s.id} />
-              <button className={delCls}>remove</button>
-            </form>
+            <InstantAction
+              action={deleteIncome}
+              undoAction={undoRestore}
+              values={{ id: s.id }}
+              message={`Removed ${s.name}.`}
+              className={delCls}
+            >
+              remove
+            </InstantAction>
           </li>
         ))}
         {data.income.length === 0 && (
@@ -215,10 +222,15 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
                   </button>
                 </form>
               )}
-              <form action={deleteBucket}>
-                <input type="hidden" name="id" value={b.id} />
-                <button className={delCls}>remove</button>
-              </form>
+              <InstantAction
+                action={deleteBucket}
+                undoAction={undoRestore}
+                values={{ id: b.id }}
+                message={`Deleted the ${b.name} bucket.`}
+                className={delCls}
+              >
+                remove
+              </InstantAction>
             </span>
           </li>
         ))}
@@ -280,10 +292,15 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
                 {`— ${currency.format(Number(e.amount))} · ${e.cadence.replace("_", "-")} · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
               </span>
             </span>
-            <form action={deleteExpense}>
-              <input type="hidden" name="id" value={e.id} />
-              <button className={delCls}>remove</button>
-            </form>
+            <InstantAction
+              action={deleteExpense}
+              undoAction={undoRestore}
+              values={{ id: e.id }}
+              message={`Removed ${e.name}.`}
+              className={delCls}
+            >
+              remove
+            </InstantAction>
           </li>
         ))}
         {data.expenses.length === 0 && (
@@ -360,25 +377,34 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
                 <CoolingCountdown endsAtMs={cooling.endsAtMs} />
               )}
               {cooling.phase === "ready" && (
-                <form action={decideWhatIf}>
-                  <input type="hidden" name="id" value={w.id} />
-                  <input type="hidden" name="status" value="bought" />
-                  <button className="rounded bg-sky-500/20 px-2 py-0.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/30">
-                    still want it — confirm
-                  </button>
-                </form>
+                <InstantAction
+                  action={decideWhatIf}
+                  undoAction={undoRestore}
+                  values={{ id: w.id, status: "bought" }}
+                  message={`Marked "${w.name}" as bought. Enjoy it!`}
+                  className="rounded bg-sky-500/20 px-2 py-0.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/30"
+                >
+                  still want it — confirm
+                </InstantAction>
               )}
-              <form action={decideWhatIf}>
-                <input type="hidden" name="id" value={w.id} />
-                <input type="hidden" name="status" value="skipped" />
-                <button className="rounded bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300 transition hover:bg-emerald-500/30">
-                  said no 💪
-                </button>
-              </form>
-              <form action={deleteWhatIf}>
-                <input type="hidden" name="id" value={w.id} />
-                <button className={delCls}>×</button>
-              </form>
+              <InstantAction
+                action={decideWhatIf}
+                undoAction={undoRestore}
+                values={{ id: w.id, status: "skipped" }}
+                message={`Nice — "${w.name}" skipped. That's ${currency.format(Number(w.amount))} you kept.`}
+                className="rounded bg-emerald-500/20 px-2 py-0.5 text-xs text-emerald-300 transition hover:bg-emerald-500/30"
+              >
+                said no 💪
+              </InstantAction>
+              <InstantAction
+                action={deleteWhatIf}
+                undoAction={undoRestore}
+                values={{ id: w.id }}
+                message={`Removed ${w.name}.`}
+                className={delCls}
+              >
+                ×
+              </InstantAction>
             </span>
           </li>
           );
@@ -422,10 +448,15 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
                 <span>
                   {`${w.status === "skipped" ? "🙅 Skipped" : "🛍️ Bought"}: ${w.name} (${currency.format(Number(w.amount))})`}
                 </span>
-                <form action={deleteWhatIf}>
-                  <input type="hidden" name="id" value={w.id} />
-                  <button className={delCls}>×</button>
-                </form>
+                <InstantAction
+                  action={deleteWhatIf}
+                  undoAction={undoRestore}
+                  values={{ id: w.id }}
+                  message={`Removed ${w.name}.`}
+                  className={delCls}
+                >
+                  ×
+                </InstantAction>
               </li>
             ))}
           </ul>
