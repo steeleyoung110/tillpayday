@@ -86,14 +86,17 @@ export function windowPlan(w: ChartViewWindow, todayISO: string): WindowPlan {
   return { stepDays, granularity, monthsToProject: months };
 }
 
-/** Filter dated points to the window and thin them to the step (keeps ends). */
+/** Filter dated points to the window and thin them to the step (keeps ends,
+ * plus an optional must-keep date such as "today" for a marker line). */
 export function sampleWindow<T extends { date: string }>(
   points: T[],
   w: ChartViewWindow,
   stepDays: number,
+  keepDate?: string,
 ): T[] {
   const inRange = points.filter((p) => p.date >= w.from && p.date <= w.to);
   return inRange.filter(
-    (_, i) => i % stepDays === 0 || i === inRange.length - 1,
+    (p, i) =>
+      i % stepDays === 0 || i === inRange.length - 1 || p.date === keepDate,
   );
 }

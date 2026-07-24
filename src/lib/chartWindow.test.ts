@@ -107,4 +107,10 @@ describe("sampleWindow", () => {
     expect(out.map((p) => p.date)).toContain("2026-08-22"); // last kept
     expect(out.length).toBeLessThan(10);
   });
+
+  it("keeps a must-keep date (the today marker) through thinning", () => {
+    const pts = mk(60);
+    const out = sampleWindow(pts, { from: "2026-07-24", to: "2026-09-20" }, 30, "2026-08-05");
+    expect(out.map((p) => p.date)).toContain("2026-08-05");
+  });
 });

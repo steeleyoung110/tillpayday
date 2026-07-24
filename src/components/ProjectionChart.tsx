@@ -6,6 +6,7 @@ import {
   Line,
   LineChart,
   ReferenceArea,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -73,22 +74,37 @@ export interface GoalLine {
   label: string;
 }
 
+export interface EventDot {
+  /** Must match a date present in `data`. */
+  x: string;
+  y: number;
+  color: string;
+}
+
 export function ProjectionChart({
   data,
   series,
   granularity,
   goalLines = [],
+  todayMarker = null,
+  eventDots = [],
+  height = "h-80",
 }: {
   data: ChartRow[];
   series: ChartSeries[];
   granularity: TickGranularity;
   /** Horizontal target lines (goals) — extend the domain so they're visible. */
   goalLines?: GoalLine[];
+  /** Vertical "today" line (ISO date matching a data row). */
+  todayMarker?: string | null;
+  /** Transaction markers: dots where money left a bucket. */
+  eventDots?: EventDot[];
+  height?: string;
 }) {
   const nameByKey = new Map(series.map((s) => [s.key, s.name]));
 
   return (
-    <div className="h-80 w-full">
+    <div className={`${height} w-full`}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
           {/* Positive/negative wash: a soft green tint above $0 and red below,
@@ -128,6 +144,30 @@ export function ProjectionChart({
                 fill: "#E4A93C",
                 fontSize: 12,
               }}
+            />
+          ))}
+          {todayMarker && (
+            <ReferenceLine
+              x={todayMarker}
+              stroke="#F4EEE1"
+              strokeDasharray="3 3"
+              label={{
+                value: "today",
+                position: "insideTopLeft",
+                fill: "#F4EEE1",
+                fontSize: 11,
+              }}
+            />
+          )}
+          {eventDots.map((d, i) => (
+            <ReferenceDot
+              key={`${d.x}-${i}`}
+              x={d.x}
+              y={d.y}
+              r={4}
+              fill={d.color}
+              stroke="#0f172a"
+              strokeWidth={1.5}
             />
           ))}
           <XAxis

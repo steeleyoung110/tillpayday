@@ -6,7 +6,6 @@ import {
   DEFAULT_PRESET,
   PRESET_MONTHS,
   presetLabel,
-  presetWindow,
   sampleWindow,
   sanitizeWindow,
   windowPlan,
@@ -15,9 +14,12 @@ import {
 import {
   UNALLOCATED_KEY,
   addMonths,
+  currentPayCycle,
   evaluateWhatIf,
+  generateOccurrences,
   parseISO,
   runProjection,
+  toISO,
   type ProjectionInput,
   type ProjectionPoint,
 } from "@/lib/engine";
@@ -36,6 +38,7 @@ import {
   TOTAL_COLOR,
   type ChartRow,
   type ChartSeries,
+  type EventDot,
   type GoalLine,
 } from "./ProjectionChart";
 
@@ -98,16 +101,24 @@ function toChartRows(
 export function ProjectionSection({
   data,
   todayISO,
+  anchorISO,
 }: {
   data: DashboardData;
   todayISO: string;
+  /** The day the account was created — the long chart's fixed origin. */
+  anchorISO: string;
 }) {
   const considering = data.whatIf.filter((w) => w.status === "considering");
   const [selectedId, setSelectedId] = useState<string>("");
-  // View window: zoom presets (1 month … 10 years) or a custom date range.
-  // Defaults to 1 year; the last choice is remembered on this device (8G).
+  // View window: always begins the day you signed up (a fixed origin so you
+  // can watch your progress), presets stretch the far edge N months past
+  // today. Custom dates may start anywhere from signup onward.
+  const presetWin = (m: number): ChartViewWindow => ({
+    from: anchorISO,
+    to: toISO(addMonths(parseISO(todayISO), m)),
+  });
   const [win, setWin] = useState<ChartViewWindow & { preset: number | null }>(
-    () => ({ ...presetWindow(todayISO, DEFAULT_PRESET), preset: DEFAULT_PRESET }),
+    () => ({ ...presetWin(DEFAULT_PRESET), preset: DEFAULT_PRESET }),
   );
   useEffect(() => {
     try {
@@ -116,14 +127,15 @@ export function ProjectionSection({
         typeof saved?.preset === "number" &&
         (PRESET_MONTHS as readonly number[]).includes(saved.preset)
       ) {
-        setWin({ ...presetWindow(todayISO, saved.preset), preset: saved.preset });
+        setWin({ ...presetWin(saved.preset), preset: saved.preset });
       } else if (saved?.from && saved?.to) {
-        setWin({ ...sanitizeWindow(saved.from, saved.to, todayISO), preset: null });
+        setWin({ ...sanitizeWindow(saved.from, saved.to, anchorISO), preset: null });
       }
     } catch {
       // nothing saved yet — keep the default
     }
-  }, [todayISO]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayISO, anchorISO]);
   const updateWin = (w: ChartViewWindow & { preset: number | null }) => {
     setWin(w);
     try {
@@ -135,6 +147,10 @@ export function ProjectionSection({
       // private mode etc. — remembering is best-effort
     }
   };
+  // Two clocks: the DISPLAY projection runs from signup (stable origin, the
+  // progress story); the ANALYSIS projection runs from today (correct
+  // warnings, fixes, what-if verdicts, and goal outlooks).
+  const displayPlan = windowPlan(win, anchorISO);
   const plan = windowPlan(win, todayISO);
   const selected =
     considering.find((w) => w.id === selectedId) ?? considering[0] ?? null;
@@ -166,6 +182,17 @@ export function ProjectionSection({
       incomeEntries: data.incomeEntries.map(incomeEntryToEngine),
     }),
     [data, todayISO, plan.monthsToProject, buckets, savings, startingSavings],
+  );
+
+  // The signup-anchored run that feeds the long chart.
+  const display = useMemo(
+    () =>
+      runProjection({
+        ...input,
+        startDate: anchorISO,
+        months: displayPlan.monthsToProject,
+      }),
+    [input, anchorISO, displayPlan.monthsToProject],
   );
 
   const result = useMemo(() => {
@@ -218,7 +245,7 @@ export function ProjectionSection({
 
   const savingsLine = lines.find((l) => l.isSavings);
 
-  const series: ChartSeries[] = useMemo(() => {
+  const baseSeries: ChartSeries[] = useMemo(() => {
     const out: ChartSeries[] = lines.map((l) => ({
       key: l.key,
       name: l.name,
@@ -226,17 +253,59 @@ export function ProjectionSection({
       emphasis: l.isSavings,
     }));
     out.push({ key: TOTAL_KEY, name: "Total on hand", color: TOTAL_COLOR, emphasis: true });
-    if (result.withPurchase && selected) {
-      out.push({
+    return out;
+  }, [lines]);
+
+  const series: ChartSeries[] = useMemo(() => {
+    if (!result.withPurchase || !selected) return baseSeries;
+    return [
+      ...baseSeries,
+      {
         key: WHATIF_KEY,
         // Same hue as the savings line, dashed — it's that line's hypothetical twin.
         name: `Savings if you buy "${selected.name}"`,
         color: savingsLine?.color ?? "#38bdf8",
         dashed: true,
-      });
+      },
+    ];
+  }, [baseSeries, result.withPurchase, selected, savingsLine]);
+
+  // The paycheck snapshot: this cycle only, day by day, every transaction.
+  // Rolls forward automatically when the next paycheck lands.
+  const snapshot = useMemo(() => {
+    if (data.income.length === 0) return null;
+    const cycle = currentPayCycle(input.incomeSources, todayISO);
+    if (!cycle) return null;
+    const proj = runProjection({ ...input, startDate: cycle.lastPayday, months: 2 });
+    const w = { from: cycle.lastPayday, to: cycle.nextPayday };
+    const rows = toChartRows(
+      sampleWindow(proj.points, w, 1),
+      null,
+      lines,
+    );
+    // A dot on the owning bucket's line for every bill that hits this cycle.
+    const savingsId = savings?.id ?? UNALLOCATED_KEY;
+    const dots: EventDot[] = [];
+    for (const e of input.expenses) {
+      if (e.isPaused) continue;
+      for (const d of generateOccurrences(
+        e.dueDate,
+        e.cadence,
+        parseISO(w.from),
+        parseISO(w.to),
+      )) {
+        const dateISO = toISO(d);
+        const targetId = e.bucketId ?? savingsId;
+        const line = lines.find((l) => l.ids.includes(targetId));
+        const row = rows.find((r) => r.date === dateISO);
+        const y = row && line ? row[line.key] : undefined;
+        if (line && typeof y === "number") {
+          dots.push({ x: dateISO, y, color: line.color });
+        }
+      }
     }
-    return out;
-  }, [lines, result.withPurchase, selected, savingsLine]);
+    return { rows, dots, since: cycle.lastPayday, next: cycle.nextPayday };
+  }, [data.income.length, input, todayISO, lines, savings]);
 
   // Goals: outlooks run on their own long projection so a 2028 goal isn't
   // blinded by a 1-month chart zoom. Capped at 10 years.
@@ -274,7 +343,9 @@ export function ProjectionSection({
     .reduce((sum, w) => sum + Number(w.amount), 0);
 
   const { baseline, withPurchase, verdict } = result;
-  const windowPoints = sampleWindow(baseline.points, win, plan.stepDays);
+  // The long chart draws the signup-anchored run; the dashed what-if overlay
+  // (a forward-looking hypothetical) starts at today from the analysis run.
+  const windowPoints = sampleWindow(display.points, win, displayPlan.stepDays, todayISO);
   const whatifByDate = withPurchase
     ? new Map(withPurchase.points.map((p) => [p.date, p.savings]))
     : null;
@@ -284,7 +355,7 @@ export function ProjectionSection({
   // Stats read from the end of the visible window, so zooming re-frames them.
   const windowEnd =
     windowPoints[windowPoints.length - 1] ??
-    baseline.points[baseline.points.length - 1];
+    display.points[display.points.length - 1];
   const windowLabel = win.preset
     ? `in ${presetLabel(win.preset)}`
     : `by ${prettyDate(win.to)}`;
@@ -323,20 +394,45 @@ export function ProjectionSection({
         </div>
       </div>
 
+      {/* Paycheck snapshot: this cycle under the microscope */}
+      {hasIncome && snapshot && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-semibold text-white">This paycheck 🔍</h2>
+            <span className="text-xs text-slate-500">
+              {`${prettyDate(snapshot.since)} → ${prettyDate(snapshot.next)} · every transaction, day by day`}
+            </span>
+          </div>
+          <ProjectionChart
+            data={snapshot.rows}
+            series={baseSeries}
+            granularity="day"
+            todayMarker={todayISO}
+            eventDots={snapshot.dots}
+            height="h-64"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Dots mark bills leaving their buckets. This view rolls forward on
+            its own when your next paycheck lands.
+          </p>
+        </div>
+      )}
+
       {/* Chart card */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-white">
             Where your money&apos;s headed
+            <span className="ml-2 text-xs font-normal text-slate-500">
+              {`since you joined · ${prettyDate(anchorISO)}`}
+            </span>
           </h2>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex rounded-lg border border-slate-700 p-0.5 text-sm">
               {PRESET_MONTHS.map((m) => (
                 <button
                   key={m}
-                  onClick={() =>
-                    updateWin({ ...presetWindow(todayISO, m), preset: m })
-                  }
+                  onClick={() => updateWin({ ...presetWin(m), preset: m })}
                   className={`rounded-md px-2.5 py-1 transition ${
                     win.preset === m
                       ? "bg-emerald-500 font-semibold text-slate-950"
@@ -351,10 +447,10 @@ export function ProjectionSection({
               <input
                 type="date"
                 value={win.from}
-                min={todayISO}
+                min={anchorISO}
                 onChange={(e) =>
                   updateWin({
-                    ...sanitizeWindow(e.target.value, win.to, todayISO),
+                    ...sanitizeWindow(e.target.value, win.to, anchorISO),
                     preset: null,
                   })
                 }
@@ -365,10 +461,10 @@ export function ProjectionSection({
               <input
                 type="date"
                 value={win.to}
-                min={todayISO}
+                min={anchorISO}
                 onChange={(e) =>
                   updateWin({
-                    ...sanitizeWindow(win.from, e.target.value, todayISO),
+                    ...sanitizeWindow(win.from, e.target.value, anchorISO),
                     preset: null,
                   })
                 }
@@ -400,8 +496,9 @@ export function ProjectionSection({
             <ProjectionChart
               data={chartRows}
               series={series}
-              granularity={plan.granularity}
+              granularity={displayPlan.granularity}
               goalLines={goalLines}
+              todayMarker={todayISO}
             />
             <p className="mt-2 text-xs text-slate-500">
               {baseline.irregularWeekly !== null &&

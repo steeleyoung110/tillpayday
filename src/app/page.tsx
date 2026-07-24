@@ -211,7 +211,11 @@ export default async function Home() {
           )}
         </div>
 
-        <ProjectionSection data={data} todayISO={todayISO} />
+        <ProjectionSection
+          data={data}
+          todayISO={todayISO}
+          anchorISO={(user.created_at ?? todayISO).slice(0, 10)}
+        />
 
         {/* The glance ends here — changes live in Budget. */}
         <Link
