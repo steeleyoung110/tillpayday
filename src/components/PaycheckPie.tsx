@@ -21,6 +21,10 @@ export interface PieSlice {
    * shadows it and renders things like "7500%". */
   share: number;
   color: string;
+  /** Tooltip amount override — e.g. "−$300.00" for spent slices. */
+  display?: string;
+  /** Compact on-chart label override (the list can stay verbose). */
+  short?: string;
 }
 
 export function PaycheckPie({
@@ -63,17 +67,20 @@ export function PaycheckPie({
                   fill="#e2e8f0"
                   fontSize={12}
                 >
-                  {`${slice.name} ${Math.round(slice.share)}%`}
+                  {`${slice.short ?? slice.name} ${Math.round(slice.share)}%`}
                 </text>
               );
             }}
             labelLine={false}
           />
           <Tooltip
-            formatter={(value, name, entry) => [
-              `${currency.format(Number(value))} (${(entry?.payload as PieSlice)?.share}%)`,
-              String(name),
-            ]}
+            formatter={(value, name, entry) => {
+              const slice = entry?.payload as PieSlice | undefined;
+              return [
+                `${slice?.display ?? currency.format(Number(value))} (${slice?.share}%)`,
+                String(name),
+              ];
+            }}
             labelStyle={{ color: "#e2e8f0" }}
             contentStyle={{
               backgroundColor: "#0f172a",

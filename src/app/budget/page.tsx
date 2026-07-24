@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LegalFooter } from "@/components/LegalFooter";
 import { PaycheckPie, type PieSlice } from "@/components/PaycheckPie";
-import { BUCKET_COLORS } from "@/components/ProjectionChart";
+import {
+  UNSPENT_GREEN,
+  classifyBucket,
+  planColor,
+  spentRed,
+} from "@/lib/bucketColor";
 import {
   BucketsPanel,
   ExpensesPanel,
@@ -89,45 +94,97 @@ export default async function BudgetPage() {
     ? { id: funBucketRow.id, name: funBucketRow.name }
     : null;
 
-  // The paycheck pie: how one typical check splits, colored to match the
-  // projection chart's per-bucket lines (same order-based palette).
-  const colorFor = (bucketId: string | null) => {
-    const i = data.buckets.findIndex((b) => b.id === bucketId);
-    return i >= 0 ? BUCKET_COLORS[i % BUCKET_COLORS.length] : "#64748b";
-  };
-  const pieSlices: PieSlice[] = splitPaycheck(engineBuckets, typicalPaycheck).map(
-    (s) => ({
-      name: s.name,
-      amount: s.amount,
-      share: s.percent,
-      color: colorFor(s.bucketId),
-    }),
-  );
+  const savingsBucket = data.buckets.find((b) => b.is_savings);
+  const currencyCents = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  });
 
-  // The comparison donut: what actually left the buckets this cycle vs the
-  // plan — same bucket colors so the two charts line up visually.
-  const spend = cycleSpending(engineIncome, engineExpenses, todayISO);
-  const bucketNameFor = (id: string | null) =>
-    id === null
-      ? "Savings / leftover"
-      : data.buckets.find((b) => b.id === id)?.name ?? "Other";
-  const spentSlices: PieSlice[] = (spend?.byBucket ?? []).map((s) => ({
-    name: bucketNameFor(s.bucketId),
+  // The plan pie wears the virtue spectrum: green = savings/investing,
+  // yellow = food, orange = bills, red = fun. New buckets self-classify by
+  // name, shades vary within a family so every slice stays distinct.
+  const planRaw = splitPaycheck(engineBuckets, typicalPaycheck);
+  const familyCount: Record<string, number> = {};
+  const semanticColor = new Map<string | null, string>();
+  for (const s of planRaw) {
+    const row = s.bucketId
+      ? data.buckets.find((b) => b.id === s.bucketId)
+      : undefined;
+    const cat = classifyBucket(s.name, {
+      isSavings: (row?.is_savings ?? false) || s.bucketId === null,
+      isFlexible: row?.is_flexible,
+    });
+    const idx = familyCount[cat] ?? 0;
+    familyCount[cat] = idx + 1;
+    semanticColor.set(s.bucketId, planColor(cat, idx));
+  }
+  const pieSlices: PieSlice[] = planRaw.map((s) => ({
+    name: s.name,
     amount: s.amount,
-    share:
-      typicalPaycheck > 0
-        ? Math.round((s.amount / typicalPaycheck) * 1000) / 10
-        : 0,
-    color: colorFor(s.bucketId),
+    share: s.percent,
+    color: semanticColor.get(s.bucketId) ?? "#f59e0b",
   }));
+
+  // The reality donut: every spent slice is a bright red (spending is an
+  // outflow — it reads as −$), the unspent remainder is green, and the
+  // breakdown list mirrors the plan's row order for 1:1 comparison.
+  const spend = cycleSpending(engineIncome, engineExpenses, todayISO);
+  const pct = (n: number) =>
+    typicalPaycheck > 0 ? Math.round((n / typicalPaycheck) * 1000) / 10 : 0;
+  const spentByBucket = new Map(
+    (spend?.byBucket ?? []).map((x) => [x.bucketId, x.amount]),
+  );
+  // Plan-slice bucketId for savings is the savings bucket's id, but spends
+  // drawn from savings carry a null bucket_id — bridge the two keys.
+  const spendKeyFor = (planBucketId: string | null) =>
+    planBucketId === (savingsBucket?.id ?? null) ? null : planBucketId;
+
+  let redIdx = 0;
+  const spentRows = planRaw.map((s) => {
+    const amount = spentByBucket.get(spendKeyFor(s.bucketId)) ?? 0;
+    return {
+      name: s.name,
+      amount,
+      share: pct(amount),
+      color: amount > 0 ? spentRed(redIdx++) : null,
+    };
+  });
+  // Spending from buckets the plan doesn't allocate to (e.g. $0-refill ones).
+  const covered = new Set(planRaw.map((s) => spendKeyFor(s.bucketId)));
+  for (const [key, amount] of spentByBucket) {
+    if (covered.has(key) || amount <= 0) continue;
+    spentRows.push({
+      name:
+        key === null
+          ? "Savings / leftover"
+          : data.buckets.find((b) => b.id === key)?.name ?? "Other",
+      amount,
+      share: pct(amount),
+      color: spentRed(redIdx++),
+    });
+  }
   const unspent =
-    typicalPaycheck > 0 ? Math.max(0, typicalPaycheck - (spend?.total ?? 0)) : 0;
+    typicalPaycheck > 0
+      ? Math.max(0, Math.round((typicalPaycheck - (spend?.total ?? 0)) * 100) / 100)
+      : 0;
+
+  const spentSlices: PieSlice[] = spentRows
+    .filter((r) => r.amount > 0)
+    .map((r) => ({
+      name: `Spent from ${r.name}`,
+      short: r.name,
+      amount: r.amount,
+      share: r.share,
+      color: r.color!,
+      display: `−${currencyCents.format(r.amount)}`,
+    }));
   if (unspent > 0 && spentSlices.length > 0) {
     spentSlices.push({
-      name: "Still unspent",
-      amount: Math.round(unspent * 100) / 100,
-      share: Math.round((unspent / typicalPaycheck) * 1000) / 10,
-      color: "#475569",
+      name: "Left unspent",
+      short: "Unspent",
+      amount: unspent,
+      share: pct(unspent),
+      color: UNSPENT_GREEN,
     });
   }
 
@@ -138,7 +195,6 @@ export default async function BudgetPage() {
 
   // Today's balance per bucket (this cycle's replay) — powers the overdraft
   // decision popup when a new bill outsizes its bucket.
-  const savingsBucket = data.buckets.find((b) => b.is_savings);
   const liquidNow = data.netWorth
     .filter((i) => i.kind === "asset" && ["cash", "savings"].includes(i.category))
     .reduce((s, i) => s + Number(i.amount), 0);
@@ -226,21 +282,40 @@ export default async function BudgetPage() {
                   <div className="flex flex-wrap items-center gap-6">
                     <PaycheckPie slices={spentSlices} paycheck={typicalPaycheck} />
                     <ul className="min-w-44 flex-1 space-y-2 text-sm">
-                      {spentSlices.map((s) => (
-                        <li key={s.name} className="flex items-center justify-between gap-3">
+                      {spentRows.map((r) => (
+                        <li key={r.name} className="flex items-center justify-between gap-3">
                           <span className="flex items-center gap-2 text-slate-200">
                             <span
                               className="inline-block h-3 w-3 rounded-sm"
-                              style={{ backgroundColor: s.color }}
+                              style={{ backgroundColor: r.color ?? "#334155" }}
                               aria-hidden
                             />
-                            {s.name}
+                            {`Spent from ${r.name}`}
                           </span>
-                          <span className="text-slate-400">
-                            {`${currency.format(s.amount)} · ${s.share}%`}
-                          </span>
+                          {r.amount > 0 ? (
+                            <span className="font-semibold text-red-300">
+                              {`−${currencyCents.format(r.amount)} · ${r.share}%`}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">$0 so far</span>
+                          )}
                         </li>
                       ))}
+                      {unspent > 0 && (
+                        <li className="flex items-center justify-between gap-3 border-t border-slate-800 pt-2">
+                          <span className="flex items-center gap-2 text-slate-200">
+                            <span
+                              className="inline-block h-3 w-3 rounded-sm"
+                              style={{ backgroundColor: UNSPENT_GREEN }}
+                              aria-hidden
+                            />
+                            Left unspent
+                          </span>
+                          <span className="font-semibold text-emerald-300">
+                            {`${currencyCents.format(unspent)} · ${pct(unspent)}%`}
+                          </span>
+                        </li>
+                      )}
                     </ul>
                   </div>
                 ) : (
@@ -253,8 +328,9 @@ export default async function BudgetPage() {
               </div>
             </div>
             <p className="mt-3 text-xs text-slate-500">
-              Matching colors, same bucket — when a slice on the right outgrows
-              its twin on the left, that bucket is running ahead of plan.
+              The two lists line up row for row: the plan&apos;s share on the
+              left, what you&apos;ve actually spent (in red) on the right.
+              Green is money still standing; red is money gone.
             </p>
           </div>
         )}
