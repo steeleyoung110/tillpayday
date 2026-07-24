@@ -15,8 +15,10 @@ import {
   UNALLOCATED_KEY,
   addMonths,
   currentPayCycle,
+  cycleSpending,
   evaluateWhatIf,
   generateOccurrences,
+  generatePayDates,
   parseISO,
   runProjection,
   toISO,
@@ -304,7 +306,31 @@ export function ProjectionSection({
         }
       }
     }
-    return { rows, dots, since: cycle.lastPayday, next: cycle.nextPayday };
+    // Money in this cycle: scheduled paychecks that have landed, plus
+    // anything logged as received (irregular income and windfalls).
+    let received = 0;
+    for (const src of input.incomeSources) {
+      received +=
+        generatePayDates(src, parseISO(w.from), parseISO(todayISO)).length *
+        src.amount;
+    }
+    for (const entry of input.incomeEntries ?? []) {
+      if (entry.receivedDate >= w.from && entry.receivedDate <= todayISO) {
+        received += entry.amount;
+      }
+    }
+    received = Math.round(received * 100) / 100;
+    const spent = cycleSpending(input.incomeSources, input.expenses, todayISO)?.total ?? 0;
+
+    return {
+      rows,
+      dots,
+      since: cycle.lastPayday,
+      next: cycle.nextPayday,
+      received,
+      spent,
+      remaining: Math.round((received - spent) * 100) / 100,
+    };
   }, [data.income.length, input, todayISO, lines, savings]);
 
   // Goals: outlooks run on their own long projection so a 2028 goal isn't
@@ -366,7 +392,58 @@ export function ProjectionSection({
 
   return (
     <section className="space-y-4">
-      {/* Headline stats */}
+      {/* Paycheck snapshot: this cycle under the microscope */}
+      {hasIncome && snapshot && (
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-semibold text-white">This paycheck 🔍</h2>
+            <span className="text-xs text-slate-500">
+              {`${prettyDate(snapshot.since)} → ${prettyDate(snapshot.next)} · every transaction, day by day`}
+            </span>
+          </div>
+
+          {/* This cycle's money story: in, out, left */}
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            <div className="rounded-xl bg-slate-800/60 px-4 py-3">
+              <p className="text-xs text-slate-400">Received this paycheck</p>
+              <p className="mt-0.5 text-2xl font-bold text-white">
+                {currency.format(snapshot.received)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-800/60 px-4 py-3">
+              <p className="text-xs text-slate-400">Spent so far</p>
+              <p className="mt-0.5 text-2xl font-bold text-amber-300">
+                {currency.format(snapshot.spent)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-800/60 px-4 py-3">
+              <p className="text-xs text-slate-400">Remaining</p>
+              <p
+                className={`mt-0.5 text-2xl font-bold ${
+                  snapshot.remaining >= 0 ? "text-emerald-300" : "text-red-300"
+                }`}
+              >
+                {currency.format(snapshot.remaining)}
+              </p>
+            </div>
+          </div>
+
+          <ProjectionChart
+            data={snapshot.rows}
+            series={baseSeries}
+            granularity="day"
+            todayMarker={todayISO}
+            eventDots={snapshot.dots}
+            height="h-64"
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Dots mark bills leaving their buckets. This view rolls forward on
+            its own when your next paycheck lands.
+          </p>
+        </div>
+      )}
+
+      {/* The long view's headline numbers — these explain the chart below. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <p className="text-sm text-slate-400">{`Savings ${windowLabel}`}</p>
@@ -393,30 +470,6 @@ export function ProjectionSection({
           </p>
         </div>
       </div>
-
-      {/* Paycheck snapshot: this cycle under the microscope */}
-      {hasIncome && snapshot && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="font-semibold text-white">This paycheck 🔍</h2>
-            <span className="text-xs text-slate-500">
-              {`${prettyDate(snapshot.since)} → ${prettyDate(snapshot.next)} · every transaction, day by day`}
-            </span>
-          </div>
-          <ProjectionChart
-            data={snapshot.rows}
-            series={baseSeries}
-            granularity="day"
-            todayMarker={todayISO}
-            eventDots={snapshot.dots}
-            height="h-64"
-          />
-          <p className="mt-2 text-xs text-slate-500">
-            Dots mark bills leaving their buckets. This view rolls forward on
-            its own when your next paycheck lands.
-          </p>
-        </div>
-      )}
 
       {/* Chart card */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
