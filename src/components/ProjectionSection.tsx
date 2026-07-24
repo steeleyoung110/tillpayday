@@ -25,6 +25,7 @@ import {
   type ProjectionInput,
   type ProjectionPoint,
 } from "@/lib/engine";
+import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { goalOutlook } from "@/lib/goals";
 import {
   LIQUID_CATEGORIES,
@@ -35,7 +36,6 @@ import {
   type DashboardData,
 } from "@/lib/rows";
 import {
-  BUCKET_COLORS,
   ProjectionChart,
   TOTAL_COLOR,
   type ChartRow,
@@ -211,28 +211,46 @@ export function ProjectionSection({
   }, [input, selected]);
 
   // One line per bucket in stored order (savings included), plus the implicit
-  // unallocated pool when no savings bucket exists. Colors are assigned by
-  // position from the validated palette; past the cap, buckets fold into
+  // unallocated pool when no savings bucket exists. Colors follow the virtue
+  // spectrum (green = savings/investing, yellow = food, orange = bills,
+  // red = fun), matching the Budget pies; past the cap, buckets fold into
   // a single "Other buckets" line.
   const lines: BucketLine[] = useMemo(() => {
     const entries = buckets.map((b) => ({
       id: b.id,
+      rawName: b.name,
       name: b.isSavings ? `${b.name} (savings)` : b.name,
       isSavings: b.isSavings,
+      isFlexible: b.isFlexible ?? false,
     }));
     if (!savings) {
-      entries.push({ id: UNALLOCATED_KEY, name: "Unallocated", isSavings: false });
+      entries.push({
+        id: UNALLOCATED_KEY,
+        rawName: "Unallocated",
+        name: "Unallocated",
+        isSavings: true, // the leftover pool is savings-colored
+        isFlexible: false,
+      });
     }
     const shown =
       entries.length > MAX_BUCKET_LINES ? entries.slice(0, MAX_BUCKET_LINES - 1) : entries;
     const folded = entries.slice(shown.length);
-    const out: BucketLine[] = shown.map((e, i) => ({
-      ids: [e.id],
-      key: e.id,
-      name: e.name,
-      color: BUCKET_COLORS[i % BUCKET_COLORS.length],
-      isSavings: e.isSavings,
-    }));
+    const familyCount: Record<string, number> = {};
+    const out: BucketLine[] = shown.map((e) => {
+      const cat = classifyBucket(e.rawName, {
+        isSavings: e.isSavings,
+        isFlexible: e.isFlexible,
+      });
+      const idx = familyCount[cat] ?? 0;
+      familyCount[cat] = idx + 1;
+      return {
+        ids: [e.id],
+        key: e.id,
+        name: e.name,
+        color: planColor(cat, idx),
+        isSavings: e.id === (savings?.id ?? UNALLOCATED_KEY),
+      };
+    });
     if (folded.length > 0) {
       out.push({
         ids: folded.map((e) => e.id),

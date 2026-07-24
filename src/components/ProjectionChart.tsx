@@ -31,22 +31,6 @@ export interface ChartRow {
   [seriesKey: string]: string | number | undefined;
 }
 
-/**
- * Categorical palette for bucket lines, validated (CVD-safe adjacent pairs,
- * ≥3:1 contrast) against the slate-900 chart surface. Assign in this fixed
- * order by bucket position — never re-color a bucket when others change.
- */
-export const BUCKET_COLORS = [
-  "#3987e5", // blue
-  "#008300", // green
-  "#d55181", // magenta
-  "#c98500", // yellow
-  "#199e70", // aqua
-  "#d95926", // orange
-  "#9085e9", // violet
-  "#e66767", // red
-];
-
 /** Neutral ink for the "everything combined" total line. */
 export const TOTAL_COLOR = "#e2e8f0";
 
