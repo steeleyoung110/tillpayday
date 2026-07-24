@@ -25,6 +25,7 @@ import {
   debtVsInvest,
   loanPayoff,
   padCurve,
+  padSchedule,
   savingsGrowth,
   type AmortRow,
   type CurvePoint,
@@ -93,6 +94,67 @@ function Field({
 interface MonthWindow {
   from: number | null;
   to: number | null;
+}
+
+/** "Zoom in — from month X to month Y" fields, reused per chart. */
+function ZoomFields({
+  from,
+  to,
+  setFrom,
+  setTo,
+}: {
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-end gap-3 text-xs text-slate-400">
+      <label>
+        Zoom in — from month
+        <input
+          type="number"
+          inputMode="numeric"
+          min="0"
+          placeholder="start"
+          value={from}
+          onChange={(e) => setFrom(e.target.value)}
+          className={`${inputCls} mt-1 w-24`}
+        />
+      </label>
+      <label>
+        to month
+        <input
+          type="number"
+          inputMode="numeric"
+          min="1"
+          placeholder="end"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          className={`${inputCls} mt-1 w-24`}
+        />
+      </label>
+      {(from !== "" || to !== "") && (
+        <button
+          type="button"
+          onClick={() => {
+            setFrom("");
+            setTo("");
+          }}
+          className="pb-2 text-sky-300 transition hover:text-sky-200"
+        >
+          show everything
+        </button>
+      )}
+    </div>
+  );
+}
+
+function toWindow(from: string, to: string): MonthWindow {
+  return {
+    from: from !== "" && Number(from) >= 0 ? Number(from) : null,
+    to: to !== "" && Number(to) > 0 ? Number(to) : null,
+  };
 }
 
 function Curves({
@@ -221,10 +283,13 @@ const INTEREST_RED = "#ef4444";
 function PaymentSplitChart({
   schedule,
   crossoverMonth,
+  paidOffMonth = null,
   window,
 }: {
   schedule: AmortRow[];
   crossoverMonth: number | null;
+  /** Month the loan dies — marked so the $0 tail reads as the win it is. */
+  paidOffMonth?: number | null;
   window?: MonthWindow;
 }) {
   const from = window?.from ?? null;
@@ -235,27 +300,40 @@ function PaymentSplitChart({
           (d) => (from === null || d.month >= from) && (to === null || d.month <= to),
         )
       : schedule;
+  const inWindow = (m: number | null): m is number =>
+    m !== null && (from === null || m >= from) && (to === null || m <= to);
 
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
           <CartesianGrid stroke="#1e293b" vertical={false} />
-          {crossoverMonth !== null &&
-            (from === null || crossoverMonth >= from) &&
-            (to === null || crossoverMonth <= to) && (
-              <ReferenceLine
-                x={crossoverMonth}
-                stroke="#34d399"
-                strokeDasharray="4 4"
-                label={{
-                  value: "most of it finally goes to you",
-                  position: "insideTop",
-                  fill: "#34d399",
-                  fontSize: 12,
-                }}
-              />
-            )}
+          {inWindow(crossoverMonth) && (
+            <ReferenceLine
+              x={crossoverMonth}
+              stroke="#34d399"
+              strokeDasharray="4 4"
+              label={{
+                value: "most of it finally goes to you",
+                position: "insideTop",
+                fill: "#34d399",
+                fontSize: 12,
+              }}
+            />
+          )}
+          {inWindow(paidOffMonth) && (
+            <ReferenceLine
+              x={paidOffMonth}
+              stroke="#34d399"
+              strokeDasharray="4 4"
+              label={{
+                value: "🎉 paid off — the rest is yours",
+                position: "insideTopRight",
+                fill: "#34d399",
+                fontSize: 12,
+              }}
+            />
+          )}
           <XAxis
             dataKey="month"
             tickFormatter={(m: number) => (m % 12 === 0 ? `${m / 12}y` : `${m}mo`)}
@@ -363,50 +441,15 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
   // Zoom window shared by the loan and head-to-head charts ("" = show all).
   const [zoomFrom, setZoomFrom] = useState("");
   const [zoomTo, setZoomTo] = useState("");
-  const monthWindow: MonthWindow = {
-    from: zoomFrom !== "" && Number(zoomFrom) >= 0 ? Number(zoomFrom) : null,
-    to: zoomTo !== "" && Number(zoomTo) > 0 ? Number(zoomTo) : null,
-  };
+  const monthWindow = toWindow(zoomFrom, zoomTo);
   const zoomControls = (
-    <div className="mb-4 flex flex-wrap items-end gap-3 text-xs text-slate-400">
-      <label>
-        Zoom in — from month
-        <input
-          type="number"
-          inputMode="numeric"
-          min="0"
-          placeholder="start"
-          value={zoomFrom}
-          onChange={(e) => setZoomFrom(e.target.value)}
-          className={`${inputCls} mt-1 w-24`}
-        />
-      </label>
-      <label>
-        to month
-        <input
-          type="number"
-          inputMode="numeric"
-          min="1"
-          placeholder="end"
-          value={zoomTo}
-          onChange={(e) => setZoomTo(e.target.value)}
-          className={`${inputCls} mt-1 w-24`}
-        />
-      </label>
-      {(zoomFrom !== "" || zoomTo !== "") && (
-        <button
-          type="button"
-          onClick={() => {
-            setZoomFrom("");
-            setZoomTo("");
-          }}
-          className="pb-2 text-sky-300 transition hover:text-sky-200"
-        >
-          show everything
-        </button>
-      )}
-    </div>
+    <ZoomFields from={zoomFrom} to={zoomTo} setFrom={setZoomFrom} setTo={setZoomTo} />
   );
+  // The payment-split chart zooms independently — peer at the first year of
+  // payments without losing the full arc on the balance chart above.
+  const [splitFrom, setSplitFrom] = useState("");
+  const [splitTo, setSplitTo] = useState("");
+  const splitWindow = toWindow(splitFrom, splitTo);
 
   // 10A
   const [loanBalance, setLoanBalance] = useState(10000);
@@ -472,6 +515,11 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
         );
         const aPts = padCurve(a.points, horizon);
         const bPts = padCurve(b.points, horizon);
+        // Same pinned timeline for the payment split: pay off early and the
+        // chart runs on at $0/$0 — the bonus months, visibly yours.
+        const splitPts = padSchedule(split.schedule, horizon);
+        const splitPaidEarly =
+          split.months !== null && split.months < horizon ? split.months : null;
         return (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <PrefillChips
@@ -543,10 +591,17 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
                 <p className="mb-3 text-xs text-slate-400">
                   {`At ${apr1}% (Rate A), paying ${currency.format(pay)}/month. Green reduces your balance; red is interest — the bank's cut.`}
                 </p>
+                <ZoomFields
+                  from={splitFrom}
+                  to={splitTo}
+                  setFrom={setSplitFrom}
+                  setTo={setSplitTo}
+                />
                 <PaymentSplitChart
-                  schedule={split.schedule}
+                  schedule={splitPts}
                   crossoverMonth={split.crossoverMonth}
-                  window={monthWindow}
+                  paidOffMonth={splitPaidEarly}
+                  window={splitWindow}
                 />
                 {split.neverPaysOff ? (
                   <Verdict tone="warn">

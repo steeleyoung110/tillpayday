@@ -177,6 +177,23 @@ export function amortize(
 }
 
 /**
+ * Extend a paid-off amortization schedule to a fixed horizon with $0 rows —
+ * same idea as padCurve: the timeline stays pinned, so finishing early shows
+ * months of nothing owed instead of the axis shrinking to hide the win.
+ * Never-pays-off schedules are left alone (there is no "after").
+ */
+export function padSchedule(schedule: AmortRow[], horizonMonths: number): AmortRow[] {
+  if (schedule.length === 0) return schedule;
+  const last = schedule[schedule.length - 1];
+  if (last.month >= horizonMonths || last.balance > 0) return schedule;
+  const out = [...schedule];
+  for (let m = last.month + 1; m <= horizonMonths; m += 1) {
+    out.push({ month: m, interest: 0, principal: 0, balance: 0 });
+  }
+  return out;
+}
+
+/**
  * Extend a curve to a fixed horizon by holding its final value (a paid-off
  * loan stays flat at $0). Keeps the chart's timeline pinned so paying off
  * early LOOKS early instead of the axis shrinking to hide the win.

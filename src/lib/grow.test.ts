@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { amortize, debtVsInvest, loanPayoff, padCurve, savingsGrowth } from "./grow";
+import {
+  amortize,
+  debtVsInvest,
+  loanPayoff,
+  padCurve,
+  padSchedule,
+  savingsGrowth,
+} from "./grow";
 
 describe("padCurve", () => {
   it("holds the final value out to the horizon (paid-off loans stay at $0)", () => {
@@ -60,6 +67,33 @@ describe("loanPayoff", () => {
     const extra = loanPayoff(10000, 10, 350);
     expect(extra.months!).toBeLessThan(base.months!);
     expect(extra.totalInterest).toBeLessThan(base.totalInterest);
+  });
+});
+
+describe("padSchedule", () => {
+  it("pads a paid-off schedule to the horizon with $0 rows — visible freedom", () => {
+    const res = amortize(10000, 10, 400); // ~28 months
+    const padded = padSchedule(res.schedule, 40);
+    expect(padded[padded.length - 1]).toEqual({
+      month: 40,
+      interest: 0,
+      principal: 0,
+      balance: 0,
+    });
+    const tail = padded.filter((r) => r.month > res.months!);
+    expect(tail.length).toBe(40 - res.months!);
+    expect(tail.every((r) => r.interest === 0 && r.principal === 0)).toBe(true);
+  });
+
+  it("leaves schedules alone when they already reach the horizon", () => {
+    const res = amortize(10000, 10, 300);
+    expect(padSchedule(res.schedule, 10)).toEqual(res.schedule);
+  });
+
+  it("never pads a never-pays-off schedule — there is no after", () => {
+    const res = amortize(200000, 5, 300);
+    const padded = padSchedule(res.schedule, res.schedule.length + 100);
+    expect(padded).toEqual(res.schedule);
   });
 });
 
