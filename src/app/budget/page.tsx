@@ -12,6 +12,8 @@ import {
 } from "@/components/panels";
 import { getDashboardData } from "@/lib/data";
 import {
+  UNALLOCATED_KEY,
+  currentPayCycle,
   cycleSpending,
   irregularWeeklyBaseline,
   runProjection,
@@ -134,6 +136,42 @@ export default async function BudgetPage() {
     currency: "USD",
   });
 
+  // Today's balance per bucket (this cycle's replay) — powers the overdraft
+  // decision popup when a new bill outsizes its bucket.
+  const savingsBucket = data.buckets.find((b) => b.is_savings);
+  const liquidNow = data.netWorth
+    .filter((i) => i.kind === "asset" && ["cash", "savings"].includes(i.category))
+    .reduce((s, i) => s + Number(i.amount), 0);
+  const startingSavings =
+    savingsBucket && Number(savingsBucket.starting_balance) > 0
+      ? Number(savingsBucket.starting_balance)
+      : liquidNow;
+  const cycle = currentPayCycle(engineIncome, todayISO);
+  let balances: Record<string, number> | undefined;
+  if (cycle) {
+    const replay = runProjection({
+      startDate: cycle.lastPayday,
+      months: 1,
+      startingBalances: {
+        [savingsBucket ? savingsBucket.id : UNALLOCATED_KEY]: startingSavings,
+      },
+      incomeSources: engineIncome,
+      buckets: engineBuckets,
+      expenses: engineExpenses,
+      incomeEntries: engineEntries,
+    });
+    const todayPoint =
+      replay.points.find((p) => p.date === todayISO) ?? replay.points[0];
+    balances = {};
+    for (const b of data.buckets) {
+      if (b.is_savings) continue;
+      balances[b.id] = todayPoint.buckets[b.id] ?? 0;
+    }
+    balances[""] = savingsBucket
+      ? todayPoint.buckets[savingsBucket.id] ?? 0
+      : todayPoint.buckets[UNALLOCATED_KEY] ?? 0;
+  }
+
   return (
     <AppShell active="budget">
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
@@ -231,7 +269,7 @@ export default async function BudgetPage() {
           />
           <BucketsPanel data={data} />
           <GoalsPanel data={data} />
-          <ExpensesPanel data={data} />
+          <ExpensesPanel data={data} balances={balances} todayISO={todayISO} />
           <WhatIfPanel data={data} />
         </div>
       </div>

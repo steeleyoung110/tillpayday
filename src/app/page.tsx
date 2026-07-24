@@ -138,6 +138,20 @@ export default async function Home() {
       )}
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+        {recap !== null && recap.savingsTotal < 0 && (
+          <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-6 py-4">
+            <p className="text-sm font-semibold text-red-200">
+              {`⚠️ Your savings is ${heroCurrency.format(Math.abs(recap.savingsTotal))} in the red.`}
+            </p>
+            <p className="mt-1 text-sm text-red-200/80">
+              Buckets keep refilling, but they&apos;re filling on borrowed
+              ground — new bills are coming out of money you don&apos;t have.
+              Time to pull from another bucket, trim a refill, or pause a bill
+              until this climbs back above zero.
+            </p>
+          </div>
+        )}
+
         {staleNetWorth && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4">
             <p className="text-sm text-sky-200">

@@ -2,13 +2,14 @@
  * The four management panels (income, buckets, expenses, what-ifs). These are
  * server components: each form posts straight to a Server Action.
  */
+import { AddExpenseForm, type BucketOption } from "@/components/AddExpenseForm";
 import { CoolingCountdown } from "@/components/CoolingCountdown";
+import { ExpenseBucketSelect } from "@/components/ExpenseBucketSelect";
 import { InstantAction } from "@/components/InstantAction";
 import { LogIncome, type ShortfallTarget } from "@/components/LogIncome";
 import { coolingState } from "@/lib/coolingOff";
 import {
   addBucket,
-  addExpense,
   addGoal,
   addIncome,
   addWhatIf,
@@ -486,13 +487,30 @@ export function BucketsPanel({ data }: { data: DashboardData }) {
 
 // ---------------------------------------------------------------------------
 
-export function ExpensesPanel({ data }: { data: DashboardData }) {
-  const bucketName = (id: string | null) =>
-    data.buckets.find((b) => b.id === id)?.name ?? "Savings/leftover";
-
+export function ExpensesPanel({
+  data,
+  balances,
+  todayISO,
+}: {
+  data: DashboardData;
+  /** Current balance per bucket id ("" = savings/leftover), for the
+   * overdraft decision popup. Optional — without it, no gate. */
+  balances?: Record<string, number>;
+  todayISO: string;
+}) {
   // Two columns: money that leaves once vs bills that keep coming back.
   const oneTime = data.expenses.filter((e) => e.cadence === "one_time");
   const repeating = data.expenses.filter((e) => e.cadence !== "one_time");
+
+  const bucketChoices = data.buckets.map((b) => ({ id: b.id, name: b.name }));
+  const options: BucketOption[] = [
+    { id: "", name: "Savings / leftover", balance: balances?.[""] },
+    ...data.buckets.map((b) => ({
+      id: b.id,
+      name: b.name,
+      balance: balances?.[b.id],
+    })),
+  ];
 
   const row = (e: DashboardData["expenses"][number], showCadence: boolean) => (
     <li
@@ -506,7 +524,7 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
         <span className="text-slate-400">
           {`— ${currency.format(Number(e.amount))}${
             showCadence ? ` · ${REPEAT_LABELS[e.cadence] ?? e.cadence}` : ""
-          } · from ${bucketName(e.bucket_id)} · due ${e.due_date}`}
+          } · due ${e.due_date}`}
         </span>
         {e.is_paused && (
           <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
@@ -515,6 +533,12 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
         )}
       </span>
       <span className="flex items-center gap-3">
+        <ExpenseBucketSelect
+          expenseId={e.id}
+          expenseName={e.name}
+          current={e.bucket_id}
+          buckets={bucketChoices}
+        />
         <PauseToggle
           table="expenses"
           id={e.id}
@@ -566,32 +590,7 @@ export function ExpensesPanel({ data }: { data: DashboardData }) {
         </div>
       </div>
 
-      <form action={addExpense} className="grid grid-cols-2 gap-2 sm:max-w-md">
-        <input name="name" placeholder="Expense (e.g. Rent)" required className={`${inputCls} col-span-2`} />
-        <input name="amount" type="number" step="0.01" min="0" placeholder="Amount" required className={inputCls} />
-        <select name="cadence" className={inputCls} defaultValue="monthly">
-          <option value="one_time">Just once</option>
-          <option value="monthly">Every month</option>
-          <option value="quarterly">Every 3 months</option>
-          <option value="yearly">Once a year</option>
-        </select>
-        <label className="text-xs text-slate-400">
-          First due date
-          <input name="due_date" type="date" required className={`${inputCls} mt-1`} />
-        </label>
-        <label className="text-xs text-slate-400">
-          Comes out of
-          <select name="bucket_id" className={`${inputCls} mt-1`} defaultValue="">
-            <option value="">Savings / leftover</option>
-            {data.buckets.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className={`${btnCls} col-span-2`}>Add expense</button>
-      </form>
+      <AddExpenseForm options={options} todayISO={todayISO} />
     </Panel>
   );
 }

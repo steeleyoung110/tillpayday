@@ -576,6 +576,28 @@ export async function addExpense(formData: FormData) {
   revalidatePath("/");
 }
 
+/** Re-point a bill at a different bucket ("McDonalds should come out of Food"). */
+export async function updateExpenseBucket(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const bucketId = str(formData, "bucket_id") || null;
+
+  const { data: old } = await supabase
+    .from("expenses")
+    .select("bucket_id")
+    .eq("id", id)
+    .single();
+  if (old === null) return null;
+  await supabase.from("expenses").update({ bucket_id: bucketId }).eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return {
+    patches: [
+      { table: "expenses", id, patch: { bucket_id: old.bucket_id as string | null } },
+    ],
+  };
+}
+
 export async function deleteExpense(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();
   const id = str(formData, "id");
