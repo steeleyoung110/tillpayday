@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { debtVsInvest, loanPayoff, padCurve, savingsGrowth } from "./grow";
+import { amortize, debtVsInvest, loanPayoff, padCurve, savingsGrowth } from "./grow";
 
 describe("padCurve", () => {
   it("holds the final value out to the horizon (paid-off loans stay at $0)", () => {
@@ -60,6 +60,66 @@ describe("loanPayoff", () => {
     const extra = loanPayoff(10000, 10, 350);
     expect(extra.months!).toBeLessThan(base.months!);
     expect(extra.totalInterest).toBeLessThan(base.totalInterest);
+  });
+});
+
+describe("amortize", () => {
+  it("Steele's example: $200k at 5% — first payment is mostly the bank's", () => {
+    const res = amortize(200000, 5, 1200);
+    // Month-one interest = 200000 * 0.05/12 = $833.33.
+    expect(res.schedule[0].interest).toBeCloseTo(833.33, 2);
+    expect(res.schedule[0].principal).toBeCloseTo(1200 - 833.33, 2);
+    expect(res.neverPaysOff).toBe(false);
+  });
+
+  it("matches the closed-form principal growth of a standard annuity", () => {
+    // principal_m = (P - B*r) * (1+r)^(m-1)
+    const B = 200000, apr = 5, P = 1200;
+    const r = apr / 100 / 12;
+    const res = amortize(B, apr, P);
+    for (const m of [1, 12, 60, 120]) {
+      const closedForm = (P - B * r) * Math.pow(1 + r, m - 1);
+      expect(res.schedule[m - 1].principal).toBeCloseTo(closedForm, 1);
+    }
+  });
+
+  it("every full payment splits exactly into interest + principal", () => {
+    const res = amortize(10000, 10, 300);
+    for (const row of res.schedule.slice(0, -1)) {
+      expect(row.interest + row.principal).toBeCloseTo(300, 1);
+    }
+  });
+
+  it("interest falls and principal rises until they cross over", () => {
+    const res = amortize(200000, 5, 1200);
+    const first = res.schedule[0];
+    const last = res.schedule[res.schedule.length - 2]; // last FULL payment
+    expect(first.interest).toBeGreaterThan(first.principal);
+    expect(last.principal).toBeGreaterThan(last.interest);
+    // Crossover is the first month principal wins, and not before.
+    const c = res.crossoverMonth!;
+    expect(res.schedule[c - 1].principal).toBeGreaterThan(res.schedule[c - 1].interest);
+    expect(res.schedule[c - 2].principal).toBeLessThanOrEqual(res.schedule[c - 2].interest);
+  });
+
+  it("reconciles with loanPayoff: same months, same total interest, principal = balance", () => {
+    const res = amortize(10000, 10, 300);
+    const ref = loanPayoff(10000, 10, 300);
+    expect(res.months).toBe(ref.months);
+    expect(res.totalInterest).toBeCloseTo(ref.totalInterest, 1);
+    expect(res.totalPrincipal).toBe(10000);
+    const paidPrincipal = res.schedule.reduce((s, row) => s + row.principal, 0);
+    expect(paidPrincipal).toBeCloseTo(10000, 0);
+  });
+
+  it("never-pays-off: every dollar is interest, principal never moves", () => {
+    // $200k at 5% is $833/month interest; paying $300 loses ground forever.
+    const res = amortize(200000, 5, 300);
+    expect(res.neverPaysOff).toBe(true);
+    expect(res.crossoverMonth).toBeNull();
+    expect(res.schedule.every((row) => row.principal === 0)).toBe(true);
+    expect(res.schedule.every((row) => row.interest === 300)).toBe(true);
+    expect(res.schedule[res.schedule.length - 1].balance).toBeGreaterThan(200000);
   });
 });
 

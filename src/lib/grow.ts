@@ -80,6 +80,102 @@ export function loanPayoff(
   };
 }
 
+export interface AmortRow {
+  month: number;
+  /** Slice of this month's payment that went to interest (the bank's cut). */
+  interest: number;
+  /** Slice that actually reduced the balance. */
+  principal: number;
+  /** Balance after the payment. */
+  balance: number;
+}
+
+export interface AmortizationResult {
+  /** Month-by-month payment split, capped at `capMonths` for charting. */
+  schedule: AmortRow[];
+  /** First month where more of the payment goes to principal than interest
+   * (null when the loan never reaches that point). */
+  crossoverMonth: number | null;
+  totalInterest: number;
+  totalPrincipal: number;
+  months: number | null;
+  neverPaysOff: boolean;
+}
+
+/**
+ * Where each payment actually goes. Same simulation as loanPayoff, but keeps
+ * the interest/principal split per month — early payments are mostly the
+ * bank's, and the honest picture is watching that ratio flip (or not).
+ */
+export function amortize(
+  balance: number,
+  aprPercent: number,
+  monthlyPayment: number,
+  capMonths = MAX_MONTHS,
+): AmortizationResult {
+  const r = aprPercent / 100 / 12;
+  const schedule: AmortRow[] = [];
+  if (balance <= 0 || monthlyPayment <= 0) {
+    return {
+      schedule,
+      crossoverMonth: null,
+      totalInterest: 0,
+      totalPrincipal: 0,
+      months: balance <= 0 ? 0 : null,
+      neverPaysOff: balance > 0,
+    };
+  }
+
+  if (monthlyPayment <= round2(balance * r)) {
+    // Payment doesn't clear the interest: every dollar of it IS interest,
+    // principal never moves, and the balance still grows.
+    let bal = balance;
+    for (let m = 1; m <= Math.min(capMonths, 120); m += 1) {
+      bal = bal + bal * r - monthlyPayment;
+      schedule.push({ month: m, interest: monthlyPayment, principal: 0, balance: round2(bal) });
+    }
+    return {
+      schedule,
+      crossoverMonth: null,
+      totalInterest: Infinity,
+      totalPrincipal: 0,
+      months: null,
+      neverPaysOff: true,
+    };
+  }
+
+  let bal = balance;
+  let totalInterest = 0;
+  let crossoverMonth: number | null = null;
+  let m = 0;
+  while (bal > 0 && m < MAX_MONTHS) {
+    m += 1;
+    const interest = bal * r;
+    // Final payment is partial — never pay more than what's owed.
+    const applied = Math.min(monthlyPayment, bal + interest);
+    const principal = applied - interest;
+    totalInterest += interest;
+    bal = bal + interest - applied;
+    if (crossoverMonth === null && principal > interest) crossoverMonth = m;
+    if (m <= capMonths) {
+      schedule.push({
+        month: m,
+        interest: round2(interest),
+        principal: round2(principal),
+        balance: round2(Math.max(0, bal)),
+      });
+    }
+  }
+  return {
+    schedule,
+    crossoverMonth,
+    totalInterest: round2(totalInterest),
+    totalPrincipal: round2(balance),
+    months: m,
+    neverPaysOff: false,
+  };
+}
+
 /**
  * Extend a curve to a fixed horizon by holding its final value (a paid-off
  * loan stays flat at $0). Keeps the chart's timeline pinned so paying off

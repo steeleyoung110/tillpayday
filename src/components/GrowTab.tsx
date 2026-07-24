@@ -7,6 +7,8 @@
  */
 import { useState } from "react";
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
   Legend,
   Line,
@@ -19,10 +21,12 @@ import {
   YAxis,
 } from "recharts";
 import {
+  amortize,
   debtVsInvest,
   loanPayoff,
   padCurve,
   savingsGrowth,
+  type AmortRow,
   type CurvePoint,
 } from "@/lib/grow";
 
@@ -205,6 +209,115 @@ function Curves({
   );
 }
 
+// Virtue-spectrum: principal is money becoming yours, interest is money gone.
+const PRINCIPAL_GREEN = "#22c55e";
+const INTEREST_RED = "#ef4444";
+
+/**
+ * Stacked view of each monthly payment: the green slice reduces your balance,
+ * the red slice is the bank's. The band's total height is the payment itself,
+ * so watching red shrink IS watching interest lose its grip.
+ */
+function PaymentSplitChart({
+  schedule,
+  crossoverMonth,
+  window,
+}: {
+  schedule: AmortRow[];
+  crossoverMonth: number | null;
+  window?: MonthWindow;
+}) {
+  const from = window?.from ?? null;
+  const to = window?.to ?? null;
+  const data =
+    from !== null || to !== null
+      ? schedule.filter(
+          (d) => (from === null || d.month >= from) && (to === null || d.month <= to),
+        )
+      : schedule;
+
+  return (
+    <div className="h-72 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
+          <CartesianGrid stroke="#1e293b" vertical={false} />
+          {crossoverMonth !== null &&
+            (from === null || crossoverMonth >= from) &&
+            (to === null || crossoverMonth <= to) && (
+              <ReferenceLine
+                x={crossoverMonth}
+                stroke="#34d399"
+                strokeDasharray="4 4"
+                label={{
+                  value: "most of it finally goes to you",
+                  position: "insideTop",
+                  fill: "#34d399",
+                  fontSize: 12,
+                }}
+              />
+            )}
+          <XAxis
+            dataKey="month"
+            tickFormatter={(m: number) => (m % 12 === 0 ? `${m / 12}y` : `${m}mo`)}
+            interval="preserveStartEnd"
+            minTickGap={50}
+            tick={{ fill: "#94a3b8", fontSize: 12 }}
+            axisLine={{ stroke: "#334155" }}
+            tickLine={false}
+          />
+          <YAxis
+            tickFormatter={(v: number) => currency.format(v)}
+            tick={{ fill: "#94a3b8", fontSize: 12 }}
+            axisLine={false}
+            tickLine={false}
+            width={78}
+          />
+          <Tooltip
+            formatter={(value, name) => [
+              currency.format(Number(value)),
+              name === "principal" ? "To your balance (principal)" : "To the bank (interest)",
+            ]}
+            labelFormatter={(m) => `Payment ${m} — ${fmtMonths(Number(m))} in`}
+            labelStyle={{ color: "#e2e8f0" }}
+            contentStyle={{
+              backgroundColor: "#0f172a",
+              border: "1px solid #334155",
+              borderRadius: "0.5rem",
+            }}
+          />
+          <Legend
+            formatter={(value: string) => (
+              <span className="text-sm text-slate-300">
+                {value === "principal" ? "To your balance" : "To the bank"}
+              </span>
+            )}
+          />
+          <Area
+            type="monotone"
+            dataKey="principal"
+            stackId="pay"
+            stroke={PRINCIPAL_GREEN}
+            fill={PRINCIPAL_GREEN}
+            fillOpacity={0.55}
+            strokeWidth={2}
+            isAnimationActive={false}
+          />
+          <Area
+            type="monotone"
+            dataKey="interest"
+            stackId="pay"
+            stroke={INTEREST_RED}
+            fill={INTEREST_RED}
+            fillOpacity={0.55}
+            strokeWidth={2}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function Verdict({ children, tone = "calm" }: { children: React.ReactNode; tone?: "calm" | "warn" }) {
   return (
     <div
@@ -342,6 +455,8 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
         const pay = payment + extra;
         const a = loanPayoff(loanBalance, apr1, pay);
         const b = loanPayoff(loanBalance, apr2, pay);
+        const split = amortize(loanBalance, apr1, pay);
+        const firstSplit = split.schedule[0] ?? null;
         const baseA = extra > 0 ? loanPayoff(loanBalance, apr1, payment) : null;
         const baseB = extra > 0 ? loanPayoff(loanBalance, apr2, payment) : null;
         const anyNever = a.neverPaysOff || b.neverPaysOff;
@@ -418,6 +533,44 @@ export function GrowTab({ prefills }: { prefills: LoanPrefill[] }) {
                   </span>
                 )}
               </Verdict>
+            )}
+
+            {firstSplit && (
+              <div className="mt-6 border-t border-slate-800 pt-5">
+                <h3 className="text-sm font-semibold text-white">
+                  Where each payment goes
+                </h3>
+                <p className="mb-3 text-xs text-slate-400">
+                  {`At ${apr1}% (Rate A), paying ${currency.format(pay)}/month. Green reduces your balance; red is interest — the bank's cut.`}
+                </p>
+                <PaymentSplitChart
+                  schedule={split.schedule}
+                  crossoverMonth={split.crossoverMonth}
+                  window={monthWindow}
+                />
+                {split.neverPaysOff ? (
+                  <Verdict tone="warn">
+                    {`Every dollar of your ${currency.format(pay)} payment is interest — the green slice never shows up, your balance never drops a cent, and you'd pay this forever without ever owning more of what you bought.`}
+                  </Verdict>
+                ) : (
+                  <Verdict>
+                    {`Payment one: ${currency.format(firstSplit.interest)} goes to the bank, ${currency.format(firstSplit.principal)} to your balance — ${Math.round((firstSplit.interest / pay) * 100)}¢ of every dollar is interest.`}
+                    {split.crossoverMonth !== null && split.crossoverMonth > 1 && (
+                      <span className="mt-2 block">
+                        {`For the first ${fmtMonths(split.crossoverMonth - 1)}, the bank takes more of each payment than your balance does. As the balance falls, so does the interest it charges — from ${fmtMonths(split.crossoverMonth)} in, the majority of your money finally goes to you.`}
+                      </span>
+                    )}
+                    {split.crossoverMonth === 1 && (
+                      <span className="mt-2 block">
+                        {`Most of your money goes to your balance from the very first payment — at this rate and payment, interest never gets the upper hand.`}
+                      </span>
+                    )}
+                    <span className="mt-2 block text-slate-300">
+                      {`All told: borrow ${currency.format(loanBalance)}, hand back ${currency.format(loanBalance + split.totalInterest)}. The ${apr1}% rate costs you ${currency.format(split.totalInterest)} on top of what you borrowed.`}
+                    </span>
+                  </Verdict>
+                )}
+              </div>
             )}
           </div>
         );
