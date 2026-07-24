@@ -12,6 +12,7 @@ import {
 } from "@/components/panels";
 import { getDashboardData } from "@/lib/data";
 import {
+  cycleSpending,
   irregularWeeklyBaseline,
   runProjection,
   splitPaycheck,
@@ -100,6 +101,34 @@ export default async function BudgetPage() {
       color: colorFor(s.bucketId),
     }),
   );
+
+  // The comparison donut: what actually left the buckets this cycle vs the
+  // plan — same bucket colors so the two charts line up visually.
+  const spend = cycleSpending(engineIncome, engineExpenses, todayISO);
+  const bucketNameFor = (id: string | null) =>
+    id === null
+      ? "Savings / leftover"
+      : data.buckets.find((b) => b.id === id)?.name ?? "Other";
+  const spentSlices: PieSlice[] = (spend?.byBucket ?? []).map((s) => ({
+    name: bucketNameFor(s.bucketId),
+    amount: s.amount,
+    share:
+      typicalPaycheck > 0
+        ? Math.round((s.amount / typicalPaycheck) * 1000) / 10
+        : 0,
+    color: colorFor(s.bucketId),
+  }));
+  const unspent =
+    typicalPaycheck > 0 ? Math.max(0, typicalPaycheck - (spend?.total ?? 0)) : 0;
+  if (unspent > 0 && spentSlices.length > 0) {
+    spentSlices.push({
+      name: "Still unspent",
+      amount: Math.round(unspent * 100) / 100,
+      share: Math.round((unspent / typicalPaycheck) * 1000) / 10,
+      color: "#475569",
+    });
+  }
+
   const currency = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -120,26 +149,75 @@ export default async function BudgetPage() {
             <h2 className="mb-3 font-semibold text-white">
               Where each paycheck goes
             </h2>
-            <div className="flex flex-wrap items-center gap-8">
-              <PaycheckPie slices={pieSlices} paycheck={typicalPaycheck} />
-              <ul className="min-w-52 flex-1 space-y-2 text-sm">
-                {pieSlices.map((s) => (
-                  <li key={s.name} className="flex items-center justify-between gap-3">
-                    <span className="flex items-center gap-2 text-slate-200">
-                      <span
-                        className="inline-block h-3 w-3 rounded-sm"
-                        style={{ backgroundColor: s.color }}
-                        aria-hidden
-                      />
-                      {s.name}
-                    </span>
-                    <span className="text-slate-400">
-                      {`${currency.format(s.amount)} · ${s.share}%`}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+              {/* The plan */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  The plan
+                </p>
+                <div className="flex flex-wrap items-center gap-6">
+                  <PaycheckPie slices={pieSlices} paycheck={typicalPaycheck} />
+                  <ul className="min-w-44 flex-1 space-y-2 text-sm">
+                    {pieSlices.map((s) => (
+                      <li key={s.name} className="flex items-center justify-between gap-3">
+                        <span className="flex items-center gap-2 text-slate-200">
+                          <span
+                            className="inline-block h-3 w-3 rounded-sm"
+                            style={{ backgroundColor: s.color }}
+                            aria-hidden
+                          />
+                          {s.name}
+                        </span>
+                        <span className="text-slate-400">
+                          {`${currency.format(s.amount)} · ${s.share}%`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* The reality, so far this cycle */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {spend
+                    ? `This cycle so far (since ${spend.since})`
+                    : "This cycle so far"}
+                </p>
+                {spentSlices.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-6">
+                    <PaycheckPie slices={spentSlices} paycheck={typicalPaycheck} />
+                    <ul className="min-w-44 flex-1 space-y-2 text-sm">
+                      {spentSlices.map((s) => (
+                        <li key={s.name} className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-2 text-slate-200">
+                            <span
+                              className="inline-block h-3 w-3 rounded-sm"
+                              style={{ backgroundColor: s.color }}
+                              aria-hidden
+                            />
+                            {s.name}
+                          </span>
+                          <span className="text-slate-400">
+                            {`${currency.format(s.amount)} · ${s.share}%`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="py-10 text-sm text-slate-500">
+                    Nothing spent yet this cycle — the whole check is intact.
+                    As bills come due, this chart fills in so you can compare
+                    it against the plan.
+                  </p>
+                )}
+              </div>
             </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Matching colors, same bucket — when a slice on the right outgrows
+              its twin on the left, that bucket is running ahead of plan.
+            </p>
           </div>
         )}
 

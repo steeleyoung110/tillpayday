@@ -19,3 +19,4 @@ export {
   type SafeToSpend,
 } from "./safeToSpend";
 export { paydayRecap, type PaydayRecap } from "./celebration";
+export { cycleSpending, type CycleSpend } from "./cycleSpend";

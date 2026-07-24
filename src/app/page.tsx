@@ -7,7 +7,12 @@ import { Onboarding } from "@/components/Onboarding";
 import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
-import { paydayRecap, safeToSpend } from "@/lib/engine";
+import {
+  cycleSpending,
+  irregularWeeklyBaseline,
+  paydayRecap,
+  safeToSpend,
+} from "@/lib/engine";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -71,6 +76,27 @@ export default async function Home() {
     engineEntries,
   );
 
+  // Spent-so-far chip: what left the buckets since the last payday, as a
+  // share of a typical check ("spent $360 — 64% of your check left").
+  const spend = cycleSpending(engineIncome, engineExpenses, todayISO);
+  const regularMax = Math.max(
+    0,
+    ...data.income
+      .filter((s) => s.kind === "paycheck" && s.frequency !== "irregular")
+      .map((s) => Number(s.amount)),
+  );
+  const typicalPaycheck = Math.max(
+    regularMax,
+    data.income.some((s) => s.frequency === "irregular")
+      ? irregularWeeklyBaseline(engineEntries, todayISO)
+      : 0,
+  );
+  const spentPct =
+    spend && typicalPaycheck > 0
+      ? Math.round((spend.total / typicalPaycheck) * 100)
+      : 0;
+  const leftPct = Math.max(0, 100 - spentPct);
+
   // Payday celebration: recap the latest payday unless it was already shown.
   const savingsRow = data.buckets.find((b) => b.is_savings);
   const liquid = data.netWorth
@@ -131,11 +157,20 @@ export default async function Home() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-400">{`Welcome back, ${displayName} 👋`}</p>
-            {payday && (
-              <p className="rounded-lg bg-emerald-500/15 px-3 py-1 text-sm font-semibold text-emerald-300">
-                {paydayLabel(payday, todayISO)}
-              </p>
-            )}
+            <span className="flex flex-wrap items-center gap-2">
+              {spend && spend.total > 0 && typicalPaycheck > 0 && (
+                <p className="rounded-lg bg-amber-500/15 px-3 py-1 text-sm font-semibold text-amber-300">
+                  {leftPct > 0
+                    ? `spent ${heroCurrency.format(spend.total)} this cycle — ${leftPct}% of your check left`
+                    : `spent ${heroCurrency.format(spend.total)} this cycle — this check's fully spoken for`}
+                </p>
+              )}
+              {payday && (
+                <p className="rounded-lg bg-emerald-500/15 px-3 py-1 text-sm font-semibold text-emerald-300">
+                  {paydayLabel(payday, todayISO)}
+                </p>
+              )}
+            </span>
           </div>
 
           {sts && sts.hasFlexibleBuckets ? (
