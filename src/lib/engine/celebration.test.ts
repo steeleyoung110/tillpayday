@@ -40,12 +40,16 @@ describe("paydayRecap", () => {
     expect(r.swept).toBe(0);
   });
 
-  it("reports a negative sweep after an overdraft (savings covered it)", () => {
+  it("an overdraft hits savings at expense time, so the sweep itself is clean", () => {
+    // Fun holds 140; the 200 bill empties it and savings covers the 60
+    // immediately — buckets never go red, so payday sweeps nothing.
     const expenses: Expense[] = [
       { id: "e", name: "Overdraft", amount: 200, bucketId: "fun", dueDate: "2026-07-08", cadence: "one_time" },
     ];
     const r = paydayRecap([job], buckets, expenses, 0, "2026-07-22")!;
-    expect(r.swept).toBe(-60);
+    expect(r.swept).toBe(0);
+    // Savings: 1260 leftover (Jun 26) − 60 overflow + 1260 leftover (Jul 10).
+    expect(r.savingsTotal).toBe(1260 - 60 + 1260);
   });
 
   it("works on payday itself (celebrates today's payday)", () => {

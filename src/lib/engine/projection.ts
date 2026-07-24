@@ -391,26 +391,50 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
     for (const ex of expenseByDate.get(key) ?? []) {
       const target = ex.bucketId ?? savingsKey;
       const before = balances[target] ?? 0;
-      balances[target] = round2(before - ex.amount);
-      if (before < ex.amount) {
+
+      // Only savings may ever go red. The bill's own bucket pays what it can
+      // (down to $0); the overflow then raids the other buckets —
+      // least-important first, fun money before bills — and whatever nothing
+      // else can cover lands on savings, which alone absorbs the negative.
+      // There is no "it's fine, I have $100 over there": that $100 is next.
+      let need = ex.amount;
+      const fromTarget = Math.min(Math.max(before, 0), need);
+      balances[target] = round2(before - fromTarget);
+      need = round2(need - fromTarget);
+
+      if (need > 0) {
         const warnKey = `${target}:${monthLabel(d)}`;
         if (!shortfallOnce.has(warnKey)) {
           shortfallOnce.add(warnKey);
-          const short = round2(ex.amount - before);
           warnings.push({
             type: "shortfall",
             bucketId: target,
             bucketName: bucketName(target),
             date: key,
             month: monthLabel(d),
-            amount: short,
+            amount: need,
             // The fix: spread the missing amount across every paycheck that
             // lands on or before the due date (paydays process first, so a
             // same-day paycheck still helps). Round up so the fix suffices.
             paydaysUntil: paydaysSoFar,
             fixPerPaycheck:
-              paydaysSoFar > 0 ? ceilCent(short / paydaysSoFar) : null,
+              paydaysSoFar > 0 ? ceilCent(need / paydaysSoFar) : null,
           });
+        }
+
+        // Raid order: active spending buckets (never paused ones — they're
+        // frozen), lowest funding priority first, skipping the bill's own.
+        for (const b of [...active].reverse()) {
+          if (b.id === target) continue;
+          const avail = Math.max(balances[b.id] ?? 0, 0);
+          if (avail <= 0) continue;
+          const take = Math.min(avail, need);
+          balances[b.id] = round2(balances[b.id] - take);
+          need = round2(need - take);
+          if (need <= 0) break;
+        }
+        if (need > 0) {
+          balances[savingsKey] = round2(balances[savingsKey] - need);
         }
       }
     }

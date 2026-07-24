@@ -3,9 +3,10 @@
 /**
  * Add-a-bill form with the overdraft moment: if the bill is bigger than
  * what's sitting in its bucket, you don't get to look away — a popup makes
- * you choose which pot the money really comes from. Going negative is
- * allowed, but only after you've seen exactly what you'd be draining
- * (goodbye, concert fund). Planning has consequences; that's the lesson.
+ * you choose which pot the money really comes from. Buckets can never go
+ * red: the engine empties the bill's bucket, then raids the others (fun
+ * money first), and only savings absorbs a negative — after everything
+ * else is at zero. This popup shows you that chain before you commit.
  */
 import { useState, useTransition } from "react";
 import { addExpense } from "@/app/actions";
@@ -177,10 +178,17 @@ export function AddExpenseForm({
                   type="button"
                   disabled={pending}
                   onClick={() => submit(bucketId)}
-                  className="flex w-full items-center justify-between rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-sm text-red-200 transition hover:border-red-400"
+                  className="w-full rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-left text-sm text-red-200 transition hover:border-red-400"
                 >
-                  <span>{`Let ${chosen.name} go negative`}</span>
-                  <span>{`${cents.format(chosen.balance ?? 0)} → ${cents.format((chosen.balance ?? 0) - value)}`}</span>
+                  <span className="font-semibold">
+                    {bucketId === ""
+                      ? `Add it anyway — your other buckets empty first, then savings goes red`
+                      : `Add it anyway — ${chosen.name} empties to $0 and the missing ${cents.format(value - (chosen.balance ?? 0))} raids your other buckets, fun money first`}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-red-200/70">
+                    Buckets never go negative here. Savings takes the final
+                    hit — and only after everything else is drained to zero.
+                  </span>
                 </button>
               </li>
             </ul>

@@ -327,7 +327,7 @@ describe("runProjection — expenses and shortfalls", () => {
     expect(r.warnings).toHaveLength(0);
   });
 
-  it("an unaffordable expense sends the bucket negative and names month + amount", () => {
+  it("an unaffordable expense empties its bucket, raids the others, and never goes red", () => {
     const r = runProjection({
       ...baseInput,
       months: 2,
@@ -336,7 +336,11 @@ describe("runProjection — expenses and shortfalls", () => {
       ],
     });
     const jan5 = r.points.find((p) => p.date === "2026-01-05")!;
-    expect(jan5.buckets.rent).toBe(-600);
+    // Rent pays its 1000 and stops at ZERO; the 600 overflow raids Fun (200)
+    // — fun money dies first — and savings covers the last 400.
+    expect(jan5.buckets.rent).toBe(0);
+    expect(jan5.buckets.fun).toBe(0);
+    expect(jan5.buckets.save).toBe(1800 - 400);
 
     const w = r.warnings.filter((x) => x.type === "shortfall");
     expect(w).toHaveLength(1);
@@ -346,9 +350,90 @@ describe("runProjection — expenses and shortfalls", () => {
       month: "January 2026",
       amount: 600,
     });
-    // Next payday the negative bucket sweeps into savings and refills cleanly.
+    // Next payday everything refills cleanly.
     const feb1 = r.points.find((p) => p.date === "2026-02-01")!;
     expect(feb1.buckets.rent).toBe(1000);
+  });
+
+  it("only savings can ever go red — and only once every bucket is at zero", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      expenses: [
+        { id: "huge", name: "Disaster", amount: 4000, bucketId: "fun", dueDate: "2026-01-10", cadence: "one_time" },
+      ],
+    });
+    const jan10 = r.points.find((p) => p.date === "2026-01-10")!;
+    // Fun (200) empties, rent (1000) gets raided to zero, savings (1800)
+    // covers the rest and alone wears the red: 1800 − 2800 = −1000.
+    expect(jan10.buckets.fun).toBe(0);
+    expect(jan10.buckets.rent).toBe(0);
+    expect(jan10.buckets.save).toBe(-1000);
+    // Invariant: no non-savings bucket is ever negative, any day.
+    for (const p of r.points) {
+      expect(p.buckets.rent).toBeGreaterThanOrEqual(0);
+      expect(p.buckets.fun).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("the raid takes the least-important bucket first (fun before bills)", () => {
+    const r = runProjection({
+      startDate: "2026-01-01",
+      months: 1,
+      incomeSources: [
+        { id: "j", name: "Job", amount: 1000, frequency: "monthly", kind: "paycheck", anchorDate: "2026-01-01" },
+      ],
+      buckets: [
+        { id: "bills", name: "Bills", allocationType: "fixed", allocationValue: 300, isSavings: false, priority: 0 },
+        { id: "target", name: "Target", allocationType: "fixed", allocationValue: 100, isSavings: false, priority: 1 },
+        { id: "fun", name: "Fun", allocationType: "fixed", allocationValue: 200, isSavings: false, priority: 2 },
+        { id: "save", name: "Savings", allocationType: "fixed", allocationValue: 0, isSavings: true },
+      ],
+      expenses: [
+        { id: "e", name: "Bill", amount: 250, bucketId: "target", dueDate: "2026-01-05", cadence: "one_time" },
+      ],
+    });
+    const jan5 = r.points.find((p) => p.date === "2026-01-05")!;
+    // Target's 100 goes first; the 150 overflow raids Fun (lowest priority)
+    // fully within its 200 — Bills and savings untouched.
+    expect(jan5.buckets.target).toBe(0);
+    expect(jan5.buckets.fun).toBe(50);
+    expect(jan5.buckets.bills).toBe(300);
+    expect(jan5.buckets.save).toBe(400);
+  });
+
+  it("paused buckets are frozen — the raid can't touch them", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      startingBalances: { fun: 0 },
+      buckets: buckets.map((b) => (b.id === "fun" ? { ...b, isPaused: true } : b)),
+      expenses: [
+        { id: "big", name: "Bill", amount: 1500, bucketId: "rent", dueDate: "2026-01-05", cadence: "one_time" },
+      ],
+    });
+    const jan5 = r.points.find((p) => p.date === "2026-01-05")!;
+    // Rent 1000 → 0; fun is paused (frozen at 0, and even with money it
+    // would be immune, so it takes no allocation either); savings holds the
+    // full 2000 leftover and covers the 500 overflow.
+    expect(jan5.buckets.rent).toBe(0);
+    expect(jan5.buckets.save).toBe(2000 - 500);
+  });
+
+  it("a savings bill drains the other buckets before savings goes red", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      expenses: [
+        { id: "e", name: "From savings", amount: 3500, bucketId: null, dueDate: "2026-01-10", cadence: "one_time" },
+      ],
+    });
+    const jan10 = r.points.find((p) => p.date === "2026-01-10")!;
+    // Savings 1800 → 0, then fun (200) and rent (1000) empty, and the final
+    // 500 puts savings — and only savings — in the red.
+    expect(jan10.buckets.fun).toBe(0);
+    expect(jan10.buckets.rent).toBe(0);
+    expect(jan10.buckets.save).toBe(-500);
   });
 
   it("expenses with no bucket draw from savings", () => {

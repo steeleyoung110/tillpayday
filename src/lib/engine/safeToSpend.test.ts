@@ -108,7 +108,8 @@ describe("safeToSpend", () => {
       [{ id: "e", name: "Blowout", amount: 500, bucketId: "fun", dueDate: "2026-07-20", cadence: "one_time" }],
       "2026-07-21",
     )!;
-    expect(overdrawn.flexibleBalance).toBe(-400);
+    // Buckets stop at zero now — savings absorbed the overflow instead.
+    expect(overdrawn.flexibleBalance).toBe(0);
     expect(overdrawn.perDay).toBe(0);
   });
 
