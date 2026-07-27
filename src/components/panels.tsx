@@ -92,13 +92,19 @@ function Panel({
   title,
   children,
   className = "",
+  id,
 }: {
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** Anchor for the Budget page's jump links. */
+  id?: string;
 }) {
   return (
-    <div className={`rounded-2xl border border-slate-800 bg-slate-900 p-5 ${className}`}>
+    <div
+      id={id}
+      className={`scroll-mt-20 rounded-2xl border border-slate-800 bg-slate-900 p-5 ${className}`}
+    >
       <h2 className="mb-3 font-semibold text-white">{title}</h2>
       {children}
     </div>
@@ -122,7 +128,7 @@ export function IncomePanel({
 }) {
   const recentEntries = [...data.incomeEntries].reverse().slice(0, 5);
   return (
-    <Panel title="Income sources">
+    <Panel title="Income sources" id="income">
       <ul className="mb-4 space-y-2">
         {data.income.map((s) => (
           <li
@@ -215,7 +221,7 @@ export function GoalsPanel({ data }: { data: DashboardData }) {
   const achieved = data.goals.filter((g) => g.achieved_at);
 
   return (
-    <Panel title="Goals 🎯" className="lg:col-span-2">
+    <Panel title="Goals 🎯" className="lg:col-span-2" id="goals">
       <ul className="mb-4 space-y-2">
         {active.map((g) => (
           <li
@@ -302,151 +308,225 @@ export function GoalsPanel({ data }: { data: DashboardData }) {
 
 // ---------------------------------------------------------------------------
 
-export function BucketsPanel({ data }: { data: DashboardData }) {
+export function BucketsPanel({
+  data,
+  balances,
+  perCheck,
+  colors,
+}: {
+  data: DashboardData;
+  /** Today's balance per bucket id ("" = savings/leftover). Optional. */
+  balances?: Record<string, number>;
+  /** Dollars each bucket gets from a typical check (for the envelope bar). */
+  perCheck?: Record<string, number>;
+  /** Semantic color per bucket id — matches the pies and charts. */
+  colors?: Record<string, string>;
+}) {
   return (
-    <Panel title="Buckets (how each paycheck splits)">
+    <Panel title="Buckets (how each paycheck splits)" id="buckets">
       <ul className="mb-4 space-y-2">
-        {data.buckets.map((b) => (
+        {data.buckets.map((b) => {
+          const bal = b.is_savings ? balances?.[""] : balances?.[b.id];
+          const refill = perCheck?.[b.id] ?? 0;
+          const inTheHole = bal !== undefined && bal < 0;
+          // Envelope bar: how full this bucket is against one check's refill.
+          // Only savings can be negative (the cascade rule) — that reads red.
+          const fillPct =
+            bal === undefined
+              ? null
+              : inTheHole
+                ? 100
+                : refill > 0
+                  ? Math.min(100, Math.round((bal / refill) * 100))
+                  : bal > 0
+                    ? 100
+                    : 0;
+          return (
           <li
             key={b.id}
-            className={`flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
+            className={`rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
               b.is_paused ? "opacity-50" : ""
             }`}
           >
-            <span className="text-slate-200">
-              {b.name}{" "}
-              <span className="text-slate-400">
-                —{" "}
-                {b.allocation_type === "fixed"
-                  ? `${currency.format(Number(b.allocation_value))}/check`
-                  : `${Number(b.allocation_value)}% of check`}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-slate-200">
+                {b.name}{" "}
+                <span className="text-slate-400">
+                  —{" "}
+                  {b.allocation_type === "fixed"
+                    ? `${currency.format(Number(b.allocation_value))}/check`
+                    : `${Number(b.allocation_value)}% of check`}
+                </span>
+                {b.is_savings && (
+                  <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">
+                    savings ★ gets leftovers
+                  </span>
+                )}
+                {Number(b.apy) > 0 && (
+                  <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
+                    {`earns ${Number(b.apy)}%`}
+                  </span>
+                )}
+                {b.is_flexible && (
+                  <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-300">
+                    flexible 💸
+                  </span>
+                )}
+                {b.rolls_over && (
+                  <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-xs text-violet-300">
+                    rolls over 🎯
+                  </span>
+                )}
+                {b.is_paused && (
+                  <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
+                    paused ⏸
+                  </span>
+                )}
               </span>
-              {b.is_savings && (
-                <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-300">
-                  savings ★ gets leftovers
-                </span>
-              )}
-              {Number(b.apy) > 0 && (
-                <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
-                  {`earns ${Number(b.apy)}%`}
-                </span>
-              )}
-              {b.is_flexible && (
-                <span className="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs text-amber-300">
-                  flexible 💸
-                </span>
-              )}
-              {b.rolls_over && (
-                <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-xs text-violet-300">
-                  rolls over 🎯
-                </span>
-              )}
-              {b.is_paused && (
-                <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
-                  paused ⏸
-                </span>
-              )}
-            </span>
-            <span className="flex items-center gap-3">
-              {!b.is_savings && (
-                <PauseToggle
-                  table="buckets"
-                  id={b.id}
-                  name={b.name}
-                  isPaused={b.is_paused}
-                />
-              )}
-              {b.is_savings && (
-                <form action={setBucketGoal} className="flex items-center gap-1">
-                  <input type="hidden" name="id" value={b.id} />
-                  <input
-                    name="goal_amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : undefined}
-                    placeholder="Goal $"
-                    className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+              <span className="flex items-center gap-3">
+                {bal !== undefined && (
+                  <span
+                    className={`text-xs font-semibold ${
+                      inTheHole ? "text-red-400" : "text-slate-300"
+                    }`}
+                  >
+                    {inTheHole
+                      ? `${currency.format(bal)} — in the hole`
+                      : `holding ${currency.format(bal)}`}
+                  </span>
+                )}
+                {!b.is_savings && (
+                  <PauseToggle
+                    table="buckets"
+                    id={b.id}
+                    name={b.name}
+                    isPaused={b.is_paused}
                   />
-                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                    set
-                  </button>
-                </form>
-              )}
-              {b.is_savings && (
-                <form action={setBucketStartingBalance} className="flex items-center gap-1">
-                  <input type="hidden" name="id" value={b.id} />
-                  <input
-                    name="starting_balance"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : undefined}
-                    placeholder="Start $"
-                    className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-                  />
-                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                    set
-                  </button>
-                </form>
-              )}
-              <form action={setBucketApy} className="flex items-center gap-1">
-                <input type="hidden" name="id" value={b.id} />
-                <input
-                  name="apy"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  defaultValue={Number(b.apy) > 0 ? Number(b.apy) : undefined}
-                  placeholder="% rate"
-                  title="The interest rate (APY) your bank pays on this money"
-                  className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-                />
-                <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                  set
-                </button>
-              </form>
-              {!b.is_savings && (
-                <form
-                  action={toggleBucketRollsOver}
-                  title="Sinking funds keep their balance between paychecks and stack up their allocation every check."
+                )}
+                <InstantAction
+                  action={deleteBucket}
+                  undoAction={undoRestore}
+                  values={{ id: b.id }}
+                  message={`Deleted the ${b.name} bucket.`}
+                  className={delCls}
                 >
-                  <input type="hidden" name="id" value={b.id} />
-                  <input type="hidden" name="rolls_over" value={b.rolls_over ? "false" : "true"} />
-                  <button className="text-xs text-slate-500 transition hover:text-violet-300">
-                    {b.rolls_over ? "sweep each check" : "make it roll over"}
-                  </button>
-                </form>
-              )}
-              {!b.is_savings && (
-                <form action={toggleBucketFlexible}>
-                  <input type="hidden" name="id" value={b.id} />
-                  <input type="hidden" name="flexible" value={b.is_flexible ? "false" : "true"} />
-                  <button className="text-xs text-slate-500 transition hover:text-amber-300">
-                    {b.is_flexible ? "not flexible" : "make flexible"}
-                  </button>
-                </form>
-              )}
-              {!b.is_savings && (
-                <form action={makeSavingsBucket}>
-                  <input type="hidden" name="id" value={b.id} />
-                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                    make savings
-                  </button>
-                </form>
-              )}
-              <InstantAction
-                action={deleteBucket}
-                undoAction={undoRestore}
-                values={{ id: b.id }}
-                message={`Deleted the ${b.name} bucket.`}
-                className={delCls}
+                  remove
+                </InstantAction>
+              </span>
+            </div>
+
+            {fillPct !== null && (
+              <div
+                className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-700/50"
+                title={
+                  inTheHole
+                    ? "Below zero — spending drained this and kept going."
+                    : refill > 0
+                      ? `${fillPct}% of one check's refill (${currency.format(refill)}) still standing`
+                      : "What's sitting in it right now"
+                }
               >
-                remove
-              </InstantAction>
-            </span>
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${fillPct}%`,
+                    backgroundColor: inTheHole
+                      ? "#ef4444"
+                      : colors?.[b.id] ?? "#22c55e",
+                  }}
+                />
+              </div>
+            )}
+
+            <details className="mt-2 text-xs">
+              <summary className="cursor-pointer text-slate-500 transition hover:text-slate-300">
+                settings
+              </summary>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                {b.is_savings && (
+                  <form action={setBucketGoal} className="flex items-center gap-1">
+                    <input type="hidden" name="id" value={b.id} />
+                    <input
+                      name="goal_amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : undefined}
+                      placeholder="Goal $"
+                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                    />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      set
+                    </button>
+                  </form>
+                )}
+                {b.is_savings && (
+                  <form action={setBucketStartingBalance} className="flex items-center gap-1">
+                    <input type="hidden" name="id" value={b.id} />
+                    <input
+                      name="starting_balance"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : undefined}
+                      placeholder="Start $"
+                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                    />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      set
+                    </button>
+                  </form>
+                )}
+                <form action={setBucketApy} className="flex items-center gap-1">
+                  <input type="hidden" name="id" value={b.id} />
+                  <input
+                    name="apy"
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    defaultValue={Number(b.apy) > 0 ? Number(b.apy) : undefined}
+                    placeholder="% rate"
+                    title="The interest rate (APY) your bank pays on this money"
+                    className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                  />
+                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                    set
+                  </button>
+                </form>
+                {!b.is_savings && (
+                  <form
+                    action={toggleBucketRollsOver}
+                    title="Sinking funds keep their balance between paychecks and stack up their allocation every check."
+                  >
+                    <input type="hidden" name="id" value={b.id} />
+                    <input type="hidden" name="rolls_over" value={b.rolls_over ? "false" : "true"} />
+                    <button className="text-xs text-slate-500 transition hover:text-violet-300">
+                      {b.rolls_over ? "sweep each check" : "make it roll over"}
+                    </button>
+                  </form>
+                )}
+                {!b.is_savings && (
+                  <form action={toggleBucketFlexible}>
+                    <input type="hidden" name="id" value={b.id} />
+                    <input type="hidden" name="flexible" value={b.is_flexible ? "false" : "true"} />
+                    <button className="text-xs text-slate-500 transition hover:text-amber-300">
+                      {b.is_flexible ? "not flexible" : "make flexible"}
+                    </button>
+                  </form>
+                )}
+                {!b.is_savings && (
+                  <form action={makeSavingsBucket}>
+                    <input type="hidden" name="id" value={b.id} />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      make savings
+                    </button>
+                  </form>
+                )}
+              </div>
+            </details>
           </li>
-        ))}
+          );
+        })}
         {data.buckets.length === 0 && (
           <li className="text-sm text-slate-500">
             No buckets yet — try Rent, Groceries, Fun money, and a Savings bucket.
@@ -559,7 +639,7 @@ export function ExpensesPanel({
   );
 
   return (
-    <Panel title="Upcoming bills" className="lg:col-span-2">
+    <Panel title="Upcoming bills" className="lg:col-span-2" id="bills">
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -603,7 +683,7 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
   const now = Date.now();
 
   return (
-    <Panel title="What if I bought…" className="lg:col-span-2">
+    <Panel title="What if I bought…" className="lg:col-span-2" id="what-ifs">
       <ul className="mb-4 space-y-2">
         {considering.map((w) => {
           const cooling = coolingState(w.cooling_off_started_at, now);

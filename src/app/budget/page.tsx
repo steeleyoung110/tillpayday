@@ -193,6 +193,17 @@ export default async function BudgetPage() {
     currency: "USD",
   });
 
+  // Envelope-bar inputs for the buckets panel: per-check refill dollars and
+  // the same semantic colors the pies wear.
+  const perCheck: Record<string, number> = {};
+  const bucketColors: Record<string, string> = {};
+  for (const s of planRaw) {
+    if (!s.bucketId) continue;
+    perCheck[s.bucketId] = s.amount;
+    const c = semanticColor.get(s.bucketId);
+    if (c) bucketColors[s.bucketId] = c;
+  }
+
   // Today's balance per bucket (this cycle's replay) — powers the overdraft
   // decision popup when a new bill outsizes its bucket.
   const liquidNow = data.netWorth
@@ -237,7 +248,64 @@ export default async function BudgetPage() {
             Income, buckets, bills, and maybe-purchases — change anything here
             and the Dashboard updates instantly.
           </p>
+          <nav className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {[
+              ["#income", "Income"],
+              ["#buckets", "Buckets"],
+              ["#bills", "Bills"],
+              ["#goals", "Goals"],
+              ["#what-ifs", "What-ifs"],
+            ].map(([href, label]) => (
+              <a
+                key={href}
+                href={href}
+                className="text-slate-500 underline-offset-2 transition hover:text-emerald-300 hover:underline"
+              >
+                {label}
+              </a>
+            ))}
+          </nav>
         </div>
+
+        {cycle && typicalPaycheck > 0 && (() => {
+          const spentTotal = spend?.total ?? 0;
+          const days = Math.max(
+            0,
+            Math.round(
+              (Date.parse(cycle.nextPayday) - Date.parse(todayISO)) / 86400000,
+            ),
+          );
+          const paydayLabel =
+            days === 0 ? "today 🎉" : days === 1 ? "tomorrow" : `in ${days} days`;
+          const tiles: [string, string, string][] = [
+            ["Typical check", currency.format(typicalPaycheck), "text-white"],
+            [
+              `Spent since ${spend?.since ?? cycle.lastPayday}`,
+              spentTotal > 0 ? `−${currencyCents.format(spentTotal)}` : "$0",
+              spentTotal > 0 ? "text-red-300" : "text-slate-300",
+            ],
+            [
+              "Still standing",
+              currencyCents.format(unspent),
+              unspent > 0 ? "text-emerald-300" : "text-red-300",
+            ],
+            ["Next payday", paydayLabel, "text-white"],
+          ];
+          return (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {tiles.map(([label, value, tone]) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-slate-800 bg-slate-900 p-4"
+                >
+                  <p className="text-xs text-slate-500">{label}</p>
+                  <p className={`mt-1 text-lg font-bold ${tone}`}>{value}</p>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {pieSlices.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <h2 className="mb-3 font-semibold text-white">
@@ -343,9 +411,14 @@ export default async function BudgetPage() {
             funBucket={funBucket}
             todayISO={todayISO}
           />
-          <BucketsPanel data={data} />
-          <GoalsPanel data={data} />
+          <BucketsPanel
+            data={data}
+            balances={balances}
+            perCheck={perCheck}
+            colors={bucketColors}
+          />
           <ExpensesPanel data={data} balances={balances} todayISO={todayISO} />
+          <GoalsPanel data={data} />
           <WhatIfPanel data={data} />
         </div>
       </div>
