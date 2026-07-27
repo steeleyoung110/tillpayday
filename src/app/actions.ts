@@ -766,15 +766,31 @@ export async function addLiability(formData: FormData) {
   if (!LIABILITY_CATS.has(category)) return;
   const supabase = await createClient();
   const rate = num(formData, "interest_rate");
+  const payment = num(formData, "minimum_payment");
   await supabase.from("liabilities").insert({
     name: str(formData, "name"),
     category,
     current_balance: num(formData, "current_balance"),
     interest_rate: rate > 0 ? rate : null,
+    minimum_payment: payment > 0 ? payment : 0,
     notes: str(formData, "notes") || null,
   });
   await writeSnapshot();
   revalidateNetWorth();
+}
+
+/** Set a liability's monthly payment (powers the dashboard payoff math).
+ * Plain form action like the other "set" forms — re-setting is its own undo. */
+export async function setLiabilityPayment(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const payment = num(formData, "minimum_payment");
+  await supabase
+    .from("liabilities")
+    .update({ minimum_payment: payment > 0 ? payment : 0 })
+    .eq("id", id);
+  revalidateNetWorth();
+  revalidatePath("/");
 }
 
 /** Inline value edit (9B): auto-saves, snapshots, and hands back an undo. */

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import {
   addAsset,
   addLiability,
+  setLiabilityPayment,
   toggleArchived,
   toggleNetWorthBridge,
   undoRestore,
@@ -121,11 +122,36 @@ export default async function NetWorthPage() {
         {"interest_rate" in item && item.interest_rate !== null && (
           <span className="ml-2 text-xs text-slate-500">{`${Number(item.interest_rate)}% interest`}</span>
         )}
+        {"minimum_payment" in item && Number(item.minimum_payment) > 0 && (
+          <span className="ml-2 text-xs text-slate-500">{`${currency.format(Number(item.minimum_payment))}/mo`}</span>
+        )}
         {item.notes && (
           <span className="ml-2 text-xs text-slate-500">{item.notes}</span>
         )}
       </span>
       <span className="flex items-center gap-3">
+        {table === "liabilities" && (
+          <form action={setLiabilityPayment} className="flex items-center gap-1">
+            <input type="hidden" name="id" value={item.id} />
+            <input
+              name="minimum_payment"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={
+                "minimum_payment" in item && Number(item.minimum_payment) > 0
+                  ? Number(item.minimum_payment)
+                  : undefined
+              }
+              placeholder="pay/mo $"
+              title="What you actually pay on this each month — unlocks the payoff date on your Dashboard."
+              className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+            />
+            <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+              set
+            </button>
+          </form>
+        )}
         <InlineValue table={table} id={item.id} name={item.name} value={value} />
         <InstantAction
           action={toggleArchived}
@@ -252,7 +278,8 @@ export default async function NetWorthPage() {
                 ))}
               </select>
               <input name="interest_rate" type="number" step="0.001" min="0" placeholder="Interest % (optional)" className={inputCls} />
-              <input name="notes" placeholder="Note (optional)" className={inputCls} />
+              <input name="minimum_payment" type="number" step="0.01" min="0" placeholder="Payment $/mo (optional)" title="What you actually pay each month — unlocks the payoff date on your Dashboard." className={inputCls} />
+              <input name="notes" placeholder="Note (optional)" className={`${inputCls} col-span-2`} />
               <button className={`${btnCls} col-span-2`}>Add to what you owe</button>
             </form>
           </div>

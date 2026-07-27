@@ -65,6 +65,8 @@ export interface LiabilityRow {
   category: LiabilityCategory;
   current_balance: number;
   interest_rate: number | null;
+  /** What you actually pay per month (0 = not set; payoff math needs it). */
+  minimum_payment: number;
   notes: string | null;
   is_archived: boolean;
   created_at: string;

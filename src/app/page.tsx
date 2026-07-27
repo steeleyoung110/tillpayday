@@ -6,6 +6,7 @@ import { LegalFooter } from "@/components/LegalFooter";
 import { Onboarding } from "@/components/Onboarding";
 import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
+import { DebtOutlook } from "@/components/DebtOutlook";
 import { QuickSpend } from "@/components/QuickSpend";
 import { computeTodayBalances } from "@/lib/balances";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
@@ -288,6 +289,8 @@ export default async function Home() {
           todayISO={todayISO}
           anchorISO={(user.created_at ?? todayISO).slice(0, 10)}
         />
+
+        <DebtOutlook liabilities={nw.liabilities} todayISO={todayISO} />
 
         {/* The glance ends here — changes live in Budget. */}
         <Link
