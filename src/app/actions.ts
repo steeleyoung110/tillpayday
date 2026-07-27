@@ -104,6 +104,35 @@ export async function signOut() {
 }
 
 /**
+ * Calendar feed: create or rotate the per-user feed token. Rotating kills
+ * the old URL immediately (anyone who had it loses access).
+ */
+export async function rotateCalendarToken() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase
+    .from("calendar_tokens")
+    .upsert(
+      { user_id: user.id, token: crypto.randomUUID() },
+      { onConflict: "user_id" },
+    );
+  revalidatePath("/settings");
+}
+
+export async function deleteCalendarToken() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("calendar_tokens").delete().eq("user_id", user.id);
+  revalidatePath("/settings");
+}
+
+/**
  * Household sharing (read-only): grant a viewer, by email, SELECT access to
  * your budget. They see your numbers exactly as you do; they can't touch
  * anything — RLS only ever extends reads.

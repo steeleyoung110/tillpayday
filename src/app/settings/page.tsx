@@ -1,6 +1,14 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { addShare, removeShare, signOut, undoRestore } from "@/app/actions";
+import {
+  addShare,
+  deleteCalendarToken,
+  removeShare,
+  rotateCalendarToken,
+  signOut,
+  undoRestore,
+} from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { CsvImport } from "@/components/CsvImport";
 import { InstantAction } from "@/components/InstantAction";
@@ -37,6 +45,15 @@ export default async function SettingsPage() {
   const sharedWithMe = allShares.filter(
     (s) => s.owner_id !== user.id,
   );
+  // Calendar feed token + absolute feed URL for calendar apps.
+  const { data: calRow } = await supabase
+    .from("calendar_tokens")
+    .select("token")
+    .maybeSingle();
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
+  const feedUrl = calRow ? `${origin}/api/calendar?token=${calRow.token}` : null;
+
   const meta = user.user_metadata as Record<string, unknown>;
   const displayName =
     (typeof meta.full_name === "string" && meta.full_name) || null;
@@ -207,6 +224,45 @@ export default async function SettingsPage() {
               ))}
             </div>
           </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Calendar feed</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Subscribe your Google or Apple calendar to your paydays and bill
+            due dates — money shows up where you actually look every morning.
+            The link is private; anyone holding it can see bill names and
+            amounts, so treat it like a password.
+          </p>
+          {feedUrl ? (
+            <div className="mt-3 space-y-2">
+              <p className="break-all rounded-lg bg-slate-800/60 px-3 py-2 font-mono text-xs text-emerald-300">
+                {feedUrl}
+              </p>
+              <p className="text-xs text-slate-500">
+                Google Calendar: Settings → Add calendar → From URL. Apple:
+                File → New Calendar Subscription.
+              </p>
+              <div className="flex gap-3">
+                <form action={rotateCalendarToken}>
+                  <button className="text-xs text-amber-300 transition hover:text-amber-200">
+                    regenerate link (kills the old one)
+                  </button>
+                </form>
+                <form action={deleteCalendarToken}>
+                  <button className="text-xs text-slate-500 transition hover:text-red-400">
+                    turn off
+                  </button>
+                </form>
+              </div>
+            </div>
+          ) : (
+            <form action={rotateCalendarToken} className="mt-3">
+              <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+                Create my calendar link
+              </button>
+            </form>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

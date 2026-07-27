@@ -14,6 +14,6 @@ export const config = {
      * and /api/nudges, which Vercel Cron calls with a bearer secret instead
      * of a session (the route does its own auth).
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|apple-icon.png|api/nudges|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|apple-icon.png|api/nudges|api/calendar|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
