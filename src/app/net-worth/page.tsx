@@ -8,6 +8,7 @@ import {
   undoRestore,
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
+import { DebtStrategy } from "@/components/DebtStrategy";
 import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
@@ -284,6 +285,23 @@ export default async function NetWorthPage() {
             </form>
           </div>
         </div>
+
+        <DebtStrategy
+          debts={activeLiabilities
+            .filter(
+              (l) =>
+                Number(l.current_balance) > 0 &&
+                l.interest_rate !== null &&
+                Number(l.minimum_payment) > 0,
+            )
+            .map((l) => ({
+              id: l.id,
+              name: l.name,
+              balance: Number(l.current_balance),
+              aprPercent: Number(l.interest_rate),
+              minPayment: Number(l.minimum_payment),
+            }))}
+        />
 
         {/* Archived */}
         {archived.length > 0 && (
