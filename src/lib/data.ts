@@ -27,13 +27,38 @@ export interface NetWorthData {
   snapshots: SnapshotRow[];
 }
 
-/** Fetch the Net Worth module's tables (phase 9). */
-export async function getNetWorthData(): Promise<NetWorthData> {
+/**
+ * Resolve whose rows to load: the signed-in user's own, or — when `viewAs`
+ * names an owner who has shared with them — that owner's. Sharing grants are
+ * SELECT-only RLS policies, so every query must now scope by user_id
+ * explicitly; without it a viewer's own dashboard would mingle in shared
+ * rows. Returns null when viewAs isn't a budget shared with this user.
+ */
+export async function resolveViewUser(viewAs?: string): Promise<string | null> {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  if (!viewAs || viewAs === user.id) return user.id;
+  const { data } = await supabase
+    .from("shared_access")
+    .select("owner_id")
+    .eq("owner_id", viewAs)
+    .ilike("viewer_email", user.email ?? "")
+    .maybeSingle();
+  return data ? viewAs : null;
+}
+
+/** Fetch the Net Worth module's tables (phase 9). */
+export async function getNetWorthData(viewUserId?: string): Promise<NetWorthData> {
+  const supabase = await createClient();
+  const uid =
+    viewUserId ?? (await supabase.auth.getUser()).data.user?.id ?? "";
   const [assets, liabilities, snapshots] = await Promise.all([
-    supabase.from("assets").select("*").order("created_at"),
-    supabase.from("liabilities").select("*").order("created_at"),
-    supabase.from("net_worth_snapshots").select("*").order("snapshot_date"),
+    supabase.from("assets").select("*").eq("user_id", uid).order("created_at"),
+    supabase.from("liabilities").select("*").eq("user_id", uid).order("created_at"),
+    supabase.from("net_worth_snapshots").select("*").eq("user_id", uid).order("snapshot_date"),
   ]);
   return {
     assets: (assets.data as AssetRow[]) ?? [],
@@ -42,22 +67,24 @@ export async function getNetWorthData(): Promise<NetWorthData> {
   };
 }
 
-/** Fetch all seven tables for the signed-in user. */
-export async function getDashboardData(): Promise<DashboardData> {
+/** Fetch all dashboard tables for one user (self by default). */
+export async function getDashboardData(viewUserId?: string): Promise<DashboardData> {
   const supabase = await createClient();
+  const uid =
+    viewUserId ?? (await supabase.auth.getUser()).data.user?.id ?? "";
 
   const [income, buckets, expenses, whatIf, assets, liabilities, celebrated, entries, goals, transfers] =
     await Promise.all([
-      supabase.from("income_sources").select("*").order("created_at"),
-      supabase.from("buckets").select("*").order("sort_order").order("created_at"),
-      supabase.from("expenses").select("*").order("due_date"),
-      supabase.from("whatif_items").select("*").order("created_at"),
-      supabase.from("assets").select("*").eq("is_archived", false),
-      supabase.from("liabilities").select("*").eq("is_archived", false),
-      supabase.from("celebrated_paydays").select("*").order("payday"),
-      supabase.from("income_entries").select("*").order("received_date"),
-      supabase.from("goals").select("*").order("target_date"),
-      supabase.from("transfers").select("*").order("transfer_date"),
+      supabase.from("income_sources").select("*").eq("user_id", uid).order("created_at"),
+      supabase.from("buckets").select("*").eq("user_id", uid).order("sort_order").order("created_at"),
+      supabase.from("expenses").select("*").eq("user_id", uid).order("due_date"),
+      supabase.from("whatif_items").select("*").eq("user_id", uid).order("created_at"),
+      supabase.from("assets").select("*").eq("user_id", uid).eq("is_archived", false),
+      supabase.from("liabilities").select("*").eq("user_id", uid).eq("is_archived", false),
+      supabase.from("celebrated_paydays").select("*").eq("user_id", uid).order("payday"),
+      supabase.from("income_entries").select("*").eq("user_id", uid).order("received_date"),
+      supabase.from("goals").select("*").eq("user_id", uid).order("target_date"),
+      supabase.from("transfers").select("*").eq("user_id", uid).order("transfer_date"),
     ]);
 
   // The dashboard's liquid-savings seeding reads the Net Worth module now,

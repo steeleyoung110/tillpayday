@@ -231,6 +231,107 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
   });
 });
 
+describe.runIf(configured)("household sharing — grants are read-only", () => {
+  let a: SupabaseClient;
+  let b: SupabaseClient;
+  let aUserId: string;
+  let shareId: string;
+  let bucketId: string;
+
+  const mkClient = () =>
+    createClient(URL_!, ANON!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+  beforeAll(async () => {
+    a = mkClient();
+    b = mkClient();
+    const [ra, rb] = await Promise.all([
+      a.auth.signInWithPassword({ email: USER_A, password: PASSWORD }),
+      b.auth.signInWithPassword({ email: USER_B, password: PASSWORD }),
+    ]);
+    if (ra.error || rb.error) throw new Error("share suite sign-in failed");
+    aUserId = ra.data.user!.id;
+
+    const { data: bucket, error: be } = await a
+      .from("buckets")
+      .insert({ name: "RLS share probe", allocation_type: "fixed", allocation_value: 1 })
+      .select("id")
+      .single();
+    if (be) throw new Error(be.message);
+    bucketId = bucket.id;
+
+    const { data: share, error: se } = await a
+      .from("shared_access")
+      .insert({ owner_email: USER_A, viewer_email: USER_B })
+      .select("id")
+      .single();
+    if (se) throw new Error(se.message);
+    shareId = share.id;
+  }, TIMEOUT);
+
+  afterAll(async () => {
+    await a.from("shared_access").delete().eq("id", shareId);
+    await a.from("buckets").delete().eq("id", bucketId);
+    await Promise.all([a.auth.signOut(), b.auth.signOut()]);
+  }, TIMEOUT);
+
+  it("the viewer can READ the owner's rows", { timeout: TIMEOUT }, async () => {
+    const { data, error } = await b.from("buckets").select("id");
+    expect(error).toBeNull();
+    expect(data!.map((r) => r.id)).toContain(bucketId);
+  });
+
+  it("the viewer can discover the grant aimed at them", { timeout: TIMEOUT }, async () => {
+    const { data } = await b.from("shared_access").select("id, owner_id");
+    expect(data!.map((r) => r.id)).toContain(shareId);
+  });
+
+  it("the viewer still cannot UPDATE the owner's rows", { timeout: TIMEOUT }, async () => {
+    const { data } = await b
+      .from("buckets")
+      .update({ name: "hijacked" })
+      .eq("id", bucketId)
+      .select();
+    expect(data ?? []).toHaveLength(0);
+    const { data: still } = await a.from("buckets").select("name").eq("id", bucketId).single();
+    expect(still!.name).toBe("RLS share probe");
+  });
+
+  it("the viewer still cannot DELETE the owner's rows", { timeout: TIMEOUT }, async () => {
+    await b.from("buckets").delete().eq("id", bucketId);
+    const { data: still } = await a.from("buckets").select("id").eq("id", bucketId);
+    expect(still).toHaveLength(1);
+  });
+
+  it("the viewer still cannot forge rows under the owner's id", { timeout: TIMEOUT }, async () => {
+    const { error } = await b
+      .from("buckets")
+      .insert({ name: "forged", allocation_type: "fixed", allocation_value: 1, user_id: aUserId });
+    expect(error).not.toBeNull();
+  });
+
+  it("the viewer cannot grant themselves shares of the owner's budget", { timeout: TIMEOUT }, async () => {
+    const { error } = await b
+      .from("shared_access")
+      .insert({ owner_id: aUserId, owner_email: USER_A, viewer_email: USER_B });
+    expect(error).not.toBeNull();
+  });
+
+  it("revoking the grant removes visibility immediately", { timeout: TIMEOUT }, async () => {
+    await a.from("shared_access").delete().eq("id", shareId);
+    const { data } = await b.from("buckets").select("id");
+    expect(data!.map((r) => r.id)).not.toContain(bucketId);
+    // Re-create so afterAll's cleanup delete is a no-op-safe operation.
+    const { data: share } = await a
+      .from("shared_access")
+      .insert({ owner_email: USER_A, viewer_email: USER_B })
+      .select("id")
+      .single();
+    shareId = share!.id;
+  });
+});
+
 describe.runIf(!configured)("row-level security (skipped)", () => {
   it("skipped — NEXT_PUBLIC_SUPABASE_URL / ANON_KEY not configured", () => {
     expect(configured).toBe(false);

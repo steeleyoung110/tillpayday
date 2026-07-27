@@ -104,6 +104,35 @@ export async function signOut() {
 }
 
 /**
+ * Household sharing (read-only): grant a viewer, by email, SELECT access to
+ * your budget. They see your numbers exactly as you do; they can't touch
+ * anything — RLS only ever extends reads.
+ */
+export async function addShare(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) return;
+  const viewer = str(formData, "viewer_email").trim().toLowerCase();
+  if (!viewer || !viewer.includes("@") || viewer === user.email.toLowerCase()) return;
+  await supabase.from("shared_access").insert({
+    owner_email: user.email,
+    viewer_email: viewer,
+  });
+  revalidatePath("/settings");
+}
+
+export async function removeShare(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const row = await captureRow("shared_access", id);
+  await supabase.from("shared_access").delete().eq("id", id);
+  revalidatePath("/settings");
+  return row ? { inserts: [{ table: "shared_access", row }] } : null;
+}
+
+/**
  * The OAuth path's legal moment: Google signups never saw the sign-up
  * checkbox, so /legal-accept collects the same acknowledgment before the
  * app opens up. Stored identically to the email path.
@@ -147,6 +176,7 @@ const UNDOABLE_TABLES = new Set([
   "liabilities",
   "goals",
   "transfers",
+  "shared_access",
 ]);
 
 export async function undoRestore(formData: FormData) {

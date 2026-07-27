@@ -1,12 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { signOut } from "@/app/actions";
+import { addShare, removeShare, signOut, undoRestore } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { CsvImport } from "@/components/CsvImport";
+import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
 import { getDashboardData } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+
+interface ShareRow {
+  id: string;
+  owner_id: string;
+  owner_email: string;
+  viewer_email: string;
+}
 
 /** Settings & About: your account, the app, and the legal pages. */
 export default async function SettingsPage() {
@@ -19,6 +27,16 @@ export default async function SettingsPage() {
 
   const data = await getDashboardData();
   const funBucket = data.buckets.find((b) => b.is_flexible && !b.is_savings);
+  // Sharing: grants I've made, and budgets shared with me.
+  const { data: shareRows } = await supabase
+    .from("shared_access")
+    .select("id, owner_id, owner_email, viewer_email")
+    .order("created_at");
+  const allShares = (shareRows ?? []) as ShareRow[];
+  const myGrants = allShares.filter((s) => s.owner_id === user.id);
+  const sharedWithMe = allShares.filter(
+    (s) => s.owner_id !== user.id,
+  );
   const meta = user.user_metadata as Record<string, unknown>;
   const displayName =
     (typeof meta.full_name === "string" && meta.full_name) || null;
@@ -87,6 +105,65 @@ export default async function SettingsPage() {
               </Link>
             </li>
           </ul>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Household sharing</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Share a <strong>read-only</strong> view of your budget with a
+            partner or accountability buddy. They see your numbers exactly as
+            you do — and can&apos;t change a thing. They need their own Till
+            Payday account under the email you enter.
+          </p>
+          <form action={addShare} className="mt-3 flex flex-wrap items-end gap-2">
+            <input
+              name="viewer_email"
+              type="email"
+              required
+              placeholder="their@email.com"
+              className="min-w-52 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+              Share my budget
+            </button>
+          </form>
+          {myGrants.length > 0 && (
+            <ul className="mt-3 space-y-1 text-sm">
+              {myGrants.map((s) => (
+                <li key={s.id} className="flex items-center justify-between text-slate-300">
+                  <span>{`${s.viewer_email} can view your budget`}</span>
+                  <InstantAction
+                    action={removeShare}
+                    undoAction={undoRestore}
+                    values={{ id: s.id }}
+                    message={`Stopped sharing with ${s.viewer_email}.`}
+                    className="text-xs text-slate-500 transition hover:text-red-400"
+                  >
+                    stop sharing
+                  </InstantAction>
+                </li>
+              ))}
+            </ul>
+          )}
+          {sharedWithMe.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Shared with you
+              </p>
+              <ul className="space-y-1 text-sm">
+                {sharedWithMe.map((s) => (
+                  <li key={s.id}>
+                    <Link
+                      href={`/?view=${s.owner_id}`}
+                      className="text-violet-300 transition hover:text-violet-200"
+                    >
+                      {`👀 View ${s.owner_email}'s budget →`}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

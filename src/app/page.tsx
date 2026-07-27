@@ -11,7 +11,7 @@ import { QuickSpend } from "@/components/QuickSpend";
 import { computeTodayBalances } from "@/lib/balances";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { computeNudges } from "@/lib/nudges";
-import { getDashboardData, getNetWorthData } from "@/lib/data";
+import { getDashboardData, getNetWorthData, resolveViewUser } from "@/lib/data";
 import {
   cycleSpending,
   irregularWeeklyBaseline,
@@ -41,7 +41,11 @@ const heroCurrency = new Intl.NumberFormat("en-US", {
  * Dashboard: the read-only daily glance — safe-to-spend, payday countdown,
  * projection, warnings, celebrations. All managing happens on /budget.
  */
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
   if (!isSupabaseConfigured()) {
     return <SetupNotice />;
   }
@@ -52,7 +56,28 @@ export default async function Home() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [data, nw] = await Promise.all([getDashboardData(), getNetWorthData()]);
+  // Read-only household view: ?view=<ownerId> works only when that owner
+  // has shared their budget with this account; anything else falls back to
+  // your own dashboard.
+  const { view } = await searchParams;
+  const viewUid = await resolveViewUser(view);
+  if (view && viewUid === null) redirect("/");
+  const uid = viewUid ?? user.id;
+  const viewing = uid !== user.id;
+  let viewingOwnerEmail: string | null = null;
+  if (viewing) {
+    const { data: grant } = await supabase
+      .from("shared_access")
+      .select("owner_email")
+      .eq("owner_id", uid)
+      .maybeSingle();
+    viewingOwnerEmail = grant?.owner_email || "someone";
+  }
+
+  const [data, nw] = await Promise.all([
+    getDashboardData(uid),
+    getNetWorthData(uid),
+  ]);
   const todayISO = new Date().toISOString().slice(0, 10);
 
   // 9E: friendly check-in nudge when net-worth values are 30+ days old.
@@ -163,7 +188,7 @@ export default async function Home() {
 
   return (
     <AppShell active="dashboard">
-      {showCelebration && recap && (
+      {!viewing && showCelebration && recap && (
         <CelebrationOverlay
           recap={recap}
           goal={savingsRow ? Number(savingsRow.goal_amount) : 0}
@@ -172,6 +197,19 @@ export default async function Home() {
       )}
 
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+        {viewing && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
+            <p className="text-sm font-semibold text-violet-200">
+              {`👀 Viewing ${viewingOwnerEmail}'s budget — read-only. Their numbers, their plan.`}
+            </p>
+            <Link
+              href="/"
+              className="text-sm font-semibold text-violet-300 transition hover:text-violet-200"
+            >
+              Back to mine →
+            </Link>
+          </div>
+        )}
         {recap !== null && recap.savingsTotal < 0 && (
           <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-6 py-4">
             <p className="text-sm font-semibold text-red-200">
@@ -186,7 +224,7 @@ export default async function Home() {
           </div>
         )}
 
-        {nudges.map((n) => (
+        {!viewing && nudges.map((n) => (
           <div
             key={n.message}
             className={`rounded-2xl border px-6 py-4 ${
@@ -278,33 +316,37 @@ export default async function Home() {
           )}
         </div>
 
-        <QuickSpend
-          data={data}
-          balances={computeTodayBalances(data, todayISO)}
-          todayISO={todayISO}
-        />
+        {!viewing && (
+          <QuickSpend
+            data={data}
+            balances={computeTodayBalances(data, todayISO)}
+            todayISO={todayISO}
+          />
+        )}
 
         <ProjectionSection
           data={data}
           todayISO={todayISO}
-          anchorISO={(user.created_at ?? todayISO).slice(0, 10)}
+          anchorISO={viewing ? todayISO : (user.created_at ?? todayISO).slice(0, 10)}
         />
 
         <DebtOutlook liabilities={nw.liabilities} todayISO={todayISO} />
 
         {/* The glance ends here — changes live in Budget. */}
-        <Link
-          href="/budget"
-          className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-6 py-4 transition hover:border-emerald-400/50"
-        >
-          <span className="text-sm text-slate-300">
-            🪣 Need to change something? Buckets, income, bills, and what-ifs
-            live in your Budget.
-          </span>
-          <span className="text-sm font-semibold text-emerald-300">
-            Manage budget →
-          </span>
-        </Link>
+        {!viewing && (
+          <Link
+            href="/budget"
+            className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 px-6 py-4 transition hover:border-emerald-400/50"
+          >
+            <span className="text-sm text-slate-300">
+              🪣 Need to change something? Buckets, income, bills, and what-ifs
+              live in your Budget.
+            </span>
+            <span className="text-sm font-semibold text-emerald-300">
+              Manage budget →
+            </span>
+          </Link>
+        )}
       </div>
       <LegalFooter disclaimer />
     </AppShell>
