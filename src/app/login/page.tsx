@@ -24,6 +24,14 @@ export default async function LoginPage({
           <p className="mt-2 text-sm text-slate-400">
             Plan your paychecks. See your future savings.
           </p>
+          <p className="mt-2 text-sm">
+            <a
+              href="/demo"
+              className="text-violet-300 underline-offset-2 transition hover:text-violet-200 hover:underline"
+            >
+              👀 Curious? Poke around a sample budget first →
+            </a>
+          </p>
         </div>
 
         {error && (
