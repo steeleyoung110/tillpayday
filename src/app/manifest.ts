@@ -27,5 +27,25 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
+    // Share TO Till Payday from any app (installed PWA): shared text lands
+    // in the Budget quick-spend form, prefilled.
+    share_target: {
+      action: "/budget",
+      method: "GET",
+      params: { title: "shared_title", text: "shared_text", url: "shared_url" },
+    },
+    // Long-press the home-screen icon → jump straight to the habit.
+    shortcuts: [
+      {
+        name: "Log a spend",
+        url: "/budget#bills",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+      {
+        name: "Safe to spend today?",
+        url: "/",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+    ],
   };
 }

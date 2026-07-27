@@ -34,6 +34,7 @@ import {
   transferToEngine,
 } from "@/lib/rows";
 import { computeTodayBalances } from "@/lib/balances";
+import { parseSharedSpend } from "@/lib/share";
 import { auditSubscriptions } from "@/lib/subscriptions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -42,7 +43,15 @@ import { createClient } from "@/lib/supabase/server";
  * Budget: everything you manage — income, buckets, bills, what-ifs.
  * The Dashboard is the glance; this is where changes happen.
  */
-export default async function BudgetPage() {
+export default async function BudgetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    shared_title?: string;
+    shared_text?: string;
+    shared_url?: string;
+  }>;
+}) {
   if (!isSupabaseConfigured()) redirect("/login");
   const supabase = await createClient();
   const {
@@ -53,6 +62,14 @@ export default async function BudgetPage() {
   const data = await getDashboardData();
   if (data.buckets.length === 0) redirect("/"); // onboarding lives on the dashboard
   const todayISO = new Date().toISOString().slice(0, 10);
+
+  // Web Share Target: text shared into the installed app lands here as
+  // query params — parse it into a quick-spend prefill.
+  const { shared_title, shared_text, shared_url } = await searchParams;
+  const sharedRaw = [shared_title, shared_text, shared_url]
+    .filter(Boolean)
+    .join(" ");
+  const sharedPrefill = sharedRaw ? parseSharedSpend(sharedRaw) : undefined;
 
   const engineIncome = data.income.map(incomeToEngine);
   const engineBuckets = data.buckets.map(bucketToEngine);
@@ -629,7 +646,12 @@ export default async function BudgetPage() {
             perCheck={perCheck}
             colors={bucketColors}
           />
-          <ExpensesPanel data={data} balances={balances} todayISO={todayISO} />
+          <ExpensesPanel
+            data={data}
+            balances={balances}
+            todayISO={todayISO}
+            sharedPrefill={sharedPrefill}
+          />
           <GoalsPanel data={data} />
           <WhatIfPanel data={data} />
           <IncomeShock

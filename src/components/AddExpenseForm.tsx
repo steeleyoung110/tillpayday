@@ -35,6 +35,8 @@ export function AddExpenseForm({
   todayISO,
   variant = "full",
   defaultBucketId = "",
+  initialName = "",
+  initialAmount = "",
 }: {
   options: BucketOption[];
   todayISO: string;
@@ -42,10 +44,13 @@ export function AddExpenseForm({
   variant?: "full" | "quick";
   /** Starting bucket selection (quick mode defaults to the fun bucket). */
   defaultBucketId?: string;
+  /** Prefill (e.g. from a Web Share Target share). */
+  initialName?: string;
+  initialAmount?: string;
 }) {
   const quick = variant === "quick";
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
+  const [name, setName] = useState(initialName);
+  const [amount, setAmount] = useState(initialAmount);
   const [cadence, setCadence] = useState(quick ? "one_time" : "monthly");
   const [dueDate, setDueDate] = useState(todayISO);
   const [bucketId, setBucketId] = useState(defaultBucketId);

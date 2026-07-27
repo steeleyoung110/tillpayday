@@ -656,12 +656,15 @@ export function ExpensesPanel({
   data,
   balances,
   todayISO,
+  sharedPrefill,
 }: {
   data: DashboardData;
   /** Current balance per bucket id ("" = savings/leftover), for the
    * overdraft decision popup. Optional — without it, no gate. */
   balances?: Record<string, number>;
   todayISO: string;
+  /** Quick-spend prefill from a Web Share Target share. */
+  sharedPrefill?: { name: string; amount: string };
 }) {
   // Two columns: money that leaves once vs bills that keep coming back.
   const oneTime = data.expenses.filter((e) => e.cadence === "one_time");
@@ -729,13 +732,18 @@ export function ExpensesPanel({
     <Panel title="Upcoming bills" className="lg:col-span-2" id="bills">
       <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300/80">
-          Log a spend — the five-second version
+          {sharedPrefill
+            ? "Shared into Till Payday — check it and log it"
+            : "Log a spend — the five-second version"}
         </p>
         <AddExpenseForm
+          key={sharedPrefill ? `${sharedPrefill.name}-${sharedPrefill.amount}` : "quick"}
           options={options}
           todayISO={todayISO}
           variant="quick"
           defaultBucketId={funBucket?.id ?? ""}
+          initialName={sharedPrefill?.name ?? ""}
+          initialAmount={sharedPrefill?.amount ?? ""}
         />
       </div>
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
