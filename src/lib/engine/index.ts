@@ -20,3 +20,10 @@ export {
 } from "./safeToSpend";
 export { paydayRecap, type PaydayRecap } from "./celebration";
 export { cycleSpending, type CycleSpend } from "./cycleSpend";
+export {
+  cycleHistory,
+  type BucketStreak,
+  type CycleBucketActual,
+  type CycleHistoryResult,
+  type CycleRecord,
+} from "./cycleHistory";

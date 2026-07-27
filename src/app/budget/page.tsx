@@ -18,6 +18,7 @@ import {
 import { getDashboardData } from "@/lib/data";
 import {
   currentPayCycle,
+  cycleHistory,
   cycleSpending,
   irregularWeeklyBaseline,
   runProjection,
@@ -212,6 +213,33 @@ export default async function BudgetPage() {
   const cycle = currentPayCycle(engineIncome, todayISO);
   const balances = computeTodayBalances(data, todayISO);
 
+  // Past-cycle recap: planned vs actual per bucket, evidence over time. The
+  // pay lattice runs infinitely backward, so cycles that predate this account
+  // existing are trimmed — they'd otherwise show as fabricated "$0 spent"
+  // history from before the user ever touched the app.
+  const accountCreatedISO = (user.created_at ?? todayISO).slice(0, 10);
+  const rawHistory = cycleHistory(engineIncome, engineBuckets, engineExpenses, todayISO, 6);
+  const pastCycles = rawHistory.cycles.filter((c) => c.cycleStart >= accountCreatedISO);
+  // Recompute streaks scoped to the trimmed (real) history — the engine's own
+  // streaks were walked against the full, lattice-extended cycle list.
+  const streakIds = new Set<string | null>();
+  for (const c of pastCycles) for (const b of c.buckets) streakIds.add(b.bucketId);
+  const pastStreaks = [...streakIds]
+    .map((id) => {
+      let overCycles = 0;
+      let name = "";
+      for (const c of pastCycles) {
+        const row = c.buckets.find((b) => b.bucketId === id);
+        if (row && row.overBy > 0) {
+          overCycles += 1;
+          name = row.bucketName;
+        } else break;
+      }
+      return { bucketId: id, bucketName: name, overCycles };
+    })
+    .filter((s) => s.overCycles > 1) // a single over-cycle isn't a "streak"
+    .sort((a, b) => b.overCycles - a.overCycles);
+
   return (
     <AppShell active="budget">
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
@@ -373,6 +401,79 @@ export default async function BudgetPage() {
               left, what you&apos;ve actually spent (in red) on the right.
               Green is money still standing; red is money gone.
             </p>
+          </div>
+        )}
+
+        {pastCycles.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="mb-1 font-semibold text-white">Past cycles</h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Every completed pay cycle, planned vs. actual. Patterns only show
+              up over time — a single cycle over plan is a bad week; several
+              in a row is where to look.
+            </p>
+            {pastStreaks.length > 0 && (
+              <ul className="mb-3 space-y-1">
+                {pastStreaks.map((s) => (
+                  <li
+                    key={s.bucketId ?? "savings"}
+                    className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-sm text-red-200"
+                  >
+                    {`⚠️ ${s.bucketName} has run over plan ${s.overCycles} cycles straight.`}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="space-y-2">
+              {pastCycles.map((c) => {
+                const overRows = c.buckets.filter((b) => b.overBy > 0);
+                return (
+                  <details
+                    key={c.cycleStart}
+                    className="rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
+                  >
+                    <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                      <span className="text-slate-300">
+                        {`${c.cycleStart} → ${c.cycleEnd}`}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="text-slate-400">
+                          {`${currency.format(c.totalActual)} of ${currency.format(c.totalPlanned)} planned`}
+                        </span>
+                        <span
+                          className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
+                            c.keptPlan
+                              ? "bg-emerald-500/20 text-emerald-300"
+                              : "bg-red-500/20 text-red-300"
+                          }`}
+                        >
+                          {c.keptPlan ? "kept the plan" : "went over"}
+                        </span>
+                      </span>
+                    </summary>
+                    <ul className="mt-2 space-y-1 pl-1 text-xs">
+                      {c.buckets.map((b) => (
+                        <li
+                          key={b.bucketId ?? "savings"}
+                          className="flex items-center justify-between text-slate-400"
+                        >
+                          <span>{b.bucketName}</span>
+                          <span className={b.overBy > 0 ? "text-red-300" : ""}>
+                            {`${currency.format(b.actual)} / ${currency.format(b.planned)} planned`}
+                            {b.overBy > 0 ? ` · over by ${currency.format(b.overBy)}` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {overRows.length === 0 && (
+                      <p className="mt-2 pl-1 text-xs text-emerald-300">
+                        Every bucket stayed inside its plan this cycle.
+                      </p>
+                    )}
+                  </details>
+                );
+              })}
+            </div>
           </div>
         )}
 
