@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/send";
 import { computeNudges } from "@/lib/nudges";
+import { sendPush, type PushRow } from "@/lib/push";
 import type { DashboardData } from "@/lib/rows";
 
 export const dynamic = "force-dynamic";
@@ -85,6 +86,22 @@ export async function GET(request: Request) {
 
     const nudges = computeNudges(data, todayISO);
     if (nudges.length === 0) continue;
+
+    // Push first — the lock screen is where a nudge actually lands in time.
+    const { data: subs } = await admin
+      .from("push_subscriptions")
+      .select("id, endpoint, p256dh, auth")
+      .eq("user_id", user.id);
+    if ((subs ?? []).length > 0) {
+      await sendPush(admin, (subs ?? []) as PushRow[], {
+        title:
+          nudges.length === 1
+            ? "Till Payday: one thing needs your eyes"
+            : `Till Payday: ${nudges.length} things need your eyes`,
+        body: nudges[0].message,
+        url: "/",
+      });
+    }
 
     const name =
       (typeof user.user_metadata?.full_name === "string" && user.user_metadata.full_name) ||

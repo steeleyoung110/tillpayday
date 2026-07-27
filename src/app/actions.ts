@@ -104,6 +104,44 @@ export async function signOut() {
 }
 
 /**
+ * Web-push: store/remove this browser's subscription, and a self-test send
+ * so you can prove the pipe works from Settings.
+ */
+export async function savePushSubscription(formData: FormData) {
+  const supabase = await createClient();
+  const endpoint = str(formData, "endpoint");
+  const p256dh = str(formData, "p256dh");
+  const auth = str(formData, "auth");
+  if (!endpoint.startsWith("https://") || !p256dh || !auth) return;
+  await supabase
+    .from("push_subscriptions")
+    .upsert({ endpoint, p256dh, auth }, { onConflict: "endpoint" });
+}
+
+export async function removePushSubscription(formData: FormData) {
+  const supabase = await createClient();
+  await supabase
+    .from("push_subscriptions")
+    .delete()
+    .eq("endpoint", str(formData, "endpoint"));
+}
+
+export async function sendTestPush(): Promise<{ delivered: number; total: number }> {
+  const supabase = await createClient();
+  const { sendPush } = await import("@/lib/push");
+  const { data } = await supabase
+    .from("push_subscriptions")
+    .select("id, endpoint, p256dh, auth");
+  const subs = data ?? [];
+  const delivered = await sendPush(supabase, subs, {
+    title: "Till Payday 🔔",
+    body: "Push works. This is what a bill warning will feel like.",
+    url: "/",
+  });
+  return { delivered, total: subs.length };
+}
+
+/**
  * Calendar feed: create or rotate the per-user feed token. Rotating kills
  * the old URL immediately (anyone who had it loses access).
  */

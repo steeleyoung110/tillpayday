@@ -11,6 +11,7 @@ import {
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { CsvImport } from "@/components/CsvImport";
+import { EnablePush } from "@/components/EnablePush";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
 import { getDashboardData } from "@/lib/data";
@@ -223,6 +224,20 @@ export default async function SettingsPage() {
                 </a>
               ))}
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Notifications</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            The daily nudges — a bill landing that its bucket can&apos;t
+            cover, payday tomorrow — on your lock screen instead of waiting
+            for you to open the app.
+          </p>
+          <div className="mt-3">
+            <EnablePush
+              vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? ""}
+            />
           </div>
         </div>
 

@@ -24,7 +24,18 @@ gracefully without it.
     it.**
 - Until both are set, /api/nudges answers 503 "unconfigured" and does nothing.
 
-## 3. Google sign-in
+## 3. Push notifications (VAPID)
+
+- Keys are already generated and working locally (see `.env.local`). For
+  production, copy these three into Vercel → Environment Variables:
+  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  - `VAPID_PRIVATE_KEY` (server secret — never expose)
+  - `VAPID_SUBJECT` (a mailto: contact)
+- Users opt in per device at Settings → Notifications (needs the installed
+  PWA / production site; there's a "send a test" button to prove the pipe).
+- The daily cron (/api/nudges) pushes before it emails.
+
+## 4. Google sign-in
 
 - Google Cloud Console → create OAuth 2.0 Client ID (web application).
   - Authorized redirect URI: `https://wjmqerdbojuudlxggtwm.supabase.co/auth/v1/callback`
@@ -33,20 +44,20 @@ gracefully without it.
 - The legal acknowledgment is already handled: OAuth signups get routed
   through `/legal-accept` exactly once (email signups tick the box at sign-up).
 
-## 4. Legal contact email
+## 5. Legal contact email
 
 - `src/app/legal/page.tsx` still contains the literal “[contact email]”
   placeholder. Replace it with a real address (e.g. a dedicated
   tillpayday@… inbox) before sharing the app beyond coworkers.
 
-## 5. Supabase auth hardening
+## 6. Supabase auth hardening
 
 - Supabase dashboard → Authentication → Settings:
   - Enable **leaked password protection** (checks candidates against
     HaveIBeenPwned).
   - Consider lowering OTP/session lifetimes to taste.
 
-## 6. Nice-to-haves already wired
+## 7. Nice-to-haves already wired
 
 - CSV export: `/api/export?table=…` (Settings page has download chips).
 - CSV import: Settings → Your data → Import spending from a CSV.
