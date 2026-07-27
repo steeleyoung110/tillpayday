@@ -32,3 +32,9 @@ export {
   type CalendarBill,
   type CheckBillGroup,
 } from "./billCalendar";
+export {
+  runway,
+  spendAnomalies,
+  type Runway,
+  type SpendAnomaly,
+} from "./insights";

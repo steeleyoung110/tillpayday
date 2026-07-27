@@ -13,10 +13,13 @@ import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { computeNudges } from "@/lib/nudges";
 import { getDashboardData, getNetWorthData, resolveViewUser } from "@/lib/data";
 import {
+  cycleHistory,
   cycleSpending,
   irregularWeeklyBaseline,
   paydayRecap,
+  runway,
   safeToSpend,
+  spendAnomalies,
 } from "@/lib/engine";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
@@ -156,6 +159,24 @@ export default async function Home({
   const nudges = computeNudges(data, todayISO).filter(
     (n) => n.type !== "savings-negative",
   );
+
+  // Honest-mirror insights: runway (how long the money on hand lasts at your
+  // real spending pace) and buckets running above your OWN average. Both use
+  // completed cycles since signup only — no fabricated pre-signup history.
+  const accountCreatedISO = (user.created_at ?? todayISO).slice(0, 10);
+  const completedCycles = cycleHistory(
+    engineIncome,
+    engineBuckets,
+    engineExpenses,
+    todayISO,
+    6,
+  ).cycles.filter((c) => c.cycleStart >= accountCreatedISO);
+  const balancesToday = computeTodayBalances(data, todayISO);
+  const liquidToday = balancesToday
+    ? Math.round(Object.values(balancesToday).reduce((s, v) => s + v, 0) * 100) / 100
+    : 0;
+  const runwayInfo = runway(liquidToday, completedCycles);
+  const anomalies = spendAnomalies(spend, completedCycles);
 
   // Semantic colors for the celebration's split bars — the same virtue
   // spectrum as the Budget pies and envelope bars, so money reads as one
@@ -316,10 +337,50 @@ export default async function Home({
           )}
         </div>
 
+        {(runwayInfo || anomalies.length > 0) && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {runwayInfo && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+                <p className="text-sm text-slate-400">
+                  If your paycheck stopped today
+                </p>
+                <p
+                  className={`mt-1 text-4xl font-black tracking-tight ${
+                    runwayInfo.days < 14
+                      ? "text-red-300"
+                      : runwayInfo.days < 45
+                        ? "text-amber-300"
+                        : "text-emerald-300"
+                  }`}
+                >
+                  {`${runwayInfo.days} day${runwayInfo.days === 1 ? "" : "s"}`}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {`That's how long ${heroCurrency.format(runwayInfo.liquid)} on hand lasts at your real pace of ${heroCurrency.format(runwayInfo.avgDailySpend)}/day. This number growing is the whole game.`}
+                </p>
+              </div>
+            )}
+            {anomalies.length > 0 && (
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-5">
+                <p className="text-sm font-semibold text-amber-200">
+                  Above your own average — with days still to go
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {anomalies.map((a) => (
+                    <li key={a.bucketId ?? "savings"} className="text-sm text-amber-100/90">
+                      {`${a.bucketName}: ${heroCurrency.format(a.current)} so far this cycle — ${a.pctAbove}% above your usual ${heroCurrency.format(a.average)} for a FULL cycle.`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {!viewing && (
           <QuickSpend
             data={data}
-            balances={computeTodayBalances(data, todayISO)}
+            balances={balancesToday}
             todayISO={todayISO}
           />
         )}
