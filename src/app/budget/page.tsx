@@ -33,6 +33,7 @@ import {
   transferToEngine,
 } from "@/lib/rows";
 import { computeTodayBalances } from "@/lib/balances";
+import { auditSubscriptions } from "@/lib/subscriptions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -243,6 +244,9 @@ export default async function BudgetPage() {
 
   // Bill-to-paycheck calendar: which upcoming check covers which bills.
   const checkGroups = billsByCheck(engineIncome, engineBuckets, engineExpenses, todayISO, 4);
+
+  // Subscription auditor: repeating bills × their real yearly multiplier.
+  const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
 
   return (
     <AppShell active="budget">
@@ -469,6 +473,71 @@ export default async function BudgetPage() {
               left, what you&apos;ve actually spent (in red) on the right.
               Green is money still standing; red is money gone.
             </p>
+          </div>
+        )}
+
+        {subAudit.rows.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">
+                What your repeating bills really cost
+              </h2>
+              <p className="text-sm font-bold text-red-300">
+                {`${currencyCents.format(subAudit.yearlyTotal)}/yr`}
+                {subAudit.pctOfIncome !== null && (
+                  <span className="ml-1 font-normal text-slate-400">
+                    {`— ${subAudit.pctOfIncome}% of your income`}
+                  </span>
+                )}
+              </p>
+            </div>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              Nobody multiplies by 12 in their head. This is the yearly bill
+              for everything that renews itself.
+            </p>
+            <ul className="space-y-1">
+              {subAudit.rows.map((r) => (
+                <li
+                  key={r.expenseId}
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm ${
+                    r.isPaused ? "opacity-50" : ""
+                  }`}
+                >
+                  <span className="text-slate-200">
+                    {r.name}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {`${currencyCents.format(r.amount)} ${
+                        r.cadence === "monthly"
+                          ? "× 12"
+                          : r.cadence === "quarterly"
+                            ? "× 4"
+                            : "× 1"
+                      }`}
+                    </span>
+                    {r.cancelCandidate && !r.isPaused && (
+                      <span className="ml-2 rounded bg-red-500/20 px-1.5 py-0.5 text-xs text-red-300">
+                        cancel candidate 🔪
+                      </span>
+                    )}
+                    {r.isPaused && (
+                      <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
+                        paused ⏸
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-semibold text-slate-300">
+                    {`${currencyCents.format(r.yearlyCost)}/yr`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {subAudit.rows.some((r) => r.cancelCandidate && !r.isPaused) && (
+              <p className="mt-3 text-xs text-slate-500">
+                🔪 Cancel candidates feed fun-money buckets — the first place
+                to look when this number needs to shrink. Pausing one in Bills
+                below removes it from the total instantly.
+              </p>
+            )}
           </div>
         )}
 
