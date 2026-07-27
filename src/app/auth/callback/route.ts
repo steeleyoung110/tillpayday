@@ -12,8 +12,14 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error, data } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // Email signups tick the legal box on the form; OAuth users never saw
+      // it. Route them through the acknowledgment page exactly once.
+      const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      if (typeof meta.legal_accepted_at !== "string") {
+        return NextResponse.redirect(`${origin}/legal-accept`);
+      }
       return NextResponse.redirect(`${origin}${next.startsWith("/") ? next : "/"}`);
     }
   }

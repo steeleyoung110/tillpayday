@@ -103,6 +103,26 @@ export async function signOut() {
   redirect("/login");
 }
 
+/**
+ * The OAuth path's legal moment: Google signups never saw the sign-up
+ * checkbox, so /legal-accept collects the same acknowledgment before the
+ * app opens up. Stored identically to the email path.
+ */
+export async function acknowledgeLegal(formData: FormData) {
+  if (formData.get("legal_ack") !== "on") {
+    redirect(
+      `/legal-accept?error=${encodeURIComponent(
+        "Check the box to continue — it matters that you know what this app is and isn't.",
+      )}`,
+    );
+  }
+  const supabase = await createClient();
+  await supabase.auth.updateUser({
+    data: { legal_accepted_at: new Date().toISOString() },
+  });
+  redirect("/");
+}
+
 // ---------------------------------------------------------------------------
 // Undo (8E): routine actions apply instantly and return a recipe that can
 // put things back; undoRestore executes it. RLS guarantees a user can only
