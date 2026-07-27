@@ -381,12 +381,23 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
         }
       }
       for (const inc of paychecks) {
-        totalIncome = round2(totalIncome + inc.amount);
+        // Income-shock window: paychecks landing inside it are scaled
+        // (0 = stopped). Side income is untouched — a layoff doesn't
+        // cancel the garage-sale money.
+        const shock = input.incomeShock;
+        const shocked =
+          shock &&
+          inc.kind === "paycheck" &&
+          key >= shock.startDate &&
+          key <= shock.endDate;
+        const amount = round2(shocked ? inc.amount * shock.factor : inc.amount);
+        if (amount <= 0) continue;
+        totalIncome = round2(totalIncome + amount);
         if (inc.kind === "side") {
           // Side income is unallocated — straight to savings.
-          balances[savingsKey] = round2(balances[savingsKey] + inc.amount);
+          balances[savingsKey] = round2(balances[savingsKey] + amount);
         } else {
-          allocatePaycheck(inc.amount, key);
+          allocatePaycheck(amount, key);
         }
       }
     }

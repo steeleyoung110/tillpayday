@@ -15,6 +15,7 @@ import {
   IncomePanel,
   WhatIfPanel,
 } from "@/components/panels";
+import { IncomeShock } from "@/components/IncomeShock";
 import { getDashboardData } from "@/lib/data";
 import {
   billsByCheck,
@@ -631,6 +632,16 @@ export default async function BudgetPage() {
           <ExpensesPanel data={data} balances={balances} todayISO={todayISO} />
           <GoalsPanel data={data} />
           <WhatIfPanel data={data} />
+          <IncomeShock
+            income={engineIncome}
+            buckets={engineBuckets}
+            expenses={engineExpenses}
+            incomeEntries={engineEntries}
+            transfers={engineTransfers}
+            startingSavings={balances?.[""] ?? 0}
+            savingsBucketId={savingsBucket?.id ?? null}
+            todayISO={todayISO}
+          />
         </div>
       </div>
       <LegalFooter />

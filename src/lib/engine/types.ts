@@ -136,6 +136,12 @@ export interface ProjectionInput {
    * savings is honored in full — savings alone can go red.
    */
   transfers?: Transfer[];
+  /**
+   * What-if income shock: paycheck-kind income landing inside
+   * [startDate, endDate] is multiplied by `factor` (0 = paychecks stop,
+   * 0.8 = a 20% cut). Side income and windfalls are untouched.
+   */
+  incomeShock?: { startDate: string; endDate: string; factor: number };
 }
 
 /** One day of the projection. */

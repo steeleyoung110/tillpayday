@@ -1001,3 +1001,49 @@ describe("runProjection - transfers (move money)", () => {
     expect(d.buckets.fun).toBe(250);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Income shock: paychecks scaled inside a window
+// ---------------------------------------------------------------------------
+describe("runProjection - income shock", () => {
+  it("a stopped paycheck window zeroes those paydays and nothing else", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 3,
+      incomeShock: { startDate: "2026-01-01", endDate: "2026-02-15", factor: 0 },
+    });
+    // Jan 1 and Feb 1 paydays vanish; Mar 1 lands normally.
+    const jan = r.points.find((p) => p.date === "2026-01-01")!;
+    expect(jan.total).toBe(0);
+    const mar = r.points.find((p) => p.date === "2026-03-01")!;
+    expect(mar.total).toBe(3000);
+  });
+
+  it("a 20% cut scales the check and the whole waterfall beneath it", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      incomeShock: { startDate: "2026-01-01", endDate: "2026-01-31", factor: 0.8 },
+    });
+    const day1 = r.points[0];
+    // 2400 -> rent 1000 fixed, fun 10% of 1400 = 140, savings 1260.
+    expect(day1.buckets.rent).toBe(1000);
+    expect(day1.buckets.fun).toBe(140);
+    expect(day1.buckets.save).toBe(1260);
+  });
+
+  it("side income is untouched by the shock", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      incomeSources: [
+        ...baseInput.incomeSources,
+        { id: "gig", name: "Gig", amount: 500, frequency: "monthly", kind: "side", anchorDate: "2026-01-01" },
+      ],
+      incomeShock: { startDate: "2026-01-01", endDate: "2026-01-31", factor: 0 },
+    });
+    const day1 = r.points[0];
+    expect(day1.buckets.save).toBe(500); // the gig money still arrives
+    expect(day1.total).toBe(500);
+  });
+});
