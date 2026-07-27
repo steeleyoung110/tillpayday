@@ -7,6 +7,7 @@ import {
   removeShare,
   rotateCalendarToken,
   signOut,
+  submitSuggestion,
   undoRestore,
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
@@ -54,6 +55,25 @@ export default async function SettingsPage() {
   const h = await headers();
   const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("host") ?? "localhost:3000"}`;
   const feedUrl = calRow ? `${origin}/api/calendar?token=${calRow.token}` : null;
+
+  // Admin gate (RLS: you can only ever see your own membership row) and the
+  // user's own past suggestions.
+  const [{ data: adminRow }, { data: mySuggestionsRaw }] = await Promise.all([
+    supabase.from("admins").select("user_id").maybeSingle(),
+    supabase
+      .from("suggestions")
+      .select("id, message, status, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
+  const isAdmin = Boolean(adminRow);
+  const mySuggestions = (mySuggestionsRaw ?? []) as {
+    id: string;
+    message: string;
+    status: string;
+    created_at: string;
+  }[];
 
   const meta = user.user_metadata as Record<string, unknown>;
   const displayName =
@@ -225,6 +245,65 @@ export default async function SettingsPage() {
               ))}
             </div>
           </div>
+        </div>
+
+        {isAdmin && (
+          <Link
+            href="/admin"
+            className="block rounded-2xl border border-violet-500/40 bg-violet-500/10 p-5 transition hover:border-violet-400"
+          >
+            <h3 className="font-semibold text-violet-200">Admin portal 🛠️</h3>
+            <p className="mt-1 text-sm text-violet-100/70">
+              Members, logins, activity, and the suggestion inbox — the whole
+              app behind the scenes.
+            </p>
+          </Link>
+        )}
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Suggest something 💡</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            An idea, a bug, a &ldquo;why doesn&apos;t it…&rdquo; — drop it
+            here and it lands straight in front of the person building this.
+          </p>
+          <form action={submitSuggestion} className="mt-3 space-y-2">
+            <textarea
+              name="message"
+              required
+              maxLength={2000}
+              rows={3}
+              placeholder="What should Till Payday do better?"
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+              Send it
+            </button>
+          </form>
+          {mySuggestions.length > 0 && (
+            <details className="mt-3 text-sm">
+              <summary className="cursor-pointer text-slate-400">
+                {`Your suggestions (${mySuggestions.length})`}
+              </summary>
+              <ul className="mt-2 space-y-1">
+                {mySuggestions.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-2 text-slate-400">
+                    <span className="truncate">{s.message}</span>
+                    <span
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
+                        s.status === "done"
+                          ? "bg-emerald-500/20 text-emerald-300"
+                          : s.status === "seen"
+                            ? "bg-sky-500/20 text-sky-300"
+                            : "bg-slate-500/30 text-slate-300"
+                      }`}
+                    >
+                      {s.status === "done" ? "done ✓" : s.status === "seen" ? "seen 👀" : "sent"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

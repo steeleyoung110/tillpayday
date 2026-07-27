@@ -142,6 +142,43 @@ export async function sendTestPush(): Promise<{ delivered: number; total: number
 }
 
 /**
+ * Suggestions: anyone signed in can drop one in the box; admins work the
+ * inbox from /admin (status changes, deletes — enforced by RLS).
+ */
+export async function submitSuggestion(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  const message = str(formData, "message").trim().slice(0, 2000);
+  if (!message) return;
+  await supabase.from("suggestions").insert({
+    message,
+    email: user.email ?? null,
+  });
+  revalidatePath("/settings");
+  revalidatePath("/admin");
+}
+
+export async function setSuggestionStatus(formData: FormData) {
+  const supabase = await createClient();
+  const status = str(formData, "status");
+  if (!["new", "seen", "done"].includes(status)) return;
+  await supabase
+    .from("suggestions")
+    .update({ status })
+    .eq("id", str(formData, "id"));
+  revalidatePath("/admin");
+}
+
+export async function deleteSuggestion(formData: FormData) {
+  const supabase = await createClient();
+  await supabase.from("suggestions").delete().eq("id", str(formData, "id"));
+  revalidatePath("/admin");
+}
+
+/**
  * Calendar feed: create or rotate the per-user feed token. Rotating kills
  * the old URL immediately (anyone who had it loses access).
  */
