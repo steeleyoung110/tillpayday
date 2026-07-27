@@ -8,10 +8,12 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Run on all paths except static assets, images, and the PWA files
+     * Run on all paths except static assets, images, the PWA files
      * (manifest, service worker, offline page) — browsers fetch those without
-     * auth cookies, and installability breaks if they redirect to /login.
+     * auth cookies, and installability breaks if they redirect to /login —
+     * and /api/nudges, which Vercel Cron calls with a bearer secret instead
+     * of a session (the route does its own auth).
      */
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|apple-icon.png|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|offline.html|icons/|apple-icon.png|api/nudges|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

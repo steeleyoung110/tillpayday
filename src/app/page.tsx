@@ -9,6 +9,7 @@ import { SetupNotice } from "@/components/SetupNotice";
 import { QuickSpend } from "@/components/QuickSpend";
 import { computeTodayBalances } from "@/lib/balances";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
+import { computeNudges } from "@/lib/nudges";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import {
   cycleSpending,
@@ -124,6 +125,12 @@ export default async function Home() {
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
 
+  // Nudges: bills landing in the next 2 days that their bucket can't cover,
+  // and payday-tomorrow. (Negative savings has its own red alert below.)
+  const nudges = computeNudges(data, todayISO).filter(
+    (n) => n.type !== "savings-negative",
+  );
+
   // Semantic colors for the celebration's split bars — the same virtue
   // spectrum as the Budget pies and envelope bars, so money reads as one
   // system wherever it shows up.
@@ -177,6 +184,25 @@ export default async function Home() {
             </p>
           </div>
         )}
+
+        {nudges.map((n) => (
+          <div
+            key={n.message}
+            className={`rounded-2xl border px-6 py-4 ${
+              n.type === "payday-tomorrow"
+                ? "border-emerald-500/30 bg-emerald-500/10"
+                : "border-amber-500/40 bg-amber-500/10"
+            }`}
+          >
+            <p
+              className={`text-sm font-semibold ${
+                n.type === "payday-tomorrow" ? "text-emerald-200" : "text-amber-200"
+              }`}
+            >
+              {n.type === "payday-tomorrow" ? `🎉 ${n.message}` : `⏰ ${n.message}`}
+            </p>
+          </div>
+        ))}
 
         {staleNetWorth && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4">
