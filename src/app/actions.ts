@@ -124,6 +124,7 @@ const UNDOABLE_TABLES = new Set([
   "assets",
   "liabilities",
   "goals",
+  "transfers",
 ]);
 
 export async function undoRestore(formData: FormData) {
@@ -162,6 +163,41 @@ async function captureRow(
   const supabase = await createClient();
   const { data } = await supabase.from(table).select("*").eq("id", id).single();
   return (data as Record<string, unknown>) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Transfers: move money between buckets on purpose. Balances derive from
+// replay, so deleting a transfer un-moves the money.
+// ---------------------------------------------------------------------------
+
+export async function addTransfer(formData: FormData) {
+  const supabase = await createClient();
+  const from = str(formData, "from_bucket_id");
+  const to = str(formData, "to_bucket_id");
+  const amount = num(formData, "amount");
+  if (from === to || !(amount > 0)) return;
+  await supabase.from("transfers").insert({
+    from_bucket_id: from || null,
+    to_bucket_id: to || null,
+    amount,
+    transfer_date:
+      str(formData, "transfer_date") || new Date().toISOString().slice(0, 10),
+    note: str(formData, "note") || null,
+  });
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+export async function deleteTransfer(
+  formData: FormData,
+): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const row = await captureRow("transfers", id);
+  await supabase.from("transfers").delete().eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return row ? { inserts: [{ table: "transfers", row }] } : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -574,6 +610,7 @@ export async function addExpense(formData: FormData) {
     cadence: str(formData, "cadence"),
   });
   revalidatePath("/");
+  revalidatePath("/budget");
 }
 
 /** Re-point a bill at a different bucket ("McDonalds should come out of Food"). */

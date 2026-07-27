@@ -938,3 +938,66 @@ describe("labelSetback", () => {
     expect(labelSetback(90)).toBe("about 3 months");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Transfers: deliberate moves between envelopes
+// ---------------------------------------------------------------------------
+describe("runProjection - transfers (move money)", () => {
+  it("moves money between buckets on its date and creates nothing", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      transfers: [
+        { id: "t1", fromBucketId: "fun", toBucketId: "rent", amount: 50, date: "2026-01-05" },
+      ],
+    });
+    const d = r.points.find((p) => p.date === "2026-01-05")!;
+    expect(d.buckets.fun).toBe(150);
+    expect(d.buckets.rent).toBe(1050);
+    expect(d.total).toBe(3000);
+  });
+
+  it("a same-day bill can be covered by money moved that morning", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      expenses: [
+        { id: "e", name: "Rent", amount: 1050, bucketId: "rent", dueDate: "2026-01-05", cadence: "one_time" },
+      ],
+      transfers: [
+        { id: "t1", fromBucketId: "fun", toBucketId: "rent", amount: 50, date: "2026-01-05" },
+      ],
+    });
+    expect(r.warnings.filter((w) => w.type === "shortfall")).toHaveLength(0);
+    const d = r.points.find((p) => p.date === "2026-01-05")!;
+    expect(d.buckets.rent).toBe(0);
+  });
+
+  it("caps a move out of a spending bucket at what it holds - never negative", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      transfers: [
+        { id: "t1", fromBucketId: "fun", toBucketId: "save", amount: 500, date: "2026-01-05" },
+      ],
+    });
+    const d = r.points.find((p) => p.date === "2026-01-05")!;
+    expect(d.buckets.fun).toBe(0); // only the 200 it actually held moved
+    expect(d.buckets.save).toBe(2000);
+  });
+
+  it("a move out of savings is honored in full - savings alone can go red", () => {
+    const r = runProjection({
+      ...baseInput,
+      months: 1,
+      incomeSources: [],
+      startingBalances: { save: 100 },
+      transfers: [
+        { id: "t1", fromBucketId: null, toBucketId: "fun", amount: 250, date: "2026-01-05" },
+      ],
+    });
+    const d = r.points.find((p) => p.date === "2026-01-05")!;
+    expect(d.buckets.save).toBe(-150);
+    expect(d.buckets.fun).toBe(250);
+  });
+});

@@ -33,15 +33,22 @@ const btnCls =
 export function AddExpenseForm({
   options,
   todayISO,
+  variant = "full",
+  defaultBucketId = "",
 }: {
   options: BucketOption[];
   todayISO: string;
+  /** "quick" = log-a-spend: today, one-time, compact — the daily habit. */
+  variant?: "full" | "quick";
+  /** Starting bucket selection (quick mode defaults to the fun bucket). */
+  defaultBucketId?: string;
 }) {
+  const quick = variant === "quick";
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [cadence, setCadence] = useState("monthly");
+  const [cadence, setCadence] = useState(quick ? "one_time" : "monthly");
   const [dueDate, setDueDate] = useState(todayISO);
-  const [bucketId, setBucketId] = useState("");
+  const [bucketId, setBucketId] = useState(defaultBucketId);
   const [decideOpen, setDecideOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -59,7 +66,11 @@ export function AddExpenseForm({
       await addExpense(fd);
       const finalName =
         options.find((o) => o.id === finalBucketId)?.name ?? "Savings / leftover";
-      showToast(`Added ${name} — comes out of ${finalName}.`);
+      showToast(
+        quick
+          ? `Logged ${name} — ${cents.format(value)} out of ${finalName}.`
+          : `Added ${name} — comes out of ${finalName}.`,
+      );
       setName("");
       setAmount("");
       setDecideOpen(false);
@@ -81,6 +92,47 @@ export function AddExpenseForm({
 
   return (
     <>
+      {quick ? (
+        <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
+          <input
+            placeholder="What was it? (e.g. McDonald's)"
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={`${inputCls} min-w-40 flex-1`}
+          />
+          <input
+            type="number"
+            inputMode="decimal"
+            step="0.01"
+            min="0"
+            placeholder="$"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className={`${inputCls} w-24`}
+          />
+          <label className="text-xs text-slate-400">
+            out of
+            <select
+              value={bucketId}
+              onChange={(e) => setBucketId(e.target.value)}
+              className={`${inputCls} mt-1 w-40`}
+            >
+              {options.map((o) => (
+                <option key={o.id || "savings"} value={o.id}>
+                  {typeof o.balance === "number"
+                    ? `${o.name} (${cents.format(o.balance)})`
+                    : o.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button disabled={pending} className={btnCls}>
+            Log it
+          </button>
+        </form>
+      ) : (
       <form onSubmit={onSubmit} className="grid grid-cols-2 gap-2 sm:max-w-md">
         <input
           placeholder="Expense (e.g. Rent)"
@@ -138,6 +190,7 @@ export function AddExpenseForm({
           Add expense
         </button>
       </form>
+      )}
 
       {decideOpen && chosen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-6 backdrop-blur-sm">

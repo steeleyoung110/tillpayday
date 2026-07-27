@@ -17,7 +17,6 @@ import {
 } from "@/components/panels";
 import { getDashboardData } from "@/lib/data";
 import {
-  UNALLOCATED_KEY,
   currentPayCycle,
   cycleSpending,
   irregularWeeklyBaseline,
@@ -29,7 +28,9 @@ import {
   expenseToEngine,
   incomeEntryToEngine,
   incomeToEngine,
+  transferToEngine,
 } from "@/lib/rows";
+import { computeTodayBalances } from "@/lib/balances";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,6 +54,7 @@ export default async function BudgetPage() {
   const engineBuckets = data.buckets.map(bucketToEngine);
   const engineExpenses = data.expenses.map(expenseToEngine);
   const engineEntries = data.incomeEntries.map(incomeEntryToEngine);
+  const engineTransfers = data.transfers.map(transferToEngine);
 
   // Windfall context (8F): what counts as "above a typical paycheck", which
   // buckets are currently flagged short, and where fun money would go.
@@ -74,6 +76,7 @@ export default async function BudgetPage() {
     buckets: engineBuckets,
     expenses: engineExpenses,
     incomeEntries: engineEntries,
+    transfers: engineTransfers,
   });
   const seenShort = new Set<string>();
   const shortfalls = nearTerm.warnings
@@ -204,40 +207,10 @@ export default async function BudgetPage() {
     if (c) bucketColors[s.bucketId] = c;
   }
 
-  // Today's balance per bucket (this cycle's replay) — powers the overdraft
-  // decision popup when a new bill outsizes its bucket.
-  const liquidNow = data.netWorth
-    .filter((i) => i.kind === "asset" && ["cash", "savings"].includes(i.category))
-    .reduce((s, i) => s + Number(i.amount), 0);
-  const startingSavings =
-    savingsBucket && Number(savingsBucket.starting_balance) > 0
-      ? Number(savingsBucket.starting_balance)
-      : liquidNow;
+  // Today's balance per bucket (this cycle's replay, including transfers) —
+  // powers the overdraft popup, the envelope bars, and the move-money form.
   const cycle = currentPayCycle(engineIncome, todayISO);
-  let balances: Record<string, number> | undefined;
-  if (cycle) {
-    const replay = runProjection({
-      startDate: cycle.lastPayday,
-      months: 1,
-      startingBalances: {
-        [savingsBucket ? savingsBucket.id : UNALLOCATED_KEY]: startingSavings,
-      },
-      incomeSources: engineIncome,
-      buckets: engineBuckets,
-      expenses: engineExpenses,
-      incomeEntries: engineEntries,
-    });
-    const todayPoint =
-      replay.points.find((p) => p.date === todayISO) ?? replay.points[0];
-    balances = {};
-    for (const b of data.buckets) {
-      if (b.is_savings) continue;
-      balances[b.id] = todayPoint.buckets[b.id] ?? 0;
-    }
-    balances[""] = savingsBucket
-      ? todayPoint.buckets[savingsBucket.id] ?? 0
-      : todayPoint.buckets[UNALLOCATED_KEY] ?? 0;
-  }
+  const balances = computeTodayBalances(data, todayISO);
 
   return (
     <AppShell active="budget">

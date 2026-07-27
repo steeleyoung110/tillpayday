@@ -12,7 +12,7 @@
 import { addDays, parseISO, toISO } from "./dates";
 import { runProjection } from "./projection";
 import { currentPayCycle } from "./safeToSpend";
-import type { Bucket, Expense, IncomeEntry, IncomeSource } from "./types";
+import type { Bucket, Expense, IncomeEntry, IncomeSource, Transfer } from "./types";
 
 export interface PaydayRecap {
   /** The payday being celebrated (ISO). */
@@ -31,6 +31,7 @@ export function paydayRecap(
   startingSavings: number,
   todayISO: string,
   incomeEntries: IncomeEntry[] = [],
+  transfers: Transfer[] = [],
 ): PaydayRecap | null {
   const cycle = currentPayCycle(sources, todayISO);
   if (!cycle) return null;
@@ -49,6 +50,7 @@ export function paydayRecap(
     buckets,
     expenses,
     incomeEntries,
+    transfers,
   });
 
   // Balances at the end of the night before the payday = what the sweep moved.

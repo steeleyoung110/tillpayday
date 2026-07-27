@@ -12,6 +12,7 @@ import {
   addBucket,
   addGoal,
   addIncome,
+  addTransfer,
   addWhatIf,
   decideWhatIf,
   deleteGoal,
@@ -21,6 +22,7 @@ import {
   deleteExpense,
   deleteIncome,
   deleteIncomeEntry,
+  deleteTransfer,
   deleteWhatIf,
   makeSavingsBucket,
   setBucketApy,
@@ -534,6 +536,89 @@ export function BucketsPanel({
         )}
       </ul>
 
+      {data.buckets.length > 1 && (
+        <div className="mb-4 rounded-xl border border-slate-700/60 bg-slate-800/30 p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Move money between buckets
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Robbing Peter to pay Paul — on purpose, with your eyes open. Taking
+            from a spending bucket stops at $0; only savings can go red.
+          </p>
+          <form action={addTransfer} className="mt-2 flex flex-wrap items-end gap-2">
+            <label className="text-xs text-slate-400">
+              From
+              <select name="from_bucket_id" className={`${inputCls} mt-1 w-36`} defaultValue="">
+                <option value="">Savings / leftover</option>
+                {data.buckets
+                  .filter((b) => !b.is_savings)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <label className="text-xs text-slate-400">
+              To
+              <select
+                name="to_bucket_id"
+                className={`${inputCls} mt-1 w-36`}
+                defaultValue={data.buckets.find((b) => !b.is_savings)?.id ?? ""}
+              >
+                <option value="">Savings / leftover</option>
+                {data.buckets
+                  .filter((b) => !b.is_savings)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <input
+              name="amount"
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="$"
+              required
+              className={`${inputCls} w-24`}
+            />
+            <button className={btnCls}>Move it</button>
+          </form>
+          {data.transfers.length > 0 && (
+            <ul className="mt-3 space-y-1 text-xs">
+              {[...data.transfers]
+                .reverse()
+                .slice(0, 4)
+                .map((t) => {
+                  const nameOf = (id: string | null) =>
+                    id === null
+                      ? "Savings / leftover"
+                      : data.buckets.find((b) => b.id === id)?.name ?? "a bucket";
+                  return (
+                    <li key={t.id} className="flex items-center justify-between text-slate-400">
+                      <span>
+                        {`${currency.format(Number(t.amount))}: ${nameOf(t.from_bucket_id)} → ${nameOf(t.to_bucket_id)} on ${t.transfer_date}`}
+                      </span>
+                      <InstantAction
+                        action={deleteTransfer}
+                        undoAction={undoRestore}
+                        values={{ id: t.id }}
+                        message={`Put that ${currency.format(Number(t.amount))} back.`}
+                        className={delCls}
+                      >
+                        undo move
+                      </InstantAction>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
+        </div>
+      )}
+
       <form action={addBucket} className="grid grid-cols-2 gap-2">
         <input name="name" placeholder="Bucket name (e.g. Rent)" required className={`${inputCls} col-span-2`} />
         <select name="allocation_type" className={inputCls} defaultValue="fixed">
@@ -638,8 +723,21 @@ export function ExpensesPanel({
     </li>
   );
 
+  const funBucket = data.buckets.find((b) => b.is_flexible && !b.is_savings);
+
   return (
     <Panel title="Upcoming bills" className="lg:col-span-2" id="bills">
+      <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300/80">
+          Log a spend — the five-second version
+        </p>
+        <AddExpenseForm
+          options={options}
+          todayISO={todayISO}
+          variant="quick"
+          defaultBucketId={funBucket?.id ?? ""}
+        />
+      </div>
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -670,7 +768,14 @@ export function ExpensesPanel({
         </div>
       </div>
 
-      <AddExpenseForm options={options} todayISO={todayISO} />
+      <details>
+        <summary className="cursor-pointer text-xs text-slate-500 transition hover:text-slate-300">
+          Add a bill instead (repeating, future-dated, or a big one-off)
+        </summary>
+        <div className="mt-3">
+          <AddExpenseForm options={options} todayISO={todayISO} />
+        </div>
+      </details>
     </Panel>
   );
 }

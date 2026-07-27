@@ -255,6 +255,22 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
     });
   }
 
+  // Deliberate moves between envelopes, applied on their date.
+  const transferByDate = new Map<
+    string,
+    { fromBucketId: string | null; toBucketId: string | null; amount: number }[]
+  >();
+  for (const t of input.transfers ?? []) {
+    const d = parseISO(t.date);
+    if (d < start || d > end) continue;
+    const key = toISO(d);
+    (transferByDate.get(key) ?? transferByDate.set(key, []).get(key)!).push({
+      fromBucketId: t.fromBucketId,
+      toBucketId: t.toBucketId,
+      amount: t.amount,
+    });
+  }
+
   const expenseByDate = new Map<string, { amount: number; bucketId: string | null }[]>();
   for (const e of input.expenses) {
     if (e.isPaused) continue; // paused expenses don't deduct while paused
@@ -386,6 +402,22 @@ export function runProjection(input: ProjectionInput): ProjectionResult {
         allocated = round2(allocated + part.amount);
       }
       balances[savingsKey] = round2(balances[savingsKey] + (wf.amount - allocated));
+    }
+
+    // Transfers land before expenses, so money moved today can cover a bill
+    // due today. Moves out of a spending bucket are capped at what it holds
+    // (buckets never go negative); moves out of savings are honored in full.
+    for (const t of transferByDate.get(key) ?? []) {
+      const fromKey = t.fromBucketId ?? savingsKey;
+      const toKey = t.toBucketId ?? savingsKey;
+      if (fromKey === toKey) continue;
+      const moved =
+        fromKey === savingsKey
+          ? t.amount
+          : Math.min(Math.max(balances[fromKey] ?? 0, 0), t.amount);
+      if (moved <= 0) continue;
+      balances[fromKey] = round2((balances[fromKey] ?? 0) - moved);
+      balances[toKey] = round2((balances[toKey] ?? 0) + moved);
     }
 
     for (const ex of expenseByDate.get(key) ?? []) {

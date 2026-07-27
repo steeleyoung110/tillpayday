@@ -11,6 +11,7 @@ import type {
   IncomeEntry,
   IncomeKind,
   IncomeSource,
+  Transfer,
 } from "@/lib/engine";
 
 export interface IncomeRow {
@@ -161,6 +162,17 @@ export interface NetWorthRow {
 /** Categories that count as spendable money (they seed the projection's savings). */
 export const LIQUID_CATEGORIES: NetWorthCategory[] = ["cash", "savings"];
 
+/** A deliberate move of money between buckets (null = savings/leftover). */
+export interface TransferRow {
+  id: string;
+  from_bucket_id: string | null;
+  to_bucket_id: string | null;
+  amount: number;
+  transfer_date: string;
+  note: string | null;
+  created_at: string;
+}
+
 export interface DashboardData {
   income: IncomeRow[];
   buckets: BucketRow[];
@@ -170,6 +182,7 @@ export interface DashboardData {
   celebrated: CelebratedPaydayRow[];
   incomeEntries: IncomeEntryRow[];
   goals: GoalRow[];
+  transfers: TransferRow[];
 }
 
 export function incomeToEngine(r: IncomeRow): IncomeSource {
@@ -208,6 +221,16 @@ export function expenseToEngine(r: ExpenseRow): Expense {
     dueDate: r.due_date,
     cadence: r.cadence,
     isPaused: r.is_paused,
+  };
+}
+
+export function transferToEngine(r: TransferRow): Transfer {
+  return {
+    id: r.id,
+    fromBucketId: r.from_bucket_id,
+    toBucketId: r.to_bucket_id,
+    amount: Number(r.amount),
+    date: r.transfer_date,
   };
 }
 

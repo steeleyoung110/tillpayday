@@ -13,7 +13,7 @@
  */
 import { addDays, diffDays, parseISO, toISO } from "./dates";
 import { generatePayDates, runProjection } from "./projection";
-import type { Bucket, Expense, IncomeEntry, IncomeSource } from "./types";
+import type { Bucket, Expense, IncomeEntry, IncomeSource, Transfer } from "./types";
 
 export interface PayCycle {
   /** Most recent payday on or before today (ISO). */
@@ -91,6 +91,7 @@ export function safeToSpend(
   expenses: Expense[],
   todayISO: string,
   incomeEntries: IncomeEntry[] = [],
+  transfers: Transfer[] = [],
 ): SafeToSpend | null {
   const cycle = currentPayCycle(sources, todayISO);
   if (!cycle) return null;
@@ -115,6 +116,7 @@ export function safeToSpend(
     buckets,
     expenses,
     incomeEntries, // windfalls logged this cycle count toward today's balances
+    transfers,
   });
   const todayPoint =
     replay.points.find((p) => p.date === todayISO) ?? replay.points[0];

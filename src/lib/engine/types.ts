@@ -94,6 +94,17 @@ export interface Expense {
   isPaused?: boolean;
 }
 
+/** A deliberate move of money between envelopes on a date. */
+export interface Transfer {
+  id: string;
+  /** Source bucket (null = savings/leftover pool). */
+  fromBucketId: string | null;
+  /** Destination bucket (null = savings/leftover pool). */
+  toBucketId: string | null;
+  amount: number;
+  date: string; // YYYY-MM-DD
+}
+
 /** A purchase the user is considering — modeled as a one-time expense. */
 export interface WhatIfItem {
   id: string;
@@ -119,6 +130,12 @@ export interface ProjectionInput {
    * entries dated inside the horizon inject on their date.
    */
   incomeEntries?: IncomeEntry[];
+  /**
+   * Deliberate moves between buckets. A move out of a spending bucket is
+   * capped at what it holds (only savings may go negative); a move out of
+   * savings is honored in full — savings alone can go red.
+   */
+  transfers?: Transfer[];
 }
 
 /** One day of the projection. */

@@ -6,6 +6,8 @@ import { LegalFooter } from "@/components/LegalFooter";
 import { Onboarding } from "@/components/Onboarding";
 import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
+import { QuickSpend } from "@/components/QuickSpend";
+import { computeTodayBalances } from "@/lib/balances";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import {
   cycleSpending,
@@ -20,6 +22,7 @@ import {
   expenseToEngine,
   incomeEntryToEngine,
   incomeToEngine,
+  transferToEngine,
 } from "@/lib/rows";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -68,12 +71,14 @@ export default async function Home() {
   const engineBuckets = data.buckets.map(bucketToEngine);
   const engineExpenses = data.expenses.map(expenseToEngine);
   const engineEntries = data.incomeEntries.map(incomeEntryToEngine);
+  const engineTransfers = data.transfers.map(transferToEngine);
   const sts = safeToSpend(
     engineIncome,
     engineBuckets,
     engineExpenses,
     todayISO,
     engineEntries,
+    engineTransfers,
   );
 
   // Spent-so-far chip: what left the buckets since the last payday, as a
@@ -113,6 +118,7 @@ export default async function Home() {
     startingSavings,
     todayISO,
     engineEntries,
+    engineTransfers,
   );
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
@@ -224,6 +230,12 @@ export default async function Home() {
             </p>
           )}
         </div>
+
+        <QuickSpend
+          data={data}
+          balances={computeTodayBalances(data, todayISO)}
+          todayISO={todayISO}
+        />
 
         <ProjectionSection
           data={data}

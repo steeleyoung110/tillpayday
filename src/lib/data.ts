@@ -15,6 +15,7 @@ import type {
   LiabilityRow,
   NetWorthRow,
   SnapshotRow,
+  TransferRow,
   WhatIfRow,
 } from "@/lib/rows";
 
@@ -45,7 +46,7 @@ export async function getNetWorthData(): Promise<NetWorthData> {
 export async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient();
 
-  const [income, buckets, expenses, whatIf, assets, liabilities, celebrated, entries, goals] =
+  const [income, buckets, expenses, whatIf, assets, liabilities, celebrated, entries, goals, transfers] =
     await Promise.all([
       supabase.from("income_sources").select("*").order("created_at"),
       supabase.from("buckets").select("*").order("sort_order").order("created_at"),
@@ -56,6 +57,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       supabase.from("celebrated_paydays").select("*").order("payday"),
       supabase.from("income_entries").select("*").order("received_date"),
       supabase.from("goals").select("*").order("target_date"),
+      supabase.from("transfers").select("*").order("transfer_date"),
     ]);
 
   // The dashboard's liquid-savings seeding reads the Net Worth module now,
@@ -90,5 +92,6 @@ export async function getDashboardData(): Promise<DashboardData> {
     celebrated: (celebrated.data as CelebratedPaydayRow[]) ?? [],
     incomeEntries: (entries.data as IncomeEntryRow[]) ?? [],
     goals: (goals.data as GoalRow[]) ?? [],
+    transfers: (transfers.data as TransferRow[]) ?? [],
   };
 }
