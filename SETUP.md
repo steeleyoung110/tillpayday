@@ -35,7 +35,16 @@ gracefully without it.
   PWA / production site; there's a "send a test" button to prove the pipe).
 - The daily cron (/api/nudges) pushes before it emails.
 
-## 4. Google sign-in
+## 4. Honest recap (Claude API)
+
+- The Budget page's "Your honest recap" card sends your aggregate numbers to
+  Claude and returns a no-fluff plain-English recap. It needs an Anthropic
+  API key: https://platform.claude.com → API keys.
+- Vercel → Environment Variables → add `ANTHROPIC_API_KEY` (server secret).
+- Cost is per use, typically a few cents per recap. Without the key, the
+  card and the /api/recap route stay hidden/disabled.
+
+## 4b. Google sign-in
 
 - Google Cloud Console → create OAuth 2.0 Client ID (web application).
   - Authorized redirect URI: `https://wjmqerdbojuudlxggtwm.supabase.co/auth/v1/callback`

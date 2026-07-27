@@ -15,6 +15,7 @@ import {
   IncomePanel,
   WhatIfPanel,
 } from "@/components/panels";
+import { CoachRecap } from "@/components/CoachRecap";
 import { IncomeShock } from "@/components/IncomeShock";
 import { getDashboardData } from "@/lib/data";
 import {
@@ -558,6 +559,8 @@ export default async function BudgetPage({
             )}
           </div>
         )}
+
+        {process.env.ANTHROPIC_API_KEY && <CoachRecap />}
 
         {pastCycles.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
