@@ -17,6 +17,7 @@ import {
 } from "@/components/panels";
 import { getDashboardData } from "@/lib/data";
 import {
+  billsByCheck,
   currentPayCycle,
   cycleHistory,
   cycleSpending,
@@ -240,6 +241,9 @@ export default async function BudgetPage() {
     .filter((s) => s.overCycles > 1) // a single over-cycle isn't a "streak"
     .sort((a, b) => b.overCycles - a.overCycles);
 
+  // Bill-to-paycheck calendar: which upcoming check covers which bills.
+  const checkGroups = billsByCheck(engineIncome, engineBuckets, engineExpenses, todayISO, 4);
+
   return (
     <AppShell active="budget">
       <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
@@ -306,6 +310,70 @@ export default async function BudgetPage() {
             </div>
           );
         })()}
+
+        {checkGroups.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="mb-1 font-semibold text-white">
+              Which check covers what
+            </h2>
+            <p className="mb-3 text-xs text-slate-500">
+              Your next few paychecks and the bills already lined up against
+              each one.
+            </p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {checkGroups.map((g) => (
+                <div
+                  key={g.payday}
+                  className={`rounded-xl border p-3 ${
+                    g.fits
+                      ? "border-slate-700 bg-slate-800/40"
+                      : "border-red-500/40 bg-red-500/10"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-200">{g.payday}</p>
+                    <span className="text-xs text-slate-400">
+                      {currency.format(g.paycheckTotal)}
+                    </span>
+                  </div>
+                  {g.bills.length === 0 ? (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Nothing due against this check yet.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 space-y-1">
+                      {g.bills.map((b) => (
+                        <li
+                          key={`${b.expenseId}-${b.dueDate}`}
+                          className="flex items-center justify-between text-xs text-slate-400"
+                        >
+                          <span>{`${b.name} (${b.dueDate})`}</span>
+                          <span>{currency.format(b.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="mt-2 flex items-center justify-between border-t border-slate-700/60 pt-2 text-xs">
+                    <span className="text-slate-500">
+                      {`${currency.format(g.totalBills)} due`}
+                    </span>
+                    <span
+                      className={
+                        g.fits
+                          ? "font-semibold text-emerald-300"
+                          : "font-semibold text-red-300"
+                      }
+                    >
+                      {g.fits
+                        ? "fits ✓"
+                        : `short ${currency.format(g.shortBy)}`}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {pieSlices.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
