@@ -112,6 +112,8 @@ export async function signOut() {
 export interface UndoRecipe {
   inserts?: { table: string; row: Record<string, unknown> }[];
   patches?: { table: string; id: string; patch: Record<string, unknown> }[];
+  /** Rows to delete on undo (reverses a bulk insert, e.g. a CSV import). */
+  deletes?: { table: string; id: string }[];
 }
 
 const UNDOABLE_TABLES = new Set([
@@ -142,6 +144,10 @@ export async function undoRestore(formData: FormData) {
   for (const p of recipe.patches ?? []) {
     if (!UNDOABLE_TABLES.has(p.table) || typeof p.id !== "string") continue;
     await supabase.from(p.table).update(p.patch).eq("id", p.id);
+  }
+  for (const d of recipe.deletes ?? []) {
+    if (!UNDOABLE_TABLES.has(d.table) || typeof d.id !== "string") continue;
+    await supabase.from(d.table).delete().eq("id", d.id);
   }
   // Undoing a net-worth change re-snapshots today so history stays truthful.
   const touched = [
@@ -611,6 +617,49 @@ export async function addExpense(formData: FormData) {
   });
   revalidatePath("/");
   revalidatePath("/budget");
+}
+
+/**
+ * Bulk-import spends from a CSV (8: catch up after a lazy week). Rows arrive
+ * as JSON [{name, amount, due_date}]; every row gets ALL keys explicitly
+ * (PostgREST fills missing keys with NULL, not column defaults). Returns a
+ * deletes-recipe so one Undo removes the whole import.
+ */
+export async function bulkAddExpenses(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const bucketId = str(formData, "bucket_id") || null;
+  let rows: { name: string; amount: number; due_date: string }[];
+  try {
+    rows = JSON.parse(str(formData, "rows"));
+  } catch {
+    return null;
+  }
+  const clean = rows
+    .filter(
+      (r) =>
+        typeof r.name === "string" &&
+        r.name.length > 0 &&
+        Number(r.amount) > 0 &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(r.due_date)),
+    )
+    .slice(0, 500)
+    .map((r) => ({
+      name: String(r.name).slice(0, 120),
+      amount: Number(r.amount),
+      bucket_id: bucketId,
+      due_date: r.due_date,
+      cadence: "one_time",
+      is_paused: false,
+    }));
+  if (clean.length === 0) return null;
+
+  const { data } = await supabase.from("expenses").insert(clean).select("id");
+  revalidatePath("/");
+  revalidatePath("/budget");
+  const ids = (data ?? []).map((d) => d.id as string);
+  return ids.length > 0
+    ? { deletes: ids.map((id) => ({ table: "expenses", id })) }
+    : null;
 }
 
 /** Re-point a bill at a different bucket ("McDonalds should come out of Food"). */

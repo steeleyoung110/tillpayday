@@ -2,7 +2,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
+import { CsvImport } from "@/components/CsvImport";
 import { LegalFooter } from "@/components/LegalFooter";
+import { getDashboardData } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,6 +17,8 @@ export default async function SettingsPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  const data = await getDashboardData();
+  const funBucket = data.buckets.find((b) => b.is_flexible && !b.is_savings);
   const meta = user.user_metadata as Record<string, unknown>;
   const displayName =
     (typeof meta.full_name === "string" && meta.full_name) || null;
@@ -83,6 +87,49 @@ export default async function SettingsPage() {
               </Link>
             </li>
           </ul>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Your data</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Import spending from a bank or card CSV export — no bank
+            connection, just a file — or download everything you&apos;ve
+            entered. Your numbers are yours.
+          </p>
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Import spending from a CSV
+            </p>
+            <CsvImport
+              buckets={data.buckets.map((b) => ({ id: b.id, name: b.name }))}
+              defaultBucketId={funBucket?.id ?? ""}
+            />
+          </div>
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Export as CSV
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {[
+                ["expenses", "Bills & spends"],
+                ["buckets", "Buckets"],
+                ["income_sources", "Income"],
+                ["income_entries", "Logged income"],
+                ["transfers", "Transfers"],
+                ["goals", "Goals"],
+                ["assets", "Assets"],
+                ["liabilities", "Debts"],
+              ].map(([table, label]) => (
+                <a
+                  key={table}
+                  href={`/api/export?table=${table}`}
+                  className="rounded-full border border-slate-600 px-3 py-1 text-slate-300 transition hover:border-emerald-400 hover:text-white"
+                >
+                  {`${label} ↓`}
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
