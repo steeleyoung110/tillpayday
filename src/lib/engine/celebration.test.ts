@@ -61,4 +61,21 @@ describe("paydayRecap", () => {
   it("returns null with no paycheck income", () => {
     expect(paydayRecap([], buckets, [], 0, "2026-07-22")).toBeNull();
   });
+
+  it("reports the paycheck amount and its split for that payday", () => {
+    const r = paydayRecap([job], buckets, [], 0, "2026-07-22")!;
+    expect(r.paycheckAmount).toBe(1400);
+    const fun = r.split.find((s) => s.bucketId === "fun")!;
+    const save = r.split.find((s) => s.bucketId === "save")!;
+    expect(fun.amount).toBe(140);
+    expect(save.amount).toBe(1260);
+  });
+
+  it("side income landing the same day doesn't count toward the split", () => {
+    const side: IncomeSource = { ...job, id: "gig", kind: "side", amount: 300 };
+    const r = paydayRecap([job, side], buckets, [], 0, "2026-07-22")!;
+    // Only the paycheck-kind $1400 counts — the $300 side gig went straight
+    // to savings and was never split into buckets.
+    expect(r.paycheckAmount).toBe(1400);
+  });
 });

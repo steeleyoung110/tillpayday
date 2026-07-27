@@ -26,10 +26,14 @@ function prettyDate(iso: string): string {
 export function CelebrationOverlay({
   recap,
   goal,
+  bucketColors,
 }: {
   recap: PaydayRecap;
   /** Savings goal amount (0 = no goal set). */
   goal: number;
+  /** Semantic color per bucket id (null key = savings/leftover), matching
+   * the Budget pies and envelope bars — one palette, everywhere money shows. */
+  bucketColors?: Record<string, string>;
 }) {
   const pct =
     goal > 0 ? Math.min(100, Math.max(0, (recap.savingsTotal / goal) * 100)) : 0;
@@ -40,6 +44,36 @@ export function CelebrationOverlay({
         <p className="animate-bounce text-6xl">🎉</p>
         <h2 className="mt-2 text-3xl font-black text-white">Payday!</h2>
         <p className="mt-1 text-sm text-slate-400">{prettyDate(recap.payday)}</p>
+
+        {recap.paycheckAmount > 0 && recap.split.length > 0 && (
+          <div className="mt-6 text-left">
+            <p className="text-center text-sm text-slate-400">
+              {`Your ${currency.format(recap.paycheckAmount)} check landed — here's the split`}
+            </p>
+            <ul className="mt-3 space-y-2">
+              {recap.split.map((s) => (
+                <li key={s.bucketId ?? "savings"}>
+                  <div className="flex items-center justify-between text-xs text-slate-300">
+                    <span>{s.name}</span>
+                    <span className="text-slate-400">
+                      {`${currency.format(s.amount)} · ${s.percent}%`}
+                    </span>
+                  </div>
+                  <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full transition-all duration-700 ease-out"
+                      style={{
+                        width: `${s.percent}%`,
+                        backgroundColor:
+                          bucketColors?.[s.bucketId ?? "savings"] ?? "#22c55e",
+                      }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {recap.swept > 0 ? (
           <p className="mt-6 text-lg text-slate-200">

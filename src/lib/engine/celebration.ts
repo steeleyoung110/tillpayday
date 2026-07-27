@@ -10,7 +10,7 @@
  *     sweep and leftover landed.
  */
 import { addDays, parseISO, toISO } from "./dates";
-import { runProjection } from "./projection";
+import { generatePayDates, runProjection, splitPaycheck, type PaycheckSlice } from "./projection";
 import { currentPayCycle } from "./safeToSpend";
 import type { Bucket, Expense, IncomeEntry, IncomeSource, Transfer } from "./types";
 
@@ -21,6 +21,14 @@ export interface PaydayRecap {
   swept: number;
   /** Savings balance as of `today`. */
   savingsTotal: number;
+  /** Total paycheck-kind income that landed this payday. */
+  paycheckAmount: number;
+  /** How that check split across buckets — the "here's the split" moment. */
+  split: PaycheckSlice[];
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
 /** Recap of the most recent payday, or null when there is no pay cycle. */
@@ -69,5 +77,17 @@ export function paydayRecap(
     replay.points.find((p) => p.date === todayISO) ??
     replay.points[replay.points.length - 1];
 
-  return { payday, swept, savingsTotal: todayPoint.savings };
+  // What landed THIS payday, and how it split — the "here's the split"
+  // moment. Multiple paycheck sources landing the same day are summed and
+  // split as one check, matching how the Budget page treats a "typical" one.
+  const paydayDate = parseISO(payday);
+  const paycheckAmount = round2(
+    sources
+      .filter((s) => s.kind === "paycheck")
+      .filter((s) => generatePayDates(s, paydayDate, paydayDate).length > 0)
+      .reduce((sum, s) => sum + s.amount, 0),
+  );
+  const split = paycheckAmount > 0 ? splitPaycheck(buckets, paycheckAmount) : [];
+
+  return { payday, swept, savingsTotal: todayPoint.savings, paycheckAmount, split };
 }

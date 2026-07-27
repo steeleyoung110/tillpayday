@@ -8,6 +8,7 @@ import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
 import { QuickSpend } from "@/components/QuickSpend";
 import { computeTodayBalances } from "@/lib/balances";
+import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import {
   cycleSpending,
@@ -123,6 +124,24 @@ export default async function Home() {
   const celebratedSet = new Set(data.celebrated.map((c) => c.payday));
   const showCelebration = recap !== null && !celebratedSet.has(recap.payday);
 
+  // Semantic colors for the celebration's split bars — the same virtue
+  // spectrum as the Budget pies and envelope bars, so money reads as one
+  // system wherever it shows up.
+  const celebrationColors: Record<string, string> = {};
+  if (recap) {
+    const familyCount: Record<string, number> = {};
+    for (const s of recap.split) {
+      const row = s.bucketId ? data.buckets.find((b) => b.id === s.bucketId) : undefined;
+      const cat = classifyBucket(s.name, {
+        isSavings: (row?.is_savings ?? false) || s.bucketId === null,
+        isFlexible: row?.is_flexible,
+      });
+      const idx = familyCount[cat] ?? 0;
+      familyCount[cat] = idx + 1;
+      celebrationColors[s.bucketId ?? "savings"] = planColor(cat, idx);
+    }
+  }
+
   // First visit (no buckets yet): the three-question setup replaces the
   // dashboard until it's done.
   if (data.buckets.length === 0) {
@@ -140,6 +159,7 @@ export default async function Home() {
         <CelebrationOverlay
           recap={recap}
           goal={savingsRow ? Number(savingsRow.goal_amount) : 0}
+          bucketColors={celebrationColors}
         />
       )}
 
