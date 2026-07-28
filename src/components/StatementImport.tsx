@@ -10,7 +10,28 @@
 import { useRef, useState, useTransition } from "react";
 import { bulkAddExpensesTagged, logIncome, undoRestore } from "@/app/actions";
 import { showToast } from "@/components/InstantAction";
+import { redactSensitive } from "@/lib/redact";
 import { bucketForCategory, type MappableBucket } from "@/lib/statementMap";
+
+/** Extract a PDF's text in the browser (pdf.js). "" for scanned/image PDFs. */
+async function extractPdfText(buf: ArrayBuffer): Promise<string> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const task = pdfjs.getDocument({ data: buf });
+  const doc = await task.promise;
+  const pages: string[] = [];
+  for (let p = 1; p <= doc.numPages; p += 1) {
+    const page = await doc.getPage(p);
+    const tc = await page.getTextContent();
+    pages.push(
+      tc.items
+        .map((it) => ("str" in it ? it.str : ""))
+        .join(" "),
+    );
+  }
+  await task.destroy();
+  return pages.join("\n").trim();
+}
 
 const cents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -35,6 +56,8 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [paystub, setPaystub] = useState<Paystub | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [scanPending, setScanPending] = useState<ArrayBuffer | null>(null);
   const [pending, startTransition] = useTransition();
 
   const options = [
@@ -42,11 +65,55 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
     ...buckets.filter((b) => !b.is_savings).map((b) => ({ id: b.id, name: b.name })),
   ];
 
+  const submitToReader = async (payload: { text?: string; base64?: string }) => {
+    const res = await fetch("/api/parse-statement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const body = (await res.json()) as {
+      ok: boolean;
+      reason?: string;
+      kind?: string;
+      transactions?: { date: string; name: string; amount: number; category: string }[];
+      paystub?: Paystub | null;
+    };
+    if (!body.ok) {
+      setError(body.reason ?? "Couldn't read that document.");
+    } else if (body.kind === "paystub" && body.paystub) {
+      setPaystub(body.paystub);
+    } else if ((body.transactions ?? []).length === 0) {
+      setError("Read the document, but found no charges in it.");
+    } else {
+      setRows(
+        body.transactions!.map((t) => ({
+          include: true,
+          date: t.date,
+          name: t.name,
+          amount: t.amount,
+          category: t.category,
+          bucketId: bucketForCategory(t.category, buckets),
+        })),
+      );
+    }
+  };
+
+  const toBase64 = (buf: ArrayBuffer): string => {
+    let binary = "";
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary);
+  };
+
   const onFile = async (file: File | undefined) => {
     if (!file) return;
     setError(null);
+    setNotice(null);
     setRows(null);
     setPaystub(null);
+    setScanPending(null);
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       setError("PDFs only here — CSV files go in the importer below.");
       return;
@@ -58,47 +125,49 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
     setBusy(true);
     try {
       const buf = await file.arrayBuffer();
-      let binary = "";
-      const bytes = new Uint8Array(buf);
-      for (let i = 0; i < bytes.length; i += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+
+      // Redaction-first: pull the text out locally and mask sensitive
+      // numbers BEFORE anything leaves this browser.
+      let text = "";
+      try {
+        text = await extractPdfText(buf.slice(0));
+      } catch {
+        text = "";
       }
-      const base64 = btoa(binary);
-      const res = await fetch("/api/parse-statement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64 }),
-      });
-      const body = (await res.json()) as {
-        ok: boolean;
-        reason?: string;
-        kind?: string;
-        transactions?: { date: string; name: string; amount: number; category: string }[];
-        paystub?: Paystub | null;
-      };
-      if (!body.ok) {
-        setError(body.reason ?? "Couldn't read that document.");
-      } else if (body.kind === "paystub" && body.paystub) {
-        setPaystub(body.paystub);
-      } else if ((body.transactions ?? []).length === 0) {
-        setError("Read the document, but found no charges in it.");
-      } else {
-        setRows(
-          body.transactions!.map((t) => ({
-            include: true,
-            date: t.date,
-            name: t.name,
-            amount: t.amount,
-            category: t.category,
-            bucketId: bucketForCategory(t.category, buckets),
-          })),
+
+      if (text.length >= 200) {
+        const { text: safe, redactions } = redactSensitive(text);
+        setNotice(
+          redactions > 0
+            ? `🔒 Redacted ${redactions} account/card number${redactions === 1 ? "" : "s"} in your browser before upload — the raw PDF never left this device.`
+            : "🔒 Text extracted in your browser — the raw PDF never left this device. No account numbers found to redact.",
         );
+        await submitToReader({ text: safe });
+      } else {
+        // Scanned/image PDF: local redaction is impossible. Ask first.
+        setScanPending(buf);
       }
     } catch {
       setError("Upload failed — try again.");
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const sendScanAnyway = async () => {
+    if (!scanPending) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const base64 = toBase64(scanPending);
+      setScanPending(null);
+      setNotice("Sent as full PDF (scanned document — local redaction wasn't possible).");
+      await submitToReader({ base64 });
+    } catch {
+      setError("Upload failed — try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -166,6 +235,40 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
         <p className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
           {error}
         </p>
+      )}
+
+      {notice && (
+        <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+          {notice}
+        </p>
+      )}
+
+      {scanPending && (
+        <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+          <p className="text-sm font-semibold text-amber-200">
+            This looks like a scanned statement — there&apos;s no text layer,
+            so account numbers can&apos;t be redacted in your browser.
+          </p>
+          <p className="mt-1 text-xs text-amber-100/70">
+            Reading it means sending the full PDF, unredacted, to the reader
+            (Anthropic API, 30-day retention). Your call.
+          </p>
+          <div className="mt-2 flex gap-3">
+            <button
+              onClick={sendScanAnyway}
+              disabled={busy}
+              className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30"
+            >
+              Send the full PDF anyway
+            </button>
+            <button
+              onClick={() => setScanPending(null)}
+              className="text-sm text-slate-400 transition hover:text-slate-200"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {paystub && (

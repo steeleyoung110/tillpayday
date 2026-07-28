@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { DAILY_CAPS, underDailyCap } from "@/lib/rateLimit";
+import { redactSensitive } from "@/lib/redact";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -94,22 +95,45 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { base64?: string };
+  let body: { base64?: string; text?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ ok: false, reason: "Bad request" }, { status: 400 });
   }
+
+  // Preferred path: client-extracted, client-REDACTED statement text — the
+  // raw document never leaves the browser. Fallback: the full PDF, sent only
+  // after the user explicitly approved it (scanned statements).
+  const clientText = (body.text ?? "").trim();
   const base64 = (body.base64 ?? "").replace(/\s/g, "");
-  if (!base64) {
+  if (!clientText && !base64) {
     return NextResponse.json({ ok: false, reason: "No file" }, { status: 400 });
   }
-  if (base64.length > MAX_BASE64_CHARS) {
+  if (clientText.length > 400_000 || base64.length > MAX_BASE64_CHARS) {
     return NextResponse.json(
       { ok: false, reason: "That file is too large — statements are usually well under 6 MB." },
       { status: 413 },
     );
   }
+
+  // Belt and suspenders: re-run the same redaction server-side on text
+  // payloads, in case an older client (or a hand-rolled request) skipped it.
+  const content: Anthropic.Beta.BetaContentBlockParam[] = clientText
+    ? [
+        {
+          type: "text",
+          text: `Statement text (extracted and redacted client-side):\n\n${redactSensitive(clientText).text}`,
+        },
+        { type: "text", text: "Extract this document per the rules." },
+      ]
+    : [
+        {
+          type: "document",
+          source: { type: "base64", media_type: "application/pdf", data: base64 },
+        },
+        { type: "text", text: "Extract this document per the rules." },
+      ];
 
   const client = new Anthropic();
   const response = await client.beta.messages.create({
@@ -119,18 +143,7 @@ export async function POST(request: Request) {
     fallbacks: "default",
     system: SYSTEM,
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "document",
-            source: { type: "base64", media_type: "application/pdf", data: base64 },
-          },
-          { type: "text", text: "Extract this document per the rules." },
-        ],
-      },
-    ],
+    messages: [{ role: "user", content }],
   });
 
   if (response.stop_reason === "refusal") {
