@@ -13,14 +13,19 @@ import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { computeNudges } from "@/lib/nudges";
 import { getDashboardData, getNetWorthData, resolveViewUser } from "@/lib/data";
 import {
+  ageOfMoney,
+  billsByCheck,
   cycleHistory,
   cycleSpending,
   irregularWeeklyBaseline,
+  noSpendStreak,
   paydayRecap,
   runway,
   safeToSpend,
   spendAnomalies,
+  splitPaycheck,
 } from "@/lib/engine";
+import { AppBadge } from "@/components/AppBadge";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -177,6 +182,36 @@ export default async function Home({
     : 0;
   const runwayInfo = runway(liquidToday, completedCycles);
   const anomalies = spendAnomalies(spend, completedCycles);
+  const aom = ageOfMoney(engineIncome, engineEntries, engineExpenses, todayISO);
+  const funIds = new Set(
+    data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
+  );
+  const streak = noSpendStreak(engineExpenses, funIds, todayISO);
+
+  // Next payday preview: what that check does the moment it lands.
+  const nextCheck = billsByCheck(engineIncome, engineBuckets, engineExpenses, todayISO, 1)[0];
+  const previewSplit = nextCheck
+    ? splitPaycheck(engineBuckets, nextCheck.paycheckTotal)
+    : [];
+  const sweepEstimate = balancesToday
+    ? Math.round(
+        data.buckets
+          .filter((b) => !b.is_savings && !b.rolls_over && !b.is_paused)
+          .reduce((s, b) => s + Math.max(balancesToday[b.id] ?? 0, 0), 0) * 100,
+      ) / 100
+    : 0;
+  const daysToNextCheck = nextCheck
+    ? Math.max(
+        0,
+        Math.round(
+          (Date.parse(nextCheck.payday) - Date.parse(todayISO)) / 86400000,
+        ),
+      )
+    : null;
+  const spokenForPct =
+    nextCheck && nextCheck.paycheckTotal > 0
+      ? Math.round((nextCheck.totalBills / nextCheck.paycheckTotal) * 100)
+      : 0;
 
   // Semantic colors for the celebration's split bars — the same virtue
   // spectrum as the Budget pies and envelope bars, so money reads as one
@@ -337,8 +372,102 @@ export default async function Home({
           )}
         </div>
 
-        {(runwayInfo || anomalies.length > 0) && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <AppBadge count={daysToNextCheck} />
+
+        {nextCheck && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">
+                {`Next payday — ${nextCheck.payday}`}
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  {daysToNextCheck === 0
+                    ? "today 🎉"
+                    : daysToNextCheck === 1
+                      ? "tomorrow"
+                      : `in ${daysToNextCheck} days`}
+                </span>
+              </h2>
+              <p className="text-sm font-bold text-emerald-300">
+                {`+${heroCurrency.format(nextCheck.paycheckTotal)} lands`}
+              </p>
+            </div>
+            {sweepEstimate > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                {`First: the ${heroCurrency.format(sweepEstimate)} still sitting in spending buckets sweeps into savings. Then the new check splits:`}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {previewSplit.map((s) => (
+                <span
+                  key={s.bucketId ?? "leftover"}
+                  className="rounded-lg bg-slate-800/70 px-2.5 py-1 text-xs text-slate-200"
+                >
+                  {`${s.name} ${heroCurrency.format(s.amount)}`}
+                </span>
+              ))}
+            </div>
+            <p
+              className={`mt-3 text-sm ${
+                !nextCheck.fits
+                  ? "font-semibold text-red-300"
+                  : spokenForPct >= 60
+                    ? "text-amber-200"
+                    : "text-slate-300"
+              }`}
+            >
+              {nextCheck.bills.length === 0
+                ? "No bills land on that check — whatever you don't spend is yours."
+                : !nextCheck.fits
+                  ? `That check must cover ${heroCurrency.format(nextCheck.totalBills)} of bills — it's short by ${heroCurrency.format(nextCheck.shortBy)}. This is next cycle's problem unless you move money now.`
+                  : `${heroCurrency.format(nextCheck.totalBills)} of bills land on that check (${nextCheck.bills.length} bill${nextCheck.bills.length === 1 ? "" : "s"}) — ${spokenForPct}% of it is spoken for before it arrives.`}
+            </p>
+          </div>
+        )}
+
+        {(runwayInfo || aom || streak || anomalies.length > 0) && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {aom && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+                <p className="text-sm text-slate-400">Age of your money</p>
+                <p
+                  className={`mt-1 text-4xl font-black tracking-tight ${
+                    aom.days < 7
+                      ? "text-red-300"
+                      : aom.days < 30
+                        ? "text-amber-300"
+                        : "text-emerald-300"
+                  }`}
+                >
+                  {`${aom.days} day${aom.days === 1 ? "" : "s"}`}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {`How long a dollar sits with you before it leaves (your last ${aom.sampleSize} spends). Paycheck-to-paycheck money is days old. Older money is calmer money.`}
+                </p>
+              </div>
+            )}
+            {streak && (
+              <div
+                className={`rounded-2xl border px-6 py-5 ${
+                  streak.brokeToday
+                    ? "border-red-500/40 bg-red-500/10"
+                    : "border-slate-800 bg-slate-900"
+                }`}
+              >
+                <p className="text-sm text-slate-400">Fun-money-free streak</p>
+                <p
+                  className={`mt-1 text-4xl font-black tracking-tight ${
+                    streak.current > 0 ? "text-emerald-300" : "text-slate-300"
+                  }`}
+                >
+                  {`${streak.current} day${streak.current === 1 ? "" : "s"}`}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {streak.brokeToday
+                    ? `Fun money left your pocket today — the streak dies at ${streak.current}. It restarts tomorrow. Best run: ${streak.best} days.`
+                    : `No fun-money spending through yesterday. Best run: ${streak.best} days. Spend fun money today and this resets — your call.`}
+                </p>
+              </div>
+            )}
             {runwayInfo && (
               <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
                 <p className="text-sm text-slate-400">
@@ -361,7 +490,7 @@ export default async function Home({
               </div>
             )}
             {anomalies.length > 0 && (
-              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-5">
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-5 sm:col-span-2 lg:col-span-3">
                 <p className="text-sm font-semibold text-amber-200">
                   Above your own average — with days still to go
                 </p>

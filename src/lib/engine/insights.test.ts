@@ -99,3 +99,103 @@ describe("spendAnomalies", () => {
     expect(spendAnomalies(spend([{ bucketId: "food", amount: 500 }]), [])).toEqual([]);
   });
 });
+
+import { ageOfMoney, noSpendStreak } from "./insights";
+import type { Expense, IncomeSource } from "./types";
+
+const paycheck = (amount: number, anchorDate: string): IncomeSource => ({
+  id: "job", name: "Job", amount, frequency: "biweekly", kind: "paycheck", anchorDate,
+});
+const spend = (id: string, amount: number, dueDate: string, bucketId = "fun"): Expense => ({
+  id, name: id, amount, bucketId, dueDate, cadence: "one_time",
+});
+
+describe("ageOfMoney", () => {
+  it("paycheck-to-paycheck (spend it all, same day) = age 0; light spending = older money", () => {
+    // 30-day window: checks land 2026-07-06 and 2026-07-20, $1000 each.
+    const income = [paycheck(1000, "2026-07-20")];
+    // Spend the FULL first check the day it lands, then start on the second.
+    const sameDay = ageOfMoney(
+      income,
+      [],
+      [
+        spend("a", 400, "2026-07-06"),
+        spend("b", 300, "2026-07-06"),
+        spend("c", 300, "2026-07-06"),
+        spend("d", 200, "2026-07-20"),
+      ],
+      "2026-07-27",
+      30,
+    )!;
+    expect(sameDay.days).toBe(0);
+
+    // Light spending: every outflow draws on the 07-06 check (FIFO) — the
+    // dollars being spent are one to three weeks old.
+    const later = ageOfMoney(
+      income,
+      [],
+      [spend("a", 100, "2026-07-19"), spend("b", 100, "2026-07-21"), spend("c", 100, "2026-07-25")],
+      "2026-07-27",
+      30,
+    )!;
+    expect(later.days).toBeGreaterThan(10);
+    expect(later.days).toBeLessThan(25);
+  });
+
+  it("needs at least 3 outflows — otherwise null, not a fake number", () => {
+    const income = [paycheck(1000, "2026-07-20")];
+    expect(ageOfMoney(income, [], [spend("a", 50, "2026-07-21")], "2026-07-27")).toBeNull();
+    expect(ageOfMoney([], [], [], "2026-07-27")).toBeNull();
+  });
+
+  it("logged income entries count as inflows too", () => {
+    const entries = [
+      { id: "e1", amount: 500, receivedDate: "2026-07-01" },
+      { id: "e2", amount: 500, receivedDate: "2026-07-15" },
+    ];
+    const r = ageOfMoney(
+      [],
+      entries,
+      [spend("a", 100, "2026-07-02"), spend("b", 100, "2026-07-03"), spend("c", 100, "2026-07-04")],
+      "2026-07-27",
+    )!;
+    expect(r.days).toBeGreaterThanOrEqual(1);
+    expect(r.days).toBeLessThanOrEqual(3);
+  });
+});
+
+describe("noSpendStreak", () => {
+  const fun = new Set(["fun"]);
+
+  it("counts days since the last fun spend, ending yesterday", () => {
+    const r = noSpendStreak([spend("a", 20, "2026-07-20")], fun, "2026-07-27")!;
+    expect(r.current).toBe(6); // 21st through 26th
+    expect(r.brokeToday).toBe(false);
+  });
+
+  it("a spend today is called out and the current streak keeps counting from yesterday", () => {
+    const r = noSpendStreak(
+      [spend("a", 20, "2026-07-20"), spend("b", 15, "2026-07-27")],
+      fun,
+      "2026-07-27",
+    )!;
+    expect(r.brokeToday).toBe(true);
+    expect(r.current).toBe(6);
+  });
+
+  it("best streak is the longest clean run in the window", () => {
+    const r = noSpendStreak(
+      [spend("a", 20, "2026-07-01"), spend("b", 20, "2026-07-21")],
+      fun,
+      "2026-07-27",
+      60,
+    )!;
+    expect(r.best).toBeGreaterThanOrEqual(19); // Jul 2–20
+  });
+
+  it("bill spending doesn't touch the streak; no flexible buckets = null", () => {
+    const r = noSpendStreak([spend("a", 600, "2026-07-26", "rent")], fun, "2026-07-27")!;
+    expect(r.current).toBeGreaterThan(20);
+    expect(noSpendStreak([], new Set(), "2026-07-27")).toBeNull();
+  });
+});

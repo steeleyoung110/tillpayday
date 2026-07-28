@@ -3,9 +3,11 @@
  * how long would you last?") and spending anomalies measured against your own
  * history — never someone else's idea of normal. Pure functions.
  */
-import { diffDays, parseISO } from "./dates";
+import { addDays, diffDays, parseISO, toISO } from "./dates";
+import { generateOccurrences, generatePayDates } from "./projection";
 import type { CycleRecord } from "./cycleHistory";
 import type { CycleSpend } from "./cycleSpend";
+import type { Expense, IncomeEntry, IncomeSource } from "./types";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -42,6 +44,149 @@ export function runway(
     avgDailySpend,
     liquid: round2(liquid),
   };
+}
+
+export interface AgeOfMoney {
+  /** Average age, in days, of the dollars your recent spending consumed. */
+  days: number;
+  /** How many outflows the average is built on (≤ 10). */
+  sampleSize: number;
+}
+
+/**
+ * Age of Money (the YNAB signature, honest edition): line up every dollar
+ * that arrived (paychecks on the schedule + logged income) and every dollar
+ * that left (expense occurrences), consume income FIFO, and report the
+ * average age of the dollars consumed by the last up-to-10 outflows. A young
+ * number means you're spending money the day it lands — paycheck to
+ * paycheck. Watching it grow IS breaking the cycle. Null until there are at
+ * least 3 outflows to measure.
+ */
+export function ageOfMoney(
+  income: IncomeSource[],
+  entries: IncomeEntry[],
+  expenses: Expense[],
+  todayISO: string,
+  lookbackDays = 180,
+): AgeOfMoney | null {
+  const end = parseISO(todayISO);
+  const start = addDays(end, -lookbackDays);
+
+  const inflows: { date: string; amount: number }[] = [];
+  for (const src of income) {
+    if (src.kind !== "paycheck") continue;
+    for (const d of generatePayDates(src, start, end)) {
+      inflows.push({ date: toISO(d), amount: src.amount });
+    }
+  }
+  for (const e of entries) {
+    if (e.receivedDate >= toISO(start) && e.receivedDate <= todayISO) {
+      inflows.push({ date: e.receivedDate, amount: e.amount });
+    }
+  }
+  inflows.sort((a, b) => a.date.localeCompare(b.date));
+
+  const outflows: { date: string; amount: number }[] = [];
+  for (const e of expenses) {
+    if (e.isPaused) continue;
+    for (const d of generateOccurrences(e.dueDate, e.cadence, start, end)) {
+      outflows.push({ date: toISO(d), amount: e.amount });
+    }
+  }
+  outflows.sort((a, b) => a.date.localeCompare(b.date));
+  if (outflows.length < 3 || inflows.length === 0) return null;
+
+  // FIFO: each outflow consumes the oldest income dollars still unspent.
+  // Track the dollar-weighted age per outflow.
+  let idx = 0;
+  let remainingInCurrent = inflows[0]?.amount ?? 0;
+  const perOutflowAge: number[] = [];
+  for (const out of outflows) {
+    let need = out.amount;
+    let weighted = 0;
+    let consumed = 0;
+    while (need > 0 && idx < inflows.length) {
+      const take = Math.min(need, remainingInCurrent);
+      if (take > 0) {
+        const age = Math.max(
+          0,
+          diffDays(parseISO(inflows[idx].date), parseISO(out.date)),
+        );
+        weighted += age * take;
+        consumed += take;
+        need -= take;
+        remainingInCurrent -= take;
+      }
+      if (remainingInCurrent <= 0) {
+        idx += 1;
+        remainingInCurrent = inflows[idx]?.amount ?? 0;
+      }
+      if (idx >= inflows.length) break;
+    }
+    if (consumed > 0) perOutflowAge.push(weighted / consumed);
+  }
+  if (perOutflowAge.length < 3) return null;
+
+  const sample = perOutflowAge.slice(-10);
+  return {
+    days: Math.round(sample.reduce((s, a) => s + a, 0) / sample.length),
+    sampleSize: sample.length,
+  };
+}
+
+export interface NoSpendStreak {
+  /** Consecutive days (ending yesterday) with zero fun-money spending. */
+  current: number;
+  /** Longest such run in the lookback window. */
+  best: number;
+  /** True when there was a fun spend today — the streak is dead, say so. */
+  brokeToday: boolean;
+}
+
+/**
+ * Days without touching fun money. The current streak counts back from
+ * yesterday (today only kills it, it can't extend it until it's over), and
+ * a spend TODAY is reported bluntly. Null when there are no flexible buckets
+ * or no history window to judge.
+ */
+export function noSpendStreak(
+  expenses: Expense[],
+  funBucketIds: Set<string>,
+  todayISO: string,
+  lookbackDays = 90,
+): NoSpendStreak | null {
+  if (funBucketIds.size === 0) return null;
+  const end = parseISO(todayISO);
+  const start = addDays(end, -lookbackDays);
+
+  const spendDays = new Set<string>();
+  for (const e of expenses) {
+    if (e.isPaused || !e.bucketId || !funBucketIds.has(e.bucketId)) continue;
+    for (const d of generateOccurrences(e.dueDate, e.cadence, start, end)) {
+      spendDays.add(toISO(d));
+    }
+  }
+
+  const brokeToday = spendDays.has(todayISO);
+  let current = 0;
+  for (let d = addDays(end, -1); d >= start; d = addDays(d, -1)) {
+    if (spendDays.has(toISO(d))) break;
+    current += 1;
+  }
+
+  let best = 0;
+  let run = 0;
+  for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
+    if (spendDays.has(toISO(d))) {
+      best = Math.max(best, run);
+      run = 0;
+    } else {
+      run += 1;
+    }
+  }
+  best = Math.max(best, run, current);
+
+  return { current, best, brokeToday };
 }
 
 export interface SpendAnomaly {

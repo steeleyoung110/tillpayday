@@ -2,6 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "bonded",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "C:\\Users\\Owner\\Desktop\\alumni-app\\bonded"],
+      "port": 3000,
+      "autoPort": true
+    },
+    {
       "name": "till-payday-dev",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],

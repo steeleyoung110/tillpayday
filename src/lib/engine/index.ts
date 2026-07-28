@@ -33,8 +33,12 @@ export {
   type CheckBillGroup,
 } from "./billCalendar";
 export {
+  ageOfMoney,
+  noSpendStreak,
   runway,
   spendAnomalies,
+  type AgeOfMoney,
+  type NoSpendStreak,
   type Runway,
   type SpendAnomaly,
 } from "./insights";
