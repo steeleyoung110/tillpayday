@@ -93,3 +93,52 @@ describe("monthlyCategoryTotals", () => {
     expect(rows[0].total).toBe(0); // due after today — not spent yet
   });
 });
+
+import { monthlySavingsRate } from "./spendViz";
+import type { IncomeSource } from "./engine";
+import type { IncomeEntryRow } from "./rows";
+
+describe("monthlySavingsRate", () => {
+  const job: IncomeSource[] = [
+    { id: "j", name: "Job", amount: 1000, frequency: "biweekly", kind: "paycheck", anchorDate: "2026-07-06" },
+  ];
+
+  it("rates each month by income vs spending, negative when outspent", () => {
+    // July (through the 27th): checks on Jul 6 + Jul 20 = 2000 in.
+    const rows = monthlySavingsRate(
+      job,
+      [],
+      [
+        spend("a", 500, "2026-07-10"),
+        spend("b", 2600, "2026-06-15"), // June blowout vs 2 checks = 2000
+      ],
+      "2026-07-27",
+      2,
+    );
+    expect(rows[1].month).toBe("2026-07");
+    expect(rows[1].income).toBe(2000);
+    expect(rows[1].ratePct).toBe(75); // kept 1500 of 2000
+    expect(rows[0].ratePct).toBeLessThan(0); // June: outspent, reported honestly
+  });
+
+  it("logged income counts; months with no income report null, not 0%", () => {
+    const entries = [
+      { id: "e1", amount: 800, received_date: "2026-07-03", note: null, is_windfall: false, windfall_allocation: null, created_at: "" },
+    ] as IncomeEntryRow[];
+    const rows = monthlySavingsRate([], entries, [spend("a", 200, "2026-07-05")], "2026-07-27", 2);
+    expect(rows[0].ratePct).toBeNull(); // June: no income at all
+    expect(rows[1].income).toBe(800);
+    expect(rows[1].ratePct).toBe(75);
+  });
+});
+
+describe("bucketPace (engine)", () => {
+  it("labels hot, cool, steady, and spent against cycle elapsed", async () => {
+    const { bucketPace } = await import("./engine");
+    expect(bucketPace(68, 100, 0.4)!.status).toBe("hot"); // 68% spent, 40% elapsed
+    expect(bucketPace(10, 100, 0.5)!.status).toBe("cool");
+    expect(bucketPace(45, 100, 0.5)!.status).toBe("steady");
+    expect(bucketPace(120, 100, 0.2)!.status).toBe("spent");
+    expect(bucketPace(50, 0, 0.5)).toBeNull();
+  });
+});

@@ -6,11 +6,13 @@ import { classifyBucket, planColor, type SpendCategory } from "@/lib/bucketColor
 import {
   addDays,
   generateOccurrences,
+  generatePayDates,
   parseISO,
   toISO,
   type Expense,
+  type IncomeSource,
 } from "@/lib/engine";
-import type { BucketRow } from "@/lib/rows";
+import type { BucketRow, IncomeEntryRow } from "@/lib/rows";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -73,6 +75,64 @@ const MONTH_LABELS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
+
+export interface MonthlySavingsRate {
+  /** "2026-07" */
+  month: string;
+  income: number;
+  spent: number;
+  /** Percent of income kept, negative when you outspent it. Null = no income. */
+  ratePct: number | null;
+}
+
+/**
+ * Savings rate per calendar month: (income − spent) / income. Income counts
+ * scheduled paychecks plus logged entries in the month; the current month is
+ * partial and honestly so. Negative rates are reported, not clamped.
+ */
+export function monthlySavingsRate(
+  income: IncomeSource[],
+  entries: IncomeEntryRow[],
+  expenses: Expense[],
+  todayISO: string,
+  months = 6,
+): MonthlySavingsRate[] {
+  const today = parseISO(todayISO);
+  const out: MonthlySavingsRate[] = [];
+  for (let i = months - 1; i >= 0; i -= 1) {
+    const first = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1));
+    const nextFirst = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1));
+    const last = addDays(nextFirst, -1);
+    const windowEnd = last <= today ? last : today;
+
+    let moneyIn = 0;
+    for (const src of income) {
+      if (src.kind !== "paycheck") continue;
+      moneyIn += generatePayDates(src, first, windowEnd).length * src.amount;
+    }
+    for (const e of entries) {
+      if (e.received_date >= toISO(first) && e.received_date <= toISO(windowEnd)) {
+        moneyIn += Number(e.amount);
+      }
+    }
+
+    let spent = 0;
+    for (const e of expenses) {
+      if (e.isPaused) continue;
+      spent += generateOccurrences(e.dueDate, e.cadence, first, windowEnd).length * e.amount;
+    }
+
+    moneyIn = round2(moneyIn);
+    spent = round2(spent);
+    out.push({
+      month: `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, "0")}`,
+      income: moneyIn,
+      spent,
+      ratePct: moneyIn > 0 ? Math.round(((moneyIn - spent) / moneyIn) * 100) : null,
+    });
+  }
+  return out;
+}
 
 /** Colors for the trend chart, one per semantic family (brightest shade). */
 export function categoryColor(category: string): string {

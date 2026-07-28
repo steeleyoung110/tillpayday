@@ -189,6 +189,39 @@ export function noSpendStreak(
   return { current, best, brokeToday };
 }
 
+export interface BucketPace {
+  /** Percent of this bucket's plan already spent (can exceed 100). */
+  spentPct: number;
+  /** Percent of the pay cycle already elapsed. */
+  elapsedPct: number;
+  status: "hot" | "cool" | "steady" | "spent";
+}
+
+/**
+ * Is a bucket burning faster than the calendar? Spending 68% of the plan
+ * when only 40% of the cycle has passed is "hot" — the honest early warning
+ * before the overdraft popup ever fires. ±15 points of the elapsed line
+ * counts as steady. Null when the bucket has no plan to pace against.
+ */
+export function bucketPace(
+  spent: number,
+  planned: number,
+  elapsedFraction: number,
+): BucketPace | null {
+  if (planned <= 0) return null;
+  const spentPct = Math.round((spent / planned) * 100);
+  const elapsedPct = Math.round(Math.min(Math.max(elapsedFraction, 0), 1) * 100);
+  const status =
+    spentPct >= 100
+      ? "spent"
+      : spentPct > elapsedPct + 15
+        ? "hot"
+        : spentPct < elapsedPct - 15
+          ? "cool"
+          : "steady";
+  return { spentPct, elapsedPct, status };
+}
+
 export interface SpendAnomaly {
   bucketId: string | null;
   bucketName: string;

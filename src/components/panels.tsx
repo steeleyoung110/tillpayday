@@ -315,6 +315,7 @@ export function BucketsPanel({
   balances,
   perCheck,
   colors,
+  pace,
 }: {
   data: DashboardData;
   /** Today's balance per bucket id ("" = savings/leftover). Optional. */
@@ -323,6 +324,8 @@ export function BucketsPanel({
   perCheck?: Record<string, number>;
   /** Semantic color per bucket id — matches the pies and charts. */
   colors?: Record<string, string>;
+  /** Cycle pace per bucket id: % of plan spent vs % of cycle elapsed. */
+  pace?: Record<string, { spentPct: number; elapsedPct: number; status: string }>;
 }) {
   return (
     <Panel title="Buckets (how each paycheck splits)" id="buckets">
@@ -382,6 +385,21 @@ export function BucketsPanel({
                 {b.is_paused && (
                   <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
                     paused ⏸
+                  </span>
+                )}
+                {pace?.[b.id] && pace[b.id].status === "spent" && (
+                  <span className="ml-2 rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-semibold text-red-300">
+                    plan fully spent
+                  </span>
+                )}
+                {pace?.[b.id] && pace[b.id].status === "hot" && (
+                  <span className="ml-2 rounded bg-red-500/20 px-1.5 py-0.5 text-xs text-red-300">
+                    {`🔥 running hot — ${pace[b.id].spentPct}% spent, ${pace[b.id].elapsedPct}% of cycle gone`}
+                  </span>
+                )}
+                {pace?.[b.id] && pace[b.id].status === "cool" && (
+                  <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-xs text-sky-300">
+                    pacing easy
                   </span>
                 )}
               </span>

@@ -34,10 +34,12 @@ export {
 } from "./billCalendar";
 export {
   ageOfMoney,
+  bucketPace,
   noSpendStreak,
   runway,
   spendAnomalies,
   type AgeOfMoney,
+  type BucketPace,
   type NoSpendStreak,
   type Runway,
   type SpendAnomaly,

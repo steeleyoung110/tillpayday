@@ -20,6 +20,7 @@ import { IncomeShock } from "@/components/IncomeShock";
 import { getDashboardData } from "@/lib/data";
 import {
   billsByCheck,
+  bucketPace,
   currentPayCycle,
   cycleHistory,
   cycleSpending,
@@ -40,6 +41,7 @@ import {
   categoryColor,
   dailySpendHeatmap,
   monthlyCategoryTotals,
+  monthlySavingsRate,
 } from "@/lib/spendViz";
 import { auditSubscriptions } from "@/lib/subscriptions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -273,13 +275,40 @@ export default async function BudgetPage({
   // Subscription auditor: repeating bills × their real yearly multiplier.
   const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
 
-  // Spend visuals: 13-week daily heatmap + 6-month category trend.
+  // Spend visuals: 13-week daily heatmap + 6-month category trend + rate.
   const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
   const trend = monthlyCategoryTotals(engineExpenses, data.buckets, todayISO);
   const trendMax = Math.max(1, ...trend.map((m) => m.total));
   const trendCategories = [
     ...new Set(trend.flatMap((m) => Object.keys(m.byCategory))),
   ];
+  const savingsRates = monthlySavingsRate(
+    engineIncome,
+    data.incomeEntries,
+    engineExpenses,
+    todayISO,
+  );
+
+  // Cycle pace per bucket: % of plan spent vs % of cycle elapsed.
+  const elapsedFraction = cycle
+    ? (Date.parse(todayISO) - Date.parse(cycle.lastPayday)) /
+      Math.max(1, Date.parse(cycle.nextPayday) - Date.parse(cycle.lastPayday))
+    : 0;
+  const paceMap: Record<
+    string,
+    { spentPct: number; elapsedPct: number; status: string }
+  > = {};
+  if (cycle) {
+    for (const s of planRaw) {
+      if (!s.bucketId || s.bucketId === savingsBucket?.id) continue;
+      const p = bucketPace(
+        spentByBucket.get(spendKeyFor(s.bucketId)) ?? 0,
+        s.amount,
+        elapsedFraction,
+      );
+      if (p) paceMap[s.bucketId] = p;
+    }
+  }
 
   return (
     <AppShell active="budget">
@@ -547,7 +576,7 @@ export default async function BudgetPage({
                 gone.
               </p>
               <div className="flex h-40 items-end gap-3">
-                {trend.map((m) => (
+                {trend.map((m, i) => (
                   <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
                     <div
                       className="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-t"
@@ -571,9 +600,26 @@ export default async function BudgetPage({
                     <span className="text-xs font-semibold text-slate-300">
                       {m.total > 0 ? currencyCents.format(m.total) : "—"}
                     </span>
+                    {savingsRates[i]?.ratePct !== null &&
+                      savingsRates[i] !== undefined && (
+                        <span
+                          className={`text-xs font-semibold ${
+                            savingsRates[i].ratePct! >= 0
+                              ? "text-emerald-300"
+                              : "text-red-300"
+                          }`}
+                        >
+                          {`kept ${savingsRates[i].ratePct}%`}
+                        </span>
+                      )}
                   </div>
                 ))}
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                &ldquo;Kept&rdquo; is your savings rate — the share of that
+                month&apos;s income that didn&apos;t leave. Negative means the
+                month spent money you didn&apos;t earn in it.
+              </p>
               <div className="mt-3 flex flex-wrap gap-3 text-xs">
                 {trendCategories.map((cat) => (
                   <span key={cat} className="flex items-center gap-1.5 text-slate-400">
@@ -742,6 +788,7 @@ export default async function BudgetPage({
             balances={balances}
             perCheck={perCheck}
             colors={bucketColors}
+            pace={paceMap}
           />
           <ExpensesPanel
             data={data}
