@@ -11,6 +11,7 @@
  */
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { DAILY_CAPS, underDailyCap } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -70,18 +71,27 @@ const SYSTEM = `You extract financial data from documents for Till Payday, a bud
 6. Cap extraction at 300 transactions (most recent first if you must cut).`;
 
 export async function POST(request: Request) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { ok: false, reason: "Unconfigured: set ANTHROPIC_API_KEY." },
-      { status: 503 },
-    );
-  }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, reason: "Not signed in" }, { status: 401 });
+  }
+  if (!(await underDailyCap(supabase, "parse-statement"))) {
+    return NextResponse.json(
+      {
+        ok: false,
+        reason: `Daily limit reached (${DAILY_CAPS["parse-statement"]} statements/day) — resets at midnight UTC.`,
+      },
+      { status: 429 },
+    );
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { ok: false, reason: "Unconfigured: set ANTHROPIC_API_KEY." },
+      { status: 503 },
+    );
   }
 
   let body: { base64?: string };

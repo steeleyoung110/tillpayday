@@ -1,9 +1,28 @@
 import type { NextConfig } from "next";
 
+// Security headers on every response. Deliberately no Content-Security-Policy
+// yet — Next's inline runtime needs nonce plumbing to do CSP right, and a
+// half-strict CSP is worse than an honest absence. The rest are free wins.
+const SECURITY_HEADERS = [
+  // Browsers should only ever speak HTTPS to us (2 years, subdomains too).
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  // Never MIME-sniff responses into something executable.
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  // Nobody gets to iframe the app (clickjacking).
+  { key: "X-Frame-Options", value: "DENY" },
+  // Don't leak page URLs to third parties beyond the origin.
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // We use none of these — say so explicitly.
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+];
+
 const nextConfig: NextConfig = {
   // Pin the workspace root so Next doesn't guess from stray parent lockfiles.
   turbopack: {
     root: __dirname,
+  },
+  async headers() {
+    return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
 };
 

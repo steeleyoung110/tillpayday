@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { DAILY_CAPS, underDailyCap } from "@/lib/rateLimit";
 import { computeTodayBalances } from "@/lib/balances";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import {
@@ -34,19 +35,27 @@ Write a short recap (under 300 words) of the user's recent money picture using O
 Structure: (1) what actually happened, numbers first; (2) the pattern forming, if any — over-plan streaks, anomalies, runway direction; (3) the one change that would matter most next cycle. No bullet-point walls — write it like a sharp, caring friend. No praise unless the numbers earn it; when they do, one sentence. Never call a bad picture "okay". This is education, not financial advice, and you don't give investment recommendations.`;
 
 export async function POST() {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { ok: false, reason: "Unconfigured: set ANTHROPIC_API_KEY." },
-      { status: 503 },
-    );
-  }
-
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ ok: false, reason: "Not signed in" }, { status: 401 });
+  }
+  if (!(await underDailyCap(supabase, "recap"))) {
+    return NextResponse.json(
+      {
+        ok: false,
+        reason: `Daily limit reached (${DAILY_CAPS.recap} recaps/day) — resets at midnight UTC.`,
+      },
+      { status: 429 },
+    );
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json(
+      { ok: false, reason: "Unconfigured: set ANTHROPIC_API_KEY." },
+      { status: 503 },
+    );
   }
 
   const todayISO = new Date().toISOString().slice(0, 10);
