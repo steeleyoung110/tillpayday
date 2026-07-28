@@ -49,7 +49,7 @@ export default function DemoPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 pb-10">
-      <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
           <p className="text-sm font-semibold text-violet-200">
             {`👀 This is Sam — a sample budget, not yours. Click around; nothing here can be changed or saved.`}

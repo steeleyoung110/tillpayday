@@ -410,6 +410,41 @@ export function ProjectionSection({
 
   return (
     <section className="space-y-4">
+      {/* The long view's headline numbers — these explain the charts below. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-sm text-slate-400">{`Savings ${windowLabel}`}</p>
+          <p className="mt-1 text-3xl font-bold text-white">
+            {currency.format(windowEnd?.savings ?? 0)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-sm text-slate-400">{`All your money ${windowLabel}`}</p>
+          <p className="mt-1 text-3xl font-bold text-white">
+            {currency.format(windowEnd?.total ?? 0)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-sm text-slate-400">{`Net worth ${windowLabel}`}</p>
+          <p className="mt-1 text-3xl font-bold text-white">
+            {currency.format(projectedNetWorth)}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-sm text-slate-400">Saved by saying no 🎉</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-400">
+            {currency.format(savedByNo)}
+          </p>
+        </div>
+      </div>
+
+      {/* On big screens the two charts sit side by side — this cycle under
+          the microscope, the long arc beside it. */}
+      <div
+        className={`grid grid-cols-1 gap-4 ${
+          hasIncome && snapshot ? "2xl:grid-cols-2" : ""
+        }`}
+      >
       {/* Paycheck snapshot: this cycle under the microscope */}
       {hasIncome && snapshot && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -452,7 +487,7 @@ export function ProjectionSection({
             granularity="day"
             todayMarker={todayISO}
             eventDots={snapshot.dots}
-            height="h-64"
+            height="h-64 2xl:h-[26rem]"
           />
           <p className="mt-2 text-xs text-slate-500">
             Dots mark bills leaving their buckets. This view rolls forward on
@@ -461,36 +496,12 @@ export function ProjectionSection({
         </div>
       )}
 
-      {/* The long view's headline numbers — these explain the chart below. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`Savings ${windowLabel}`}</p>
-          <p className="mt-1 text-3xl font-bold text-white">
-            {currency.format(windowEnd?.savings ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`All your money ${windowLabel}`}</p>
-          <p className="mt-1 text-3xl font-bold text-white">
-            {currency.format(windowEnd?.total ?? 0)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">{`Net worth ${windowLabel}`}</p>
-          <p className="mt-1 text-3xl font-bold text-white">
-            {currency.format(projectedNetWorth)}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm text-slate-400">Saved by saying no 🎉</p>
-          <p className="mt-1 text-3xl font-bold text-emerald-400">
-            {currency.format(savedByNo)}
-          </p>
-        </div>
-      </div>
-
       {/* Chart card */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+      <div
+        className={`rounded-2xl border border-slate-800 bg-slate-900 p-5 ${
+          hasIncome && snapshot ? "" : "2xl:col-span-2"
+        }`}
+      >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-white">
             Where your money&apos;s headed
@@ -570,6 +581,7 @@ export function ProjectionSection({
               granularity={displayPlan.granularity}
               goalLines={goalLines}
               todayMarker={todayISO}
+              height="h-72 2xl:h-[26rem]"
             />
             <p className="mt-2 text-xs text-slate-500">
               {baseline.irregularWeekly !== null &&
@@ -608,6 +620,7 @@ export function ProjectionSection({
             </p>
           </div>
         )}
+      </div>
       </div>
 
       {/* Goal outlooks: where each goal stands against the savings line */}

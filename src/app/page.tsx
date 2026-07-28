@@ -287,7 +287,7 @@ export default async function Home({
         />
       )}
 
-      <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         {viewing && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
             <p className="text-sm font-semibold text-violet-200">
@@ -349,7 +349,10 @@ export default async function Home({
           </div>
         )}
 
-        {/* Safe-to-spend hero */}
+        {/* Safe-to-spend hero (+ payday preview beside it on big screens) */}
+        <div
+          className={`grid grid-cols-1 gap-6 ${nextCheck ? "2xl:grid-cols-2" : ""}`}
+        >
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-slate-400">{`Welcome back, ${displayName} 👋`}</p>
@@ -407,6 +410,57 @@ export default async function Home({
           )}
         </div>
 
+        {nextCheck && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">
+                {`Next payday — ${nextCheck.payday}`}
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  {daysToNextCheck === 0
+                    ? "today 🎉"
+                    : daysToNextCheck === 1
+                      ? "tomorrow"
+                      : `in ${daysToNextCheck} days`}
+                </span>
+              </h2>
+              <p className="text-sm font-bold text-emerald-300">
+                {`+${heroCurrency.format(nextCheck.paycheckTotal)} lands`}
+              </p>
+            </div>
+            {sweepEstimate > 0 && (
+              <p className="mt-2 text-xs text-slate-500">
+                {`First: the ${heroCurrency.format(sweepEstimate)} still sitting in spending buckets sweeps into savings. Then the new check splits:`}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap gap-2">
+              {previewSplit.map((s) => (
+                <span
+                  key={s.bucketId ?? "leftover"}
+                  className="rounded-lg bg-slate-800/70 px-2.5 py-1 text-xs text-slate-200"
+                >
+                  {`${s.name} ${heroCurrency.format(s.amount)}`}
+                </span>
+              ))}
+            </div>
+            <p
+              className={`mt-3 text-sm ${
+                !nextCheck.fits
+                  ? "font-semibold text-red-300"
+                  : spokenForPct >= 60
+                    ? "text-amber-200"
+                    : "text-slate-300"
+              }`}
+            >
+              {nextCheck.bills.length === 0
+                ? "No bills land on that check — whatever you don't spend is yours."
+                : !nextCheck.fits
+                  ? `That check must cover ${heroCurrency.format(nextCheck.totalBills)} of bills — it's short by ${heroCurrency.format(nextCheck.shortBy)}. This is next cycle's problem unless you move money now.`
+                  : `${heroCurrency.format(nextCheck.totalBills)} of bills land on that check (${nextCheck.bills.length} bill${nextCheck.bills.length === 1 ? "" : "s"}) — ${spokenForPct}% of it is spoken for before it arrives.`}
+            </p>
+          </div>
+        )}
+        </div>
+
         <AppBadge count={daysToNextCheck} />
 
         {announcements.map((a) => (
@@ -456,56 +510,6 @@ export default async function Home({
             <p className="mt-2 text-xs text-slate-500">
               The projections get sharper with every step — half-set-up numbers
               are half-honest numbers.
-            </p>
-          </div>
-        )}
-
-        {nextCheck && (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="font-semibold text-white">
-                {`Next payday — ${nextCheck.payday}`}
-                <span className="ml-2 text-sm font-normal text-slate-400">
-                  {daysToNextCheck === 0
-                    ? "today 🎉"
-                    : daysToNextCheck === 1
-                      ? "tomorrow"
-                      : `in ${daysToNextCheck} days`}
-                </span>
-              </h2>
-              <p className="text-sm font-bold text-emerald-300">
-                {`+${heroCurrency.format(nextCheck.paycheckTotal)} lands`}
-              </p>
-            </div>
-            {sweepEstimate > 0 && (
-              <p className="mt-2 text-xs text-slate-500">
-                {`First: the ${heroCurrency.format(sweepEstimate)} still sitting in spending buckets sweeps into savings. Then the new check splits:`}
-              </p>
-            )}
-            <div className="mt-2 flex flex-wrap gap-2">
-              {previewSplit.map((s) => (
-                <span
-                  key={s.bucketId ?? "leftover"}
-                  className="rounded-lg bg-slate-800/70 px-2.5 py-1 text-xs text-slate-200"
-                >
-                  {`${s.name} ${heroCurrency.format(s.amount)}`}
-                </span>
-              ))}
-            </div>
-            <p
-              className={`mt-3 text-sm ${
-                !nextCheck.fits
-                  ? "font-semibold text-red-300"
-                  : spokenForPct >= 60
-                    ? "text-amber-200"
-                    : "text-slate-300"
-              }`}
-            >
-              {nextCheck.bills.length === 0
-                ? "No bills land on that check — whatever you don't spend is yours."
-                : !nextCheck.fits
-                  ? `That check must cover ${heroCurrency.format(nextCheck.totalBills)} of bills — it's short by ${heroCurrency.format(nextCheck.shortBy)}. This is next cycle's problem unless you move money now.`
-                  : `${heroCurrency.format(nextCheck.totalBills)} of bills land on that check (${nextCheck.bills.length} bill${nextCheck.bills.length === 1 ? "" : "s"}) — ${spokenForPct}% of it is spoken for before it arrives.`}
             </p>
           </div>
         )}

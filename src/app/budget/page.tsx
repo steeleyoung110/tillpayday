@@ -283,7 +283,7 @@ export default async function BudgetPage({
 
   return (
     <AppShell active="budget">
-      <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         <div>
           <h2 className="text-lg font-semibold text-white">Your budget</h2>
           <p className="text-sm text-slate-400">

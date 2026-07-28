@@ -35,7 +35,7 @@ export function PaycheckPie({
   paycheck: number;
 }) {
   return (
-    <div className="relative h-64 w-full max-w-xs">
+    <div className="relative h-64 w-full max-w-xs 2xl:h-80 2xl:max-w-sm">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie

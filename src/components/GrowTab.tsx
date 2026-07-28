@@ -196,7 +196,7 @@ function Curves({
   }
 
   return (
-    <div className="h-72 w-full">
+    <div className="h-72 w-full 2xl:h-96">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
           <CartesianGrid stroke="#1e293b" vertical={false} />
@@ -304,7 +304,7 @@ function PaymentSplitChart({
     m !== null && (from === null || m >= from) && (to === null || m <= to);
 
   return (
-    <div className="h-72 w-full">
+    <div className="h-72 w-full 2xl:h-96">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 8 }}>
           <CartesianGrid stroke="#1e293b" vertical={false} />

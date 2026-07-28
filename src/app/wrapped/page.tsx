@@ -135,7 +135,7 @@ export default async function WrappedPage({
   return (
     <AppShell active="budget">
       <style>{`@media print { .no-print { display: none !important; } body { background: white !important; } }`}</style>
-      <div className="mx-auto max-w-3xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-4xl space-y-6 px-6 pt-6">
         <div className="no-print flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {priorMonths.map((key) => (

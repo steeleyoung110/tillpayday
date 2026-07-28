@@ -107,7 +107,7 @@ export default async function AdminPage() {
 
   return (
     <AppShell active="settings">
-      <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="text-lg font-semibold text-white">Admin — behind the scenes</h2>

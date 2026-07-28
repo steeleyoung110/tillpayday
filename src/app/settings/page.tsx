@@ -83,7 +83,7 @@ export default async function SettingsPage() {
 
   return (
     <AppShell active="settings">
-      <div className="mx-auto max-w-2xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-4xl space-y-6 px-6 pt-6">
         <h2 className="text-lg font-semibold text-white">Settings &amp; About</h2>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

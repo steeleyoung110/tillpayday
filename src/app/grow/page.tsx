@@ -31,7 +31,7 @@ export default async function GrowPage() {
 
   return (
     <AppShell active="grow">
-      <div className="mx-auto max-w-6xl space-y-4 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-4 px-6 pt-6 2xl:px-10">
         <div>
           <h2 className="text-lg font-semibold text-white">
             See what compounding does

@@ -170,7 +170,7 @@ export default async function NetWorthPage() {
 
   return (
     <AppShell active="networth">
-      <div className="mx-auto max-w-6xl space-y-6 px-6 pt-6">
+      <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         {/* Hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <p className="text-sm text-slate-400">Your net worth today</p>
