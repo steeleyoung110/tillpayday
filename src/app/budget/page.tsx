@@ -297,6 +297,7 @@ export default async function BudgetPage({
               ["#bills", "Bills"],
               ["#goals", "Goals"],
               ["#what-ifs", "What-ifs"],
+              ["/wrapped", "Month wrapped 🎁"],
             ].map(([href, label]) => (
               <a
                 key={href}

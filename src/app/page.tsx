@@ -26,6 +26,7 @@ import {
   splitPaycheck,
 } from "@/lib/engine";
 import { AppBadge } from "@/components/AppBadge";
+import { dismissAnnouncement } from "@/app/actions";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -187,6 +188,22 @@ export default async function Home({
     data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
   );
   const streak = noSpendStreak(engineExpenses, funIds, todayISO);
+
+  // Active announcements this user hasn't dismissed yet.
+  const [{ data: annRaw }, { data: disRaw }] = await Promise.all([
+    supabase
+      .from("announcements")
+      .select("id, message, created_at")
+      .eq("active", true)
+      .order("created_at", { ascending: false }),
+    supabase.from("announcement_dismissals").select("announcement_id"),
+  ]);
+  const dismissedIds = new Set(
+    (disRaw ?? []).map((d: { announcement_id: string }) => d.announcement_id),
+  );
+  const announcements = ((annRaw ?? []) as { id: string; message: string }[]).filter(
+    (a) => !dismissedIds.has(a.id),
+  );
 
   // Getting-started checklist: what's set up, what's missing. Disappears
   // once the core five are done.
@@ -391,6 +408,21 @@ export default async function Home({
         </div>
 
         <AppBadge count={daysToNextCheck} />
+
+        {announcements.map((a) => (
+          <div
+            key={a.id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4"
+          >
+            <p className="text-sm text-violet-100">{`📣 ${a.message}`}</p>
+            <form action={dismissAnnouncement}>
+              <input type="hidden" name="id" value={a.id} />
+              <button className="text-xs text-violet-300 transition hover:text-white">
+                got it — dismiss
+              </button>
+            </form>
+          </div>
+        ))}
 
         {showChecklist && (
           <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 px-6 py-5">

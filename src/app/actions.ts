@@ -142,6 +142,47 @@ export async function sendTestPush(): Promise<{ delivered: number; total: number
 }
 
 /**
+ * Announcements: admin broadcast banner + per-user dismissals. RLS enforces
+ * who can write (admins) and who can dismiss (each user, for themselves).
+ */
+export async function postAnnouncement(formData: FormData) {
+  const supabase = await createClient();
+  const message = str(formData, "message").trim().slice(0, 500);
+  if (!message) return;
+  await supabase.from("announcements").insert({ message });
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function toggleAnnouncement(formData: FormData) {
+  const supabase = await createClient();
+  await supabase
+    .from("announcements")
+    .update({ active: str(formData, "active") === "true" })
+    .eq("id", str(formData, "id"));
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function deleteAnnouncement(formData: FormData) {
+  const supabase = await createClient();
+  await supabase.from("announcements").delete().eq("id", str(formData, "id"));
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function dismissAnnouncement(formData: FormData) {
+  const supabase = await createClient();
+  await supabase
+    .from("announcement_dismissals")
+    .upsert(
+      { announcement_id: str(formData, "id") },
+      { onConflict: "user_id,announcement_id", ignoreDuplicates: true },
+    );
+  revalidatePath("/");
+}
+
+/**
  * Suggestions: anyone signed in can drop one in the box; admins work the
  * inbox from /admin (status changes, deletes — enforced by RLS).
  */

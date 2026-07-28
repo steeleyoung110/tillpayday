@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { AutoRefresh } from "@/components/AutoRefresh";
-import { deleteSuggestion, setSuggestionStatus } from "@/app/actions";
+import {
+  deleteAnnouncement,
+  deleteSuggestion,
+  postAnnouncement,
+  setSuggestionStatus,
+  toggleAnnouncement,
+} from "@/app/actions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -64,14 +70,26 @@ export default async function AdminPage() {
     .maybeSingle();
   if (!adminRow) redirect("/");
 
-  const [{ data: statsRaw }, { data: suggestionsRaw }] = await Promise.all([
-    supabase.rpc("admin_stats"),
-    supabase
-      .from("suggestions")
-      .select("id, email, message, status, created_at")
-      .order("created_at", { ascending: false })
-      .limit(100),
-  ]);
+  const [{ data: statsRaw }, { data: suggestionsRaw }, { data: annRaw }] =
+    await Promise.all([
+      supabase.rpc("admin_stats"),
+      supabase
+        .from("suggestions")
+        .select("id, email, message, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabase
+        .from("announcements")
+        .select("id, message, active, created_at")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+  const announcements = (annRaw ?? []) as {
+    id: string;
+    message: string;
+    active: boolean;
+    created_at: string;
+  }[];
   const stats = statsRaw as AdminStats | null;
   if (!stats) redirect("/");
   const suggestions = (suggestionsRaw ?? []) as SuggestionRow[];
@@ -227,6 +245,61 @@ export default async function AdminPage() {
               ))}
             </ul>
           </div>
+        </div>
+
+        {/* Broadcast */}
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Broadcast an announcement 📣</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Shows as a banner on every member&apos;s Dashboard until they
+            dismiss it. Deactivate to pull it back for everyone at once.
+          </p>
+          <form action={postAnnouncement} className="mt-3 flex flex-wrap items-start gap-2">
+            <textarea
+              name="message"
+              required
+              maxLength={500}
+              rows={2}
+              placeholder="e.g. New this week: search your bills, and check your Age of Money on the Dashboard."
+              className="w-full max-w-xl rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+              Broadcast
+            </button>
+          </form>
+          {announcements.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {announcements.map((a) => (
+                <li
+                  key={a.id}
+                  className={`flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm ${
+                    a.active ? "" : "opacity-50"
+                  }`}
+                >
+                  <span className="text-slate-200">
+                    {a.message}
+                    <span className="ml-2 text-xs text-slate-500">{a.created_at.slice(0, 10)}</span>
+                    {!a.active && (
+                      <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">off</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-3 text-xs">
+                    <form action={toggleAnnouncement}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <input type="hidden" name="active" value={a.active ? "false" : "true"} />
+                      <button className="text-slate-500 transition hover:text-amber-300">
+                        {a.active ? "deactivate" : "reactivate"}
+                      </button>
+                    </form>
+                    <form action={deleteAnnouncement}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button className="text-slate-500 transition hover:text-red-400">delete</button>
+                    </form>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {/* Recent members */}
