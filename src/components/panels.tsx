@@ -18,6 +18,7 @@ import {
   deleteGoal,
   markGoalAchieved,
   startCoolingOff,
+  updateExpenseAmount,
   deleteBucket,
   deleteExpense,
   deleteIncome,
@@ -676,6 +677,7 @@ export function ExpensesPanel({
   todayISO,
   sharedPrefill,
   searchQuery = "",
+  hourlyWage = null,
 }: {
   data: DashboardData;
   /** Current balance per bucket id ("" = savings/leftover), for the
@@ -686,6 +688,8 @@ export function ExpensesPanel({
   sharedPrefill?: { name: string; amount: string };
   /** Server-side name filter (?q=) — find "McDonald's" in a long list. */
   searchQuery?: string;
+  /** Hourly wage (work-hours lens): bills get a second price tag in hours. */
+  hourlyWage?: number | null;
 }) {
   // Two columns: money that leaves once vs bills that keep coming back.
   const q = searchQuery.trim().toLowerCase();
@@ -720,6 +724,11 @@ export function ExpensesPanel({
             showCadence ? ` · ${REPEAT_LABELS[e.cadence] ?? e.cadence}` : ""
           } · due ${e.due_date}`}
         </span>
+        {hourlyWage && hourlyWage > 0 && (
+          <span className="ml-2 text-xs text-amber-300/80">
+            {`⏱ ${(Number(e.amount) / hourlyWage).toFixed(1)}h of work`}
+          </span>
+        )}
         {e.is_paused && (
           <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
             paused ⏸
@@ -727,6 +736,21 @@ export function ExpensesPanel({
         )}
       </span>
       <span className="flex items-center gap-3">
+        <form action={updateExpenseAmount} className="flex items-center gap-1">
+          <input type="hidden" name="id" value={e.id} />
+          <input
+            name="amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder="new $"
+            title="Change this bill's amount — the old price is remembered, so price creep stays visible."
+            className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+          />
+          <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+            set
+          </button>
+        </form>
         <ExpenseBucketSelect
           expenseId={e.id}
           expenseName={e.name}

@@ -142,6 +142,45 @@ export async function sendTestPush(): Promise<{ delivered: number; total: number
 }
 
 /**
+ * Work-hours lens: your hourly wage, stored on the auth user's metadata (no
+ * table needed). With it set, spends can be shown as hours of your life.
+ */
+export async function setHourlyWage(formData: FormData) {
+  const supabase = await createClient();
+  const wage = num(formData, "hourly_wage");
+  await supabase.auth.updateUser({
+    data: { hourly_wage: wage > 0 ? wage : null },
+  });
+  revalidatePath("/settings");
+  revalidatePath("/budget");
+}
+
+/**
+ * Expense amount edits: the change applies AND the old→new gets logged, so
+ * price creep on recurring bills is visible as a fact later.
+ */
+export async function updateExpenseAmount(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const amount = num(formData, "amount");
+  if (!(amount > 0)) return;
+  const { data: cur } = await supabase
+    .from("expenses")
+    .select("amount")
+    .eq("id", id)
+    .single();
+  if (!cur || Number(cur.amount) === amount) return;
+  await supabase.from("expense_amount_history").insert({
+    expense_id: id,
+    old_amount: Number(cur.amount),
+    new_amount: amount,
+  });
+  await supabase.from("expenses").update({ amount }).eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+/**
  * Announcements: admin broadcast banner + per-user dismissals. RLS enforces
  * who can write (admins) and who can dismiss (each user, for themselves).
  */

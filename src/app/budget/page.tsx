@@ -80,6 +80,10 @@ export default async function BudgetPage({
     .join(" ");
   const sharedPrefill = sharedRaw ? parseSharedSpend(sharedRaw) : undefined;
 
+  // Work-hours lens (set in Settings; stored on the auth user).
+  const wageMeta = (user.user_metadata as Record<string, unknown>).hourly_wage;
+  const hourlyWage = typeof wageMeta === "number" && wageMeta > 0 ? wageMeta : null;
+
   const engineIncome = data.income.map(incomeToEngine);
   const engineBuckets = data.buckets.map(bucketToEngine);
   const engineExpenses = data.expenses.map(expenseToEngine);
@@ -274,6 +278,50 @@ export default async function BudgetPage({
 
   // Subscription auditor: repeating bills × their real yearly multiplier.
   const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
+
+  // Price creep: net change per bill from its amount-edit history. An edit
+  // that was later reversed nets to zero and stays quiet.
+  const { data: histRaw } = await supabase
+    .from("expense_amount_history")
+    .select("expense_id, old_amount, new_amount, changed_at")
+    .order("changed_at");
+  const creepByExpense = new Map<
+    string,
+    { first: number; last: number; since: string }
+  >();
+  for (const h of (histRaw ?? []) as {
+    expense_id: string;
+    old_amount: number;
+    new_amount: number;
+    changed_at: string;
+  }[]) {
+    const cur = creepByExpense.get(h.expense_id);
+    if (!cur) {
+      creepByExpense.set(h.expense_id, {
+        first: Number(h.old_amount),
+        last: Number(h.new_amount),
+        since: h.changed_at.slice(0, 10),
+      });
+    } else {
+      cur.last = Number(h.new_amount);
+    }
+  }
+  const priceCreeps = [...creepByExpense.entries()]
+    .map(([expenseId, c]) => {
+      const exp = data.expenses.find((e) => e.id === expenseId);
+      return exp && c.first > 0 && Math.abs(c.last - c.first) >= 0.01
+        ? {
+            name: exp.name,
+            cadence: exp.cadence,
+            first: c.first,
+            last: c.last,
+            pct: Math.round(((c.last - c.first) / c.first) * 100),
+            since: c.since,
+          }
+        : null;
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => b.pct - a.pct);
 
   // Spend visuals: 13-week daily heatmap + 6-month category trend + rate.
   const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
@@ -635,6 +683,39 @@ export default async function BudgetPage({
           </div>
         )}
 
+        {priceCreeps.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="font-semibold text-white">Price creep watch 🐍</h2>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              Bills whose price has changed since you added them. Companies
+              count on you not noticing — this list is you noticing.
+            </p>
+            <ul className="space-y-1">
+              {priceCreeps.map((c) => (
+                <li
+                  key={c.name + c.since}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm"
+                >
+                  <span className="text-slate-200">
+                    {c.name}
+                    <span className="ml-2 text-xs text-slate-500">{`since ${c.since}`}</span>
+                  </span>
+                  <span
+                    className={`font-semibold ${c.pct > 0 ? "text-red-300" : "text-emerald-300"}`}
+                  >
+                    {`${currencyCents.format(c.first)} → ${currencyCents.format(c.last)} (${c.pct > 0 ? "+" : ""}${c.pct}%)`}
+                    {c.pct > 0 && c.cadence === "monthly" && (
+                      <span className="ml-2 text-xs font-normal text-slate-400">
+                        {`+${currencyCents.format((c.last - c.first) * 12)}/yr`}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {subAudit.rows.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -646,6 +727,11 @@ export default async function BudgetPage({
                 {subAudit.pctOfIncome !== null && (
                   <span className="ml-1 font-normal text-slate-400">
                     {`— ${subAudit.pctOfIncome}% of your income`}
+                  </span>
+                )}
+                {hourlyWage && (
+                  <span className="ml-1 font-normal text-amber-300/80">
+                    {`— ${Math.round(subAudit.yearlyTotal / hourlyWage)} hours of your year`}
                   </span>
                 )}
               </p>
@@ -796,6 +882,7 @@ export default async function BudgetPage({
             todayISO={todayISO}
             sharedPrefill={sharedPrefill}
             searchQuery={q ?? ""}
+            hourlyWage={hourlyWage}
           />
           <GoalsPanel data={data} />
           <WhatIfPanel data={data} />

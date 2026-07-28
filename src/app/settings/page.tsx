@@ -6,6 +6,7 @@ import {
   deleteCalendarToken,
   removeShare,
   rotateCalendarToken,
+  setHourlyWage,
   signOut,
   submitSuggestion,
   undoRestore,
@@ -259,6 +260,37 @@ export default async function SettingsPage() {
             </p>
           </Link>
         )}
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">The work-hours lens ⏱️</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Tell the app what you earn per hour and your bills get a second
+            price tag: hours of your life. $60 stops being &ldquo;just
+            $60&rdquo; when it reads &ldquo;4 hours of work.&rdquo;
+          </p>
+          <form action={setHourlyWage} className="mt-3 flex items-center gap-2">
+            <input
+              name="hourly_wage"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={
+                typeof meta.hourly_wage === "number" && meta.hourly_wage > 0
+                  ? meta.hourly_wage
+                  : undefined
+              }
+              placeholder="Hourly wage $"
+              className="w-36 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+              Save
+            </button>
+          </form>
+          <p className="mt-2 text-xs text-slate-500">
+            Clear the field and save to turn the lens off. Stored on your
+            account only.
+          </p>
+        </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Suggest something 💡</h3>
