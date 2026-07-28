@@ -990,6 +990,52 @@ export async function bulkAddExpenses(formData: FormData): Promise<UndoRecipe | 
     : null;
 }
 
+/**
+ * Statement Drop import: like bulkAddExpenses, but each row carries its own
+ * bucket (the auto-categorized mapping, possibly overridden in the preview).
+ * Bucket ids that aren't the user's own are nulled to savings/leftover.
+ */
+export async function bulkAddExpensesTagged(
+  formData: FormData,
+): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  let rows: { name: string; amount: number; due_date: string; bucket_id?: string | null }[];
+  try {
+    rows = JSON.parse(str(formData, "rows"));
+  } catch {
+    return null;
+  }
+  const { data: myBuckets } = await supabase.from("buckets").select("id");
+  const mine = new Set((myBuckets ?? []).map((b) => b.id as string));
+
+  const clean = rows
+    .filter(
+      (r) =>
+        typeof r.name === "string" &&
+        r.name.length > 0 &&
+        Number(r.amount) > 0 &&
+        /^\d{4}-\d{2}-\d{2}$/.test(String(r.due_date)),
+    )
+    .slice(0, 500)
+    .map((r) => ({
+      name: String(r.name).slice(0, 120),
+      amount: Number(r.amount),
+      bucket_id: r.bucket_id && mine.has(r.bucket_id) ? r.bucket_id : null,
+      due_date: r.due_date,
+      cadence: "one_time",
+      is_paused: false,
+    }));
+  if (clean.length === 0) return null;
+
+  const { data } = await supabase.from("expenses").insert(clean).select("id");
+  revalidatePath("/");
+  revalidatePath("/budget");
+  const ids = (data ?? []).map((d) => d.id as string);
+  return ids.length > 0
+    ? { deletes: ids.map((id) => ({ table: "expenses", id })) }
+    : null;
+}
+
 /** Re-point a bill at a different bucket ("McDonalds should come out of Food"). */
 export async function updateExpenseBucket(formData: FormData): Promise<UndoRecipe | null> {
   const supabase = await createClient();

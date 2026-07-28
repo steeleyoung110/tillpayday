@@ -35,7 +35,7 @@ gracefully without it.
   PWA / production site; there's a "send a test" button to prove the pipe).
 - The daily cron (/api/nudges) pushes before it emails.
 
-## 4. Honest recap (Claude API)
+## 4. Claude features: honest recap + Statement Drop
 
 - The Budget page's "Your honest recap" card sends your aggregate numbers to
   Claude and returns a no-fluff plain-English recap. It needs an Anthropic
@@ -43,6 +43,10 @@ gracefully without it.
 - Vercel → Environment Variables → add `ANTHROPIC_API_KEY` (server secret).
 - Cost is per use, typically a few cents per recap. Without the key, the
   card and the /api/recap route stay hidden/disabled.
+- The same key powers **Statement Drop** (Settings → Your data): upload a
+  PDF card statement or paycheck stub and Claude extracts the transactions,
+  pre-sorted into buckets, with a review step before anything saves.
+  Statements pass through Anthropic's API under its 30-day retention terms.
 
 ## 4b. Google sign-in
 

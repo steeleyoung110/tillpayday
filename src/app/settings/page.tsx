@@ -14,6 +14,7 @@ import {
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { CsvImport } from "@/components/CsvImport";
+import { StatementImport } from "@/components/StatementImport";
 import { EnablePush } from "@/components/EnablePush";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
@@ -235,6 +236,28 @@ export default async function SettingsPage() {
             connection, just a file — or download everything you&apos;ve
             entered. Your numbers are yours.
           </p>
+          {process.env.ANTHROPIC_API_KEY && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Statement Drop — PDF statements &amp; paycheck stubs
+              </p>
+              <StatementImport
+                buckets={data.buckets.map((b) => ({
+                  id: b.id,
+                  name: b.name,
+                  is_savings: b.is_savings,
+                  is_flexible: b.is_flexible,
+                  is_paused: b.is_paused,
+                }))}
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                The PDF is read by Claude on the server (Anthropic API, 30-day
+                retention) — merchant names and amounts come back, account
+                numbers are never extracted. Charges get pre-sorted into your
+                buckets by meaning; you review every row before importing.
+              </p>
+            </div>
+          )}
           <div className="mt-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               Import spending from a CSV
