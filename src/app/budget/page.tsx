@@ -17,8 +17,11 @@ import {
 } from "@/components/panels";
 import { CoachRecap } from "@/components/CoachRecap";
 import { IncomeShock } from "@/components/IncomeShock";
+import { InstantAction } from "@/components/InstantAction";
+import { applyBucketTune, undoRestore } from "@/app/actions";
 import { getDashboardData } from "@/lib/data";
 import {
+  autoTune,
   billsByCheck,
   bucketPace,
   currentPayCycle,
@@ -253,6 +256,9 @@ export default async function BudgetPage({
   const accountCreatedISO = (user.created_at ?? todayISO).slice(0, 10);
   const rawHistory = cycleHistory(engineIncome, engineBuckets, engineExpenses, todayISO, 6);
   const pastCycles = rawHistory.cycles.filter((c) => c.cycleStart >= accountCreatedISO);
+
+  // Tune-ups: buckets whose plan reality has outgrown, with a one-tap fix.
+  const tuneSuggestions = autoTune(pastCycles, engineBuckets, typicalPaycheck);
   // Recompute streaks scoped to the trimmed (real) history — the engine's own
   // streaks were walked against the full, lattice-extended cycle list.
   const streakIds = new Set<string | null>();
@@ -680,6 +686,49 @@ export default async function BudgetPage({
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {tuneSuggestions.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5">
+            <h2 className="font-semibold text-amber-200">
+              Your plan doesn&apos;t match your reality 🔧
+            </h2>
+            <p className="mb-3 mt-1 text-xs text-amber-100/70">
+              These buckets have run over plan in nearly every recent cycle.
+              That&apos;s not a bad month — that&apos;s a wrong plan. Raising a
+              bucket is money savings stops getting; the honest move is making
+              the plan true, then shrinking it on purpose.
+            </p>
+            <ul className="space-y-2">
+              {tuneSuggestions.map((t) => (
+                <li
+                  key={t.bucketId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-900/60 px-3 py-2 text-sm"
+                >
+                  <span className="text-slate-200">
+                    {`${t.bucketName}: over plan in ${t.overCount} of ${t.cycleCount} cycles — you actually spend ~${currencyCents.format(t.avgActual)} vs ${currencyCents.format(t.avgPlanned)} planned.`}
+                  </span>
+                  <InstantAction
+                    action={applyBucketTune}
+                    undoAction={undoRestore}
+                    values={{ id: t.bucketId, value: String(t.suggestedValue) }}
+                    message={`${t.bucketName} now refills at ${
+                      t.allocationType === "fixed"
+                        ? currencyCents.format(t.suggestedValue)
+                        : `${t.suggestedValue}%`
+                    } per check.`}
+                    className="rounded bg-amber-500/20 px-2 py-1 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                  >
+                    {`Set to ${
+                      t.allocationType === "fixed"
+                        ? `${currencyCents.format(t.suggestedValue)}/check`
+                        : `${t.suggestedValue}% of check`
+                    }`}
+                  </InstantAction>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

@@ -34,6 +34,7 @@ export {
 } from "./billCalendar";
 export {
   ageOfMoney,
+  autoTune,
   bucketPace,
   noSpendStreak,
   runway,
@@ -43,4 +44,5 @@ export {
   type NoSpendStreak,
   type Runway,
   type SpendAnomaly,
+  type TuneSuggestion,
 } from "./insights";

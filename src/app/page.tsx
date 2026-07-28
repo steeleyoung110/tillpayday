@@ -26,7 +26,7 @@ import {
   splitPaycheck,
 } from "@/lib/engine";
 import { AppBadge } from "@/components/AppBadge";
-import { dismissAnnouncement } from "@/app/actions";
+import { adoptStarterSetup, dismissAnnouncement } from "@/app/actions";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -272,6 +272,20 @@ export default async function Home({
     return (
       <AppShell active="dashboard">
         <Onboarding hasIncome={data.income.length > 0} todayISO={todayISO} />
+        <div className="mx-auto max-w-2xl px-6 pt-2">
+          <form
+            action={adoptStarterSetup}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/60 px-5 py-4"
+          >
+            <p className="text-sm text-slate-400">
+              In a hurry? Start from the sample setup — Rent, Food, Fun money,
+              Savings, and a $1,400 biweekly check. Change every number after.
+            </p>
+            <button className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-white">
+              Use the starter setup →
+            </button>
+          </form>
+        </div>
         <LegalFooter />
       </AppShell>
     );

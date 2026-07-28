@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { QuickNav } from "@/components/QuickNav";
 
 /**
  * App navigation frame: five sections — Dashboard (glance), Budget (manage),
@@ -24,6 +25,7 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-slate-950">
+      <QuickNav />
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-52 flex-col border-r border-slate-800 bg-slate-900/60 p-4 md:flex">
         <Link href="/" className="px-2 text-xl font-bold text-white">

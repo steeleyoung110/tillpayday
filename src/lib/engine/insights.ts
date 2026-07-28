@@ -7,7 +7,7 @@ import { addDays, diffDays, parseISO, toISO } from "./dates";
 import { generateOccurrences, generatePayDates } from "./projection";
 import type { CycleRecord } from "./cycleHistory";
 import type { CycleSpend } from "./cycleSpend";
-import type { Expense, IncomeEntry, IncomeSource } from "./types";
+import type { Bucket, Expense, IncomeEntry, IncomeSource } from "./types";
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -187,6 +187,88 @@ export function noSpendStreak(
   best = Math.max(best, run, current);
 
   return { current, best, brokeToday };
+}
+
+export interface TuneSuggestion {
+  bucketId: string;
+  bucketName: string;
+  allocationType: "fixed" | "percent";
+  currentValue: number;
+  suggestedValue: number;
+  avgActual: number;
+  avgPlanned: number;
+  overCount: number;
+  cycleCount: number;
+}
+
+/**
+ * Plan tune-ups: a bucket that has run over its plan in nearly every recent
+ * cycle isn't having a bad month — the plan is wrong. Suggest a refill that
+ * matches reality (rounded up: $5 steps for fixed, whole points for percent).
+ * Requires ≥3 completed cycles and over-plan (>10%) in all but at most one.
+ * The honest framing: raising a bucket is money savings stops getting.
+ */
+export function autoTune(
+  cycles: CycleRecord[],
+  buckets: Bucket[],
+  typicalPaycheck: number,
+): TuneSuggestion[] {
+  if (cycles.length < 3) return [];
+  const out: TuneSuggestion[] = [];
+
+  for (const b of buckets) {
+    if (b.isSavings || b.isPaused) continue;
+    // Judge the trailing window (last 4 cycles with a plan), not all history
+    // — three quiet months in spring shouldn't hide a bucket that's blown
+    // its plan every cycle since June. Order-agnostic: sort by cycle start.
+    const rows = cycles
+      .map((c) => ({
+        start: c.cycleStart,
+        row: c.buckets.find((x) => x.bucketId === b.id),
+      }))
+      .filter(
+        (x): x is { start: string; row: NonNullable<typeof x.row> } =>
+          Boolean(x.row && x.row.planned > 0),
+      )
+      .sort((a, z) => a.start.localeCompare(z.start))
+      .map((x) => x.row)
+      .slice(-4);
+    if (rows.length < 3) continue;
+
+    const overCount = rows.filter((r) => r.actual > r.planned * 1.1).length;
+    const latestOver = rows[rows.length - 1].actual > rows[rows.length - 1].planned * 1.1;
+    if (overCount < 3 || !latestOver) continue;
+
+    const avgActual =
+      Math.round((rows.reduce((s, r) => s + r.actual, 0) / rows.length) * 100) / 100;
+    const avgPlanned =
+      Math.round((rows.reduce((s, r) => s + r.planned, 0) / rows.length) * 100) / 100;
+
+    let suggestedValue: number;
+    if (b.allocationType === "fixed") {
+      suggestedValue = Math.ceil(avgActual / 5) * 5;
+    } else {
+      if (typicalPaycheck <= 0) continue;
+      suggestedValue = Math.min(
+        100,
+        Math.ceil((avgActual / typicalPaycheck) * 100),
+      );
+    }
+    if (suggestedValue <= b.allocationValue) continue;
+
+    out.push({
+      bucketId: b.id,
+      bucketName: b.name,
+      allocationType: b.allocationType,
+      currentValue: b.allocationValue,
+      suggestedValue,
+      avgActual,
+      avgPlanned,
+      overCount,
+      cycleCount: rows.length,
+    });
+  }
+  return out.sort((a, b) => b.avgActual - b.avgPlanned - (a.avgActual - a.avgPlanned));
 }
 
 export interface BucketPace {

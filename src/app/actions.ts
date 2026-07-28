@@ -142,6 +142,100 @@ export async function sendTestPush(): Promise<{ delivered: number; total: number
 }
 
 /**
+ * Starter setup: seed a sensible first budget (the same shape as Sam's demo)
+ * for a brand-new account. Guarded — refuses if any buckets already exist.
+ */
+export async function adoptStarterSetup() {
+  const supabase = await createClient();
+  const { data: existing } = await supabase.from("buckets").select("id").limit(1);
+  if ((existing ?? []).length > 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: income } = await supabase.from("income_sources").select("id").limit(1);
+  if ((income ?? []).length === 0) {
+    await supabase.from("income_sources").insert({
+      name: "My paycheck",
+      amount: 1400,
+      frequency: "biweekly",
+      kind: "paycheck",
+      anchor_date: today,
+    });
+  }
+  await supabase.from("buckets").insert([
+    { name: "Rent", allocation_type: "fixed", allocation_value: 600, is_savings: false, is_flexible: false, rolls_over: false, sort_order: 0, starting_balance: 0 },
+    { name: "Food", allocation_type: "percent", allocation_value: 15, is_savings: false, is_flexible: false, rolls_over: false, sort_order: 1, starting_balance: 0 },
+    { name: "Fun money", allocation_type: "percent", allocation_value: 10, is_savings: false, is_flexible: true, rolls_over: false, sort_order: 2, starting_balance: 0 },
+    { name: "Savings", allocation_type: "fixed", allocation_value: 0, is_savings: true, is_flexible: false, rolls_over: false, sort_order: 3, starting_balance: 0 },
+  ]);
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+/**
+ * Wipe my data: deletes every budget row this account owns (RLS-scoped);
+ * the account itself, admin status, and filed suggestions stay. Requires
+ * the literal confirmation text — this one has no undo.
+ */
+export async function wipeMyData(formData: FormData) {
+  if (str(formData, "confirm").trim() !== "DELETE") return;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  // Order respects foreign keys; the rest cascades.
+  const tables = [
+    "whatif_items",
+    "transfers",
+    "expenses",
+    "goals",
+    "income_entries",
+    "income_sources",
+    "buckets",
+    "assets",
+    "liabilities",
+    "net_worth_snapshots",
+    "celebrated_paydays",
+    "push_subscriptions",
+    "calendar_tokens",
+  ];
+  for (const t of tables) {
+    await supabase.from(t).delete().not("id", "is", null);
+  }
+  await supabase.from("shared_access").delete().eq("owner_id", user.id);
+  revalidatePath("/");
+  redirect("/");
+}
+
+/**
+ * Auto-tune: apply a suggested refill change to a bucket. Undoable — the
+ * old allocation comes back with one tap.
+ */
+export async function applyBucketTune(
+  formData: FormData,
+): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const value = num(formData, "value");
+  if (!(value > 0)) return null;
+  const { data: cur } = await supabase
+    .from("buckets")
+    .select("allocation_value")
+    .eq("id", id)
+    .single();
+  if (!cur) return null;
+  await supabase.from("buckets").update({ allocation_value: value }).eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return {
+    patches: [
+      { table: "buckets", id, patch: { allocation_value: Number(cur.allocation_value) } },
+    ],
+  };
+}
+
+/**
  * Work-hours lens: your hourly wage, stored on the auth user's metadata (no
  * table needed). With it set, spends can be shown as hours of your life.
  */

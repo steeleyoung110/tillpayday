@@ -199,3 +199,48 @@ describe("noSpendStreak", () => {
     expect(noSpendStreak([], new Set(), "2026-07-27")).toBeNull();
   });
 });
+
+import { autoTune } from "./insights";
+import type { Bucket } from "./types";
+
+describe("autoTune", () => {
+  const foodBucket: Bucket = {
+    id: "food", name: "Food", allocationType: "fixed", allocationValue: 200, isSavings: false,
+  };
+  const mkCycle = (foodActual: number): ReturnType<typeof cycle> =>
+    cycle("2026-06-01", "2026-06-15", foodActual, [
+      { bucketId: "food", bucketName: "Food", actual: foodActual },
+    ]);
+  // cycle() helper zeroes planned; patch it in.
+  const withPlan = (c: ReturnType<typeof cycle>, planned: number) => ({
+    ...c,
+    buckets: c.buckets.map((b) => ({ ...b, planned })),
+  });
+
+  it("suggests a bigger refill for a bucket over plan in 3+ cycles", () => {
+    const cycles = [263, 251, 278].map((a) => withPlan(mkCycle(a), 200));
+    const s = autoTune(cycles, [foodBucket], 1000);
+    expect(s).toHaveLength(1);
+    expect(s[0].suggestedValue).toBe(265); // avg 264 → next $5 step
+    expect(s[0].overCount).toBe(3);
+  });
+
+  it("stays quiet with fewer than 3 cycles or occasional overs", () => {
+    expect(autoTune([withPlan(mkCycle(300), 200)], [foodBucket], 1000)).toEqual([]);
+    const mixed = [150, 300, 150, 160].map((a) => withPlan(mkCycle(a), 200));
+    expect(autoTune(mixed, [foodBucket], 1000)).toEqual([]); // only 1 of 4 over
+  });
+
+  it("percent buckets get whole-point suggestions from the typical check", () => {
+    const pct: Bucket = { ...foodBucket, allocationType: "percent", allocationValue: 20 };
+    const cycles = [263, 251, 278].map((a) => withPlan(mkCycle(a), 200));
+    const s = autoTune(cycles, [pct], 1000);
+    expect(s[0].suggestedValue).toBe(27); // avg 264 / 1000 → 27%
+  });
+
+  it("savings and paused buckets are never tuned", () => {
+    const cycles = [263, 251, 278].map((a) => withPlan(mkCycle(a), 200));
+    expect(autoTune(cycles, [{ ...foodBucket, isSavings: true }], 1000)).toEqual([]);
+    expect(autoTune(cycles, [{ ...foodBucket, isPaused: true }], 1000)).toEqual([]);
+  });
+});

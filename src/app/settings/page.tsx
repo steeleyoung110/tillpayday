@@ -10,6 +10,7 @@ import {
   signOut,
   submitSuggestion,
   undoRestore,
+  wipeMyData,
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { CsvImport } from "@/components/CsvImport";
@@ -116,6 +117,28 @@ export default async function SettingsPage() {
           <form action={signOut} className="mt-5">
             <button className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400">
               Sign out
+            </button>
+          </form>
+        </div>
+
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/5 p-5">
+          <h3 className="font-semibold text-red-300">Danger zone</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Erase every budget number on this account — income, buckets,
+            bills, goals, history, net worth, devices, calendar feed. Your
+            login stays; the data does not come back. Type{" "}
+            <span className="font-mono font-semibold text-red-300">DELETE</span>{" "}
+            to confirm.
+          </p>
+          <form action={wipeMyData} className="mt-3 flex items-center gap-2">
+            <input
+              name="confirm"
+              placeholder="Type DELETE"
+              autoComplete="off"
+              className="w-36 rounded-lg border border-red-500/40 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-red-400"
+            />
+            <button className="rounded-lg border border-red-500/50 px-3 py-1.5 text-sm font-semibold text-red-300 transition hover:bg-red-500/10">
+              Erase my data
             </button>
           </form>
         </div>

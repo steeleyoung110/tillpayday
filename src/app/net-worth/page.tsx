@@ -102,6 +102,30 @@ export default async function NetWorthPage() {
   ];
   const totals = computeTotals(nw.assets, nw.liabilities, bridge);
 
+  // Month-over-month: latest snapshot vs the closest one ≥28 days older
+  // (or the oldest available when history is younger than a month).
+  const snaps = nw.snapshots;
+  const latest = snaps[snaps.length - 1];
+  const monthAgoISO = new Date(Date.now() - 28 * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const baseline =
+    [...snaps].reverse().find((s) => s.snapshot_date <= monthAgoISO) ??
+    (snaps.length > 1 ? snaps[0] : undefined);
+  const delta =
+    latest && baseline && baseline.snapshot_date !== latest.snapshot_date
+      ? {
+          since: baseline.snapshot_date,
+          net: Math.round((Number(latest.net_worth) - Number(baseline.net_worth)) * 100) / 100,
+          assets:
+            Math.round((Number(latest.total_assets) - Number(baseline.total_assets)) * 100) / 100,
+          debts:
+            Math.round(
+              (Number(latest.total_liabilities) - Number(baseline.total_liabilities)) * 100,
+            ) / 100,
+        }
+      : null;
+
   const assetsByCat = (Object.keys(ASSET_LABELS) as AssetCategory[])
     .map((c) => ({ cat: c, items: activeAssets.filter((a) => a.category === c) }))
     .filter((g) => g.items.length > 0);
@@ -184,6 +208,20 @@ export default async function NetWorthPage() {
           <p className="mt-2 text-sm text-slate-400">
             {`${currency.format(totals.totalAssets)} you own − ${currency.format(totals.totalLiabilities)} you owe`}
           </p>
+          {delta && (
+            <p
+              className={`mt-3 inline-block rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                delta.net >= 0
+                  ? "bg-emerald-500/15 text-emerald-300"
+                  : "bg-red-500/15 text-red-300"
+              }`}
+            >
+              {`Since ${delta.since}: ${delta.net >= 0 ? "+" : "−"}${currency.format(Math.abs(delta.net))}`}
+              <span className="ml-2 font-normal opacity-80">
+                {`(own ${delta.assets >= 0 ? "+" : "−"}${currency.format(Math.abs(delta.assets))} · owe ${delta.debts >= 0 ? "+" : "−"}${currency.format(Math.abs(delta.debts))})`}
+              </span>
+            </p>
+          )}
         </div>
 
         <NetWorthChart snapshots={nw.snapshots} todayISO={todayISO} />
