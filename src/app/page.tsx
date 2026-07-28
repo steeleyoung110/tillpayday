@@ -188,6 +188,24 @@ export default async function Home({
   );
   const streak = noSpendStreak(engineExpenses, funIds, todayISO);
 
+  // Getting-started checklist: what's set up, what's missing. Disappears
+  // once the core five are done.
+  const setupSteps: { label: string; done: boolean; href: string }[] = [
+    { label: "Add your paycheck", done: data.income.length > 0, href: "/budget#income" },
+    { label: "Split it into buckets (2+)", done: data.buckets.length >= 2, href: "/budget#buckets" },
+    { label: "Mark a savings bucket", done: data.buckets.some((b) => b.is_savings), href: "/budget#buckets" },
+    { label: "Add your first bill or spend", done: data.expenses.length > 0, href: "/budget#bills" },
+    {
+      label: "Set a goal to aim at",
+      done:
+        data.goals.some((g) => !g.achieved_at && !g.is_archived) ||
+        data.buckets.some((b) => Number(b.goal_amount) > 0),
+      href: "/budget#goals",
+    },
+  ];
+  const setupDone = setupSteps.filter((s) => s.done).length;
+  const showChecklist = data.buckets.length > 0 && setupDone < setupSteps.length;
+
   // Next payday preview: what that check does the moment it lands.
   const nextCheck = billsByCheck(engineIncome, engineBuckets, engineExpenses, todayISO, 1)[0];
   const previewSplit = nextCheck
@@ -373,6 +391,42 @@ export default async function Home({
         </div>
 
         <AppBadge count={daysToNextCheck} />
+
+        {showChecklist && (
+          <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 px-6 py-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-sky-200">
+                {`Finish setting up — ${setupDone} of ${setupSteps.length} done`}
+              </h2>
+              <div className="h-2 w-32 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full rounded-full bg-sky-400"
+                  style={{ width: `${(setupDone / setupSteps.length) * 100}%` }}
+                />
+              </div>
+            </div>
+            <ul className="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {setupSteps.map((s) => (
+                <li key={s.label} className="text-sm">
+                  {s.done ? (
+                    <span className="text-slate-500 line-through">{`✓ ${s.label}`}</span>
+                  ) : (
+                    <Link
+                      href={s.href}
+                      className="text-sky-200 underline-offset-2 transition hover:text-white hover:underline"
+                    >
+                      {`○ ${s.label} →`}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">
+              The projections get sharper with every step — half-set-up numbers
+              are half-honest numbers.
+            </p>
+          </div>
+        )}
 
         {nextCheck && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">

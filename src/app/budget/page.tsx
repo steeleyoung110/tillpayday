@@ -36,6 +36,11 @@ import {
 } from "@/lib/rows";
 import { computeTodayBalances } from "@/lib/balances";
 import { parseSharedSpend } from "@/lib/share";
+import {
+  categoryColor,
+  dailySpendHeatmap,
+  monthlyCategoryTotals,
+} from "@/lib/spendViz";
 import { auditSubscriptions } from "@/lib/subscriptions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -51,6 +56,7 @@ export default async function BudgetPage({
     shared_title?: string;
     shared_text?: string;
     shared_url?: string;
+    q?: string;
   }>;
 }) {
   if (!isSupabaseConfigured()) redirect("/login");
@@ -66,7 +72,7 @@ export default async function BudgetPage({
 
   // Web Share Target: text shared into the installed app lands here as
   // query params — parse it into a quick-spend prefill.
-  const { shared_title, shared_text, shared_url } = await searchParams;
+  const { shared_title, shared_text, shared_url, q } = await searchParams;
   const sharedRaw = [shared_title, shared_text, shared_url]
     .filter(Boolean)
     .join(" ");
@@ -266,6 +272,14 @@ export default async function BudgetPage({
 
   // Subscription auditor: repeating bills × their real yearly multiplier.
   const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
+
+  // Spend visuals: 13-week daily heatmap + 6-month category trend.
+  const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
+  const trend = monthlyCategoryTotals(engineExpenses, data.buckets, todayISO);
+  const trendMax = Math.max(1, ...trend.map((m) => m.total));
+  const trendCategories = [
+    ...new Set(trend.flatMap((m) => Object.keys(m.byCategory))),
+  ];
 
   return (
     <AppShell active="budget">
@@ -495,6 +509,85 @@ export default async function BudgetPage({
           </div>
         )}
 
+        {heatmap.total > 0 && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="font-semibold text-white">Last 13 weeks, day by day</h2>
+                <p className="text-sm text-slate-400">
+                  {`${currencyCents.format(heatmap.total)} total`}
+                </p>
+              </div>
+              <p className="mb-3 mt-1 text-xs text-slate-500">
+                Darker red, heavier day. Hover any square for the damage.
+              </p>
+              <div className="grid grid-flow-col grid-rows-7 gap-[3px] overflow-x-auto">
+                {heatmap.days.map((d) => (
+                  <div
+                    key={d.date}
+                    title={`${d.date}: ${currencyCents.format(d.total)}`}
+                    className="h-3.5 w-3.5 rounded-sm"
+                    style={{
+                      backgroundColor:
+                        d.total <= 0
+                          ? "#1e293b"
+                          : `rgba(239, 68, 68, ${(0.25 + 0.75 * (d.total / heatmap.max)).toFixed(2)})`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+              <h2 className="font-semibold text-white">Six months, by category</h2>
+              <p className="mb-3 mt-1 text-xs text-slate-500">
+                Where the money has actually been going, month over month. The
+                current month is partial — it only counts what&apos;s already
+                gone.
+              </p>
+              <div className="flex h-40 items-end gap-3">
+                {trend.map((m) => (
+                  <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
+                    <div
+                      className="flex w-full max-w-14 flex-col-reverse overflow-hidden rounded-t"
+                      style={{ height: `${Math.round((m.total / trendMax) * 100)}%` }}
+                      title={`${m.label}: ${currencyCents.format(m.total)}`}
+                    >
+                      {trendCategories.map((cat) =>
+                        (m.byCategory[cat] ?? 0) > 0 && m.total > 0 ? (
+                          <div
+                            key={cat}
+                            style={{
+                              height: `${(m.byCategory[cat] / m.total) * 100}%`,
+                              backgroundColor: categoryColor(cat),
+                            }}
+                            title={`${m.label} · ${cat}: ${currencyCents.format(m.byCategory[cat])}`}
+                          />
+                        ) : null,
+                      )}
+                    </div>
+                    <span className="text-xs text-slate-500">{m.label}</span>
+                    <span className="text-xs font-semibold text-slate-300">
+                      {m.total > 0 ? currencyCents.format(m.total) : "—"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                {trendCategories.map((cat) => (
+                  <span key={cat} className="flex items-center gap-1.5 text-slate-400">
+                    <span
+                      className="inline-block h-2.5 w-2.5 rounded-sm"
+                      style={{ backgroundColor: categoryColor(cat) }}
+                    />
+                    {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {subAudit.rows.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -654,6 +747,7 @@ export default async function BudgetPage({
             balances={balances}
             todayISO={todayISO}
             sharedPrefill={sharedPrefill}
+            searchQuery={q ?? ""}
           />
           <GoalsPanel data={data} />
           <WhatIfPanel data={data} />

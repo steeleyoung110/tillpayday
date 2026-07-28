@@ -657,6 +657,7 @@ export function ExpensesPanel({
   balances,
   todayISO,
   sharedPrefill,
+  searchQuery = "",
 }: {
   data: DashboardData;
   /** Current balance per bucket id ("" = savings/leftover), for the
@@ -665,10 +666,17 @@ export function ExpensesPanel({
   todayISO: string;
   /** Quick-spend prefill from a Web Share Target share. */
   sharedPrefill?: { name: string; amount: string };
+  /** Server-side name filter (?q=) — find "McDonald's" in a long list. */
+  searchQuery?: string;
 }) {
   // Two columns: money that leaves once vs bills that keep coming back.
-  const oneTime = data.expenses.filter((e) => e.cadence === "one_time");
-  const repeating = data.expenses.filter((e) => e.cadence !== "one_time");
+  const q = searchQuery.trim().toLowerCase();
+  const matches = (e: DashboardData["expenses"][number]) =>
+    q === "" || e.name.toLowerCase().includes(q);
+  const oneTime = data.expenses.filter((e) => e.cadence === "one_time" && matches(e));
+  const repeating = data.expenses.filter((e) => e.cadence !== "one_time" && matches(e));
+  const hiddenCount =
+    data.expenses.length - oneTime.length - repeating.length;
 
   const bucketChoices = data.buckets.map((b) => ({ id: b.id, name: b.name }));
   const options: BucketOption[] = [
@@ -746,6 +754,24 @@ export function ExpensesPanel({
           initialAmount={sharedPrefill?.amount ?? ""}
         />
       </div>
+      <form action="/budget" method="get" className="mb-3 flex items-center gap-2">
+        <input
+          type="search"
+          name="q"
+          defaultValue={searchQuery}
+          placeholder="Search your bills and spends…"
+          className="w-full max-w-xs rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
+        />
+        <button className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-white">
+          Find
+        </button>
+        {q !== "" && (
+          <a href="/budget#bills" className="text-xs text-sky-300 transition hover:text-sky-200">
+            {`clear (${hiddenCount} hidden)`}
+          </a>
+        )}
+      </form>
+
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
