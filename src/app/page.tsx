@@ -98,6 +98,10 @@ export default async function Home({
     Date.now() - Math.max(...nwTouches) > 30 * 24 * 60 * 60 * 1000;
 
   const meta = user.user_metadata as Record<string, unknown>;
+  const hourlyWage =
+    typeof meta.hourly_wage === "number" && meta.hourly_wage > 0
+      ? meta.hourly_wage
+      : null;
   const displayName =
     (typeof meta.full_name === "string" && meta.full_name) ||
     (typeof meta.name === "string" && meta.name) ||
@@ -376,6 +380,11 @@ export default async function Home({
                   {leftPct > 0
                     ? `spent ${heroCurrency.format(spend.total)} this cycle — ${leftPct}% of your check left`
                     : `spent ${heroCurrency.format(spend.total)} this cycle — this check's fully spoken for`}
+                  {hourlyWage && (
+                    <span className="ml-1 font-normal opacity-80">
+                      {`(≈ ${(spend.total / hourlyWage).toFixed(1)}h of work)`}
+                    </span>
+                  )}
                 </p>
               )}
               {payday && (

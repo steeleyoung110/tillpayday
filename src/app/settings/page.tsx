@@ -309,10 +309,15 @@ export default async function SettingsPage() {
               Save
             </button>
           </form>
-          <p className="mt-2 text-xs text-slate-500">
-            Clear the field and save to turn the lens off. Stored on your
-            account only.
-          </p>
+          {typeof meta.hourly_wage === "number" && meta.hourly_wage > 0 ? (
+            <p className="mt-2 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+              {`✓ Lens is ON at $${meta.hourly_wage}/hr — your Budget page now prices every bill in hours of work, and the Dashboard shows this cycle's spending in hours. Clear the field and save to turn it off.`}
+            </p>
+          ) : (
+            <p className="mt-2 text-xs text-slate-500">
+              The lens is off. Stored on your account only.
+            </p>
+          )}
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
