@@ -26,7 +26,7 @@ import {
   type ProjectionPoint,
 } from "@/lib/engine";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
-import { goalOutlook } from "@/lib/goals";
+import { goalOutlook, goalPerCheck } from "@/lib/goals";
 import {
   LIQUID_CATEGORIES,
   bucketToEngine,
@@ -367,14 +367,22 @@ export function ProjectionSection({
     }
     const long = runProjection({ ...input, months: months + 12 });
     const savingsPts = long.points.map((p) => ({ date: p.date, savings: p.savings }));
-    return activeGoals.map((g) => ({
-      goal: g,
-      outlook: goalOutlook(
-        savingsPts,
-        { targetAmount: Number(g.target_amount), targetDate: g.target_date },
-        todayISO,
-      ),
-    }));
+    // Sinking-fund math needs the real payday lattice through the last goal.
+    const paydayISOs: string[] = [];
+    for (const s of input.incomeSources) {
+      if (s.kind !== "paycheck" || s.frequency === "irregular") continue;
+      for (const d of generatePayDates(s, today, parseISO(latestTarget))) {
+        paydayISOs.push(toISO(d));
+      }
+    }
+    return activeGoals.map((g) => {
+      const like = { targetAmount: Number(g.target_amount), targetDate: g.target_date };
+      return {
+        goal: g,
+        outlook: goalOutlook(savingsPts, like, todayISO),
+        perCheck: goalPerCheck(savingsPts, like, todayISO, paydayISOs),
+      };
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.goals, input, todayISO]);
 
@@ -628,7 +636,7 @@ export function ProjectionSection({
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Your goals 🎯</h3>
           <ul className="mt-3 space-y-4">
-            {goalOutlooks.map(({ goal, outlook: o }) => {
+            {goalOutlooks.map(({ goal, outlook: o, perCheck }) => {
               const target = Number(goal.target_amount);
               const pct = Math.min(100, Math.max(0, (startingSavings / target) * 100));
               return (
@@ -664,6 +672,11 @@ export function ProjectionSection({
                             ? `This pace doesn't reach it yet — about ${currency.format(o.requiredExtraPerMonth)}/month toward savings gets there by your date.`
                             : `This one needs a bigger push than the current plan gives — a good thing to know early.`}
                   </p>
+                  {!o.achievedNow && perCheck && perCheck.perCheck > 0 && (
+                    <p className="mt-1 text-xs text-sky-300">
+                      {`Per-paycheck version: ${currency.format(perCheck.perCheck)} from each of the ${perCheck.paydaysLeft} check${perCheck.paydaysLeft === 1 ? "" : "s"} left makes it by ${prettyDate(goal.target_date)}.`}
+                    </p>
+                  )}
                 </li>
               );
             })}

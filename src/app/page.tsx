@@ -15,8 +15,10 @@ import { getDashboardData, getNetWorthData, resolveViewUser } from "@/lib/data";
 import {
   ageOfMoney,
   billsByCheck,
+  currentPayCycle,
   cycleHistory,
   cycleSpending,
+  dangerDay,
   irregularWeeklyBaseline,
   noSpendStreak,
   paydayRecap,
@@ -26,7 +28,12 @@ import {
   splitPaycheck,
 } from "@/lib/engine";
 import { AppBadge } from "@/components/AppBadge";
-import { adoptStarterSetup, dismissAnnouncement } from "@/app/actions";
+import { AffordCheck } from "@/components/AffordCheck";
+import { EfundCard } from "@/components/EfundCard";
+import { InstantAction } from "@/components/InstantAction";
+import { addTransfer, adoptStarterSetup, dismissAnnouncement } from "@/app/actions";
+import { efundStatus, monthlyBillLoad } from "@/lib/efund";
+import { detectShortCheck } from "@/lib/shortCheck";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -74,13 +81,15 @@ export default async function Home({
   const uid = viewUid ?? user.id;
   const viewing = uid !== user.id;
   let viewingOwnerEmail: string | null = null;
+  let partnerCanEdit = false;
   if (viewing) {
     const { data: grant } = await supabase
       .from("shared_access")
-      .select("owner_email")
+      .select("owner_email, can_edit")
       .eq("owner_id", uid)
       .maybeSingle();
     viewingOwnerEmail = grant?.owner_email || "someone";
+    partnerCanEdit = grant?.can_edit === true;
   }
 
   const [data, nw] = await Promise.all([
@@ -187,6 +196,40 @@ export default async function Home({
     : 0;
   const runwayInfo = runway(liquidToday, completedCycles);
   const anomalies = spendAnomalies(spend, completedCycles);
+
+  // Danger Day: the projected low-water mark between now and the next check.
+  const danger = dangerDay(
+    engineIncome,
+    engineBuckets,
+    engineExpenses,
+    todayISO,
+    engineEntries,
+    engineTransfers,
+  );
+
+  // Short-check detector: a logged check well under typical this cycle.
+  const payCycleNow = currentPayCycle(engineIncome, todayISO);
+  const shortCheck = detectShortCheck(
+    engineEntries,
+    typicalPaycheck,
+    payCycleNow?.lastPayday ?? null,
+    todayISO,
+  );
+  const funBucketRow = data.buckets.find((b) => b.is_flexible && !b.is_savings);
+  const funBalanceNow = funBucketRow
+    ? Math.max(balancesToday?.[funBucketRow.id] ?? 0, 0)
+    : 0;
+  const trimAmount = shortCheck
+    ? Math.min(shortCheck.shortBy, Math.round(funBalanceNow * 100) / 100)
+    : 0;
+
+  // Emergency fund: target months live on the auth user (default 3).
+  const efMonths =
+    typeof meta.ef_months === "number" && [1, 3, 6].includes(meta.ef_months)
+      ? meta.ef_months
+      : 3;
+  const efLoad = monthlyBillLoad(data.expenses);
+  const efStatus = efundStatus(efLoad, efMonths, liquidToday);
   const aom = ageOfMoney(engineIncome, engineEntries, engineExpenses, todayISO);
   const funIds = new Set(
     data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
@@ -309,7 +352,9 @@ export default async function Home({
         {viewing && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
             <p className="text-sm font-semibold text-violet-200">
-              {`👀 Viewing ${viewingOwnerEmail}'s budget — read-only. Their numbers, their plan.`}
+              {partnerCanEdit
+                ? `👥 Viewing ${viewingOwnerEmail}'s budget — you can log spending into it. Their numbers, shared plan.`
+                : `👀 Viewing ${viewingOwnerEmail}'s budget — read-only. Their numbers, their plan.`}
             </p>
             <Link
               href="/"
@@ -351,6 +396,39 @@ export default async function Home({
             </p>
           </div>
         ))}
+
+        {!viewing && shortCheck && (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-4">
+            <p className="text-sm font-semibold text-amber-200">
+              {`✂️ The check you logged on ${shortCheck.receivedDate} was ${heroCurrency.format(shortCheck.amount)} — ${heroCurrency.format(shortCheck.shortBy)} short of your usual ${heroCurrency.format(shortCheck.typical)} (${shortCheck.pct}%).`}
+            </p>
+            <p className="mt-1 text-sm text-amber-100/80">
+              Your buckets refilled as if the full check landed, so this cycle
+              is running on money that didn&apos;t arrive.
+              {funBucketRow && trimAmount > 0
+                ? ` The honest fix: move ${heroCurrency.format(trimAmount)} of ${funBucketRow.name} back toward savings for just this cycle.`
+                : " Trim a bucket or pause a bill until the next full check."}
+            </p>
+            {funBucketRow && trimAmount > 0 && (
+              <div className="mt-2">
+                <InstantAction
+                  action={addTransfer}
+                  values={{
+                    from_bucket_id: funBucketRow.id,
+                    to_bucket_id: "",
+                    amount: String(trimAmount),
+                    transfer_date: todayISO,
+                    note: "short-check trim",
+                  }}
+                  message={`Moved ${heroCurrency.format(trimAmount)} from ${funBucketRow.name} back to savings — undo it in Budget → Move money.`}
+                  className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-sm font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                >
+                  {`Trim ${funBucketRow.name} by ${heroCurrency.format(trimAmount)} this cycle`}
+                </InstantAction>
+              </div>
+            )}
+          </div>
+        )}
 
         {staleNetWorth && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-4">
@@ -484,6 +562,18 @@ export default async function Home({
         )}
         </div>
 
+        {!viewing && sts && sts.hasFlexibleBuckets && (
+          <AffordCheck
+            flexibleBalance={sts.flexibleBalance}
+            daysUntilPayday={sts.daysUntilPayday}
+            nextPayday={sts.nextPayday}
+            savingsBalance={balancesToday?.[""] ?? 0}
+            dangerLow={danger?.low ?? null}
+            dangerDate={danger?.date ?? null}
+            hourlyWage={hourlyWage}
+          />
+        )}
+
         <AppBadge count={daysToNextCheck} />
 
         {announcements.map((a) => (
@@ -537,8 +627,37 @@ export default async function Home({
           </div>
         )}
 
-        {(runwayInfo || aom || streak || anomalies.length > 0) && (
+        {(runwayInfo || aom || streak || danger || anomalies.length > 0) && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {danger && (
+              <div
+                className={`rounded-2xl border px-6 py-5 ${
+                  danger.negative
+                    ? "border-red-500/40 bg-red-500/10"
+                    : "border-slate-800 bg-slate-900"
+                }`}
+              >
+                <p className="text-sm text-slate-400">
+                  Tightest day before payday
+                </p>
+                <p
+                  className={`mt-1 text-4xl font-black tracking-tight ${
+                    danger.negative
+                      ? "text-red-300"
+                      : danger.low < 100
+                        ? "text-amber-300"
+                        : "text-emerald-300"
+                  }`}
+                >
+                  {heroCurrency.format(danger.low)}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {danger.negative
+                    ? `On ${danger.date}${danger.causes[0] ? ` when ${danger.causes[0].name} lands` : ""}, your total goes ${heroCurrency.format(Math.abs(danger.low))} negative — a bill is spending money you don't have. Move money or pause something before then.`
+                    : `Your low point is ${danger.daysAway === 0 ? "today" : `${danger.date} (${danger.daysAway} day${danger.daysAway === 1 ? "" : "s"} away)`}${danger.causes[0] ? `, after ${danger.causes[0].name} clears` : ""} — then the ${danger.nextPayday} check lands.`}
+                </p>
+              </div>
+            )}
             {aom && (
               <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
                 <p className="text-sm text-slate-400">Age of your money</p>
@@ -619,11 +738,16 @@ export default async function Home({
           </div>
         )}
 
-        {!viewing && (
+        {!viewing && efStatus && (
+          <EfundCard status={efStatus} months={efMonths} monthlyLoad={efLoad} />
+        )}
+
+        {(!viewing || partnerCanEdit) && (
           <QuickSpend
             data={data}
             balances={balancesToday}
             todayISO={todayISO}
+            ownerId={viewing ? uid : undefined}
           />
         )}
 

@@ -27,10 +27,15 @@ import {
   currentPayCycle,
   cycleHistory,
   cycleSpending,
+  dangerDay,
   irregularWeeklyBaseline,
+  monthGrid,
+  parseMonthKey,
   runProjection,
   splitPaycheck,
 } from "@/lib/engine";
+import { CashflowCalendar } from "@/components/CashflowCalendar";
+import { merchantLeaderboard } from "@/lib/merchants";
 import {
   bucketToEngine,
   expenseToEngine,
@@ -62,6 +67,7 @@ export default async function BudgetPage({
     shared_text?: string;
     shared_url?: string;
     q?: string;
+    cal?: string;
   }>;
 }) {
   if (!isSupabaseConfigured()) redirect("/login");
@@ -77,7 +83,7 @@ export default async function BudgetPage({
 
   // Web Share Target: text shared into the installed app lands here as
   // query params — parse it into a quick-spend prefill.
-  const { shared_title, shared_text, shared_url, q } = await searchParams;
+  const { shared_title, shared_text, shared_url, q, cal } = await searchParams;
   const sharedRaw = [shared_title, shared_text, shared_url]
     .filter(Boolean)
     .join(" ");
@@ -282,6 +288,28 @@ export default async function BudgetPage({
   // Bill-to-paycheck calendar: which upcoming check covers which bills.
   const checkGroups = billsByCheck(engineIncome, engineBuckets, engineExpenses, todayISO, 4);
 
+  // Cash-flow calendar: the month as a grid, danger day flagged.
+  const { year: calYear, month: calMonth } = parseMonthKey(cal, todayISO);
+  const danger = dangerDay(
+    engineIncome,
+    engineBuckets,
+    engineExpenses,
+    todayISO,
+    engineEntries,
+    engineTransfers,
+  );
+  const calendarWeeks = monthGrid(
+    engineIncome,
+    engineExpenses,
+    calYear,
+    calMonth,
+    todayISO,
+    danger?.date ?? null,
+  );
+
+  // Merchant leaderboard: trailing 90 days of one-time spends, grouped.
+  const merchants = merchantLeaderboard(data.expenses, todayISO);
+
   // Subscription auditor: repeating bills × their real yearly multiplier.
   const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
 
@@ -381,6 +409,7 @@ export default async function BudgetPage({
               ["#goals", "Goals"],
               ["#what-ifs", "What-ifs"],
               ["/wrapped", "Month wrapped 🎁"],
+              ["/wrapped/year", "Year wrapped 🎆"],
             ].map(([href, label]) => (
               <a
                 key={href}
@@ -495,6 +524,10 @@ export default async function BudgetPage({
             </div>
           </div>
         )}
+
+        <div id="calendar">
+          <CashflowCalendar weeks={calendarWeeks} year={calYear} month={calMonth} />
+        </div>
 
         {pieSlices.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -832,6 +865,42 @@ export default async function BudgetPage({
                 below removes it from the total instantly.
               </p>
             )}
+          </div>
+        )}
+
+        {merchants.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="font-semibold text-white">
+              Where the swipes go — last 90 days
+            </h2>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              Your logged spending grouped by merchant. Nobody feels $22 at a
+              time; everybody feels the quarterly total.
+            </p>
+            <ul className="space-y-1">
+              {merchants.map((m, i) => (
+                <li
+                  key={m.name}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm"
+                >
+                  <span className="text-slate-200">
+                    <span className="mr-2 text-xs text-slate-500">{`#${i + 1}`}</span>
+                    {m.name}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {`${m.count} spend${m.count === 1 ? "" : "s"}`}
+                    </span>
+                  </span>
+                  <span className="font-semibold text-red-300">
+                    {`−${currencyCents.format(m.total)}`}
+                    {hourlyWage && (
+                      <span className="ml-2 text-xs font-normal text-amber-300/80">
+                        {`⏱ ${(m.total / hourlyWage).toFixed(1)}h of work`}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 

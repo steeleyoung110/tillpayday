@@ -6,6 +6,7 @@ import {
   deleteCalendarToken,
   removeShare,
   rotateCalendarToken,
+  toggleShareEdit,
   setHourlyWage,
   signOut,
   submitSuggestion,
@@ -27,6 +28,7 @@ interface ShareRow {
   owner_id: string;
   owner_email: string;
   viewer_email: string;
+  can_edit: boolean;
 }
 
 /** Settings & About: your account, the app, and the legal pages. */
@@ -43,7 +45,7 @@ export default async function SettingsPage() {
   // Sharing: grants I've made, and budgets shared with me.
   const { data: shareRows } = await supabase
     .from("shared_access")
-    .select("id, owner_id, owner_email, viewer_email")
+    .select("id, owner_id, owner_email, viewer_email, can_edit")
     .order("created_at");
   const allShares = (shareRows ?? []) as ShareRow[];
   const myGrants = allShares.filter((s) => s.owner_id === user.id);
@@ -173,10 +175,11 @@ export default async function SettingsPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Household sharing</h3>
           <p className="mt-2 text-sm text-slate-400">
-            Share a <strong>read-only</strong> view of your budget with a
-            partner or accountability buddy. They see your numbers exactly as
-            you do — and can&apos;t change a thing. They need their own Till
-            Payday account under the email you enter.
+            Share your budget with a partner or accountability buddy. Sharing
+            starts <strong>read-only</strong>; flip &ldquo;can log
+            spending&rdquo; to let them add spends to your budget too (each
+            one marked as added by them). They need their own Till Payday
+            account under the email you enter.
           </p>
           <form action={addShare} className="mt-3 flex flex-wrap items-end gap-2">
             <input
@@ -193,17 +196,42 @@ export default async function SettingsPage() {
           {myGrants.length > 0 && (
             <ul className="mt-3 space-y-1 text-sm">
               {myGrants.map((s) => (
-                <li key={s.id} className="flex items-center justify-between text-slate-300">
-                  <span>{`${s.viewer_email} can view your budget`}</span>
-                  <InstantAction
-                    action={removeShare}
-                    undoAction={undoRestore}
-                    values={{ id: s.id }}
-                    message={`Stopped sharing with ${s.viewer_email}.`}
-                    className="text-xs text-slate-500 transition hover:text-red-400"
-                  >
-                    stop sharing
-                  </InstantAction>
+                <li
+                  key={s.id}
+                  className="flex flex-wrap items-center justify-between gap-2 text-slate-300"
+                >
+                  <span>
+                    {s.can_edit
+                      ? `${s.viewer_email} can view + log spending`
+                      : `${s.viewer_email} can view your budget`}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <InstantAction
+                      action={toggleShareEdit}
+                      values={{ id: s.id, can_edit: String(!s.can_edit) }}
+                      message={
+                        s.can_edit
+                          ? `${s.viewer_email} is back to read-only.`
+                          : `${s.viewer_email} can now log spending into your budget.`
+                      }
+                      className={`text-xs transition ${
+                        s.can_edit
+                          ? "text-emerald-300 hover:text-amber-300"
+                          : "text-slate-500 hover:text-emerald-300"
+                      }`}
+                    >
+                      {s.can_edit ? "make read-only" : "allow logging spends"}
+                    </InstantAction>
+                    <InstantAction
+                      action={removeShare}
+                      undoAction={undoRestore}
+                      values={{ id: s.id }}
+                      message={`Stopped sharing with ${s.viewer_email}.`}
+                      className="text-xs text-slate-500 transition hover:text-red-400"
+                    >
+                      stop sharing
+                    </InstantAction>
+                  </span>
                 </li>
               ))}
             </ul>

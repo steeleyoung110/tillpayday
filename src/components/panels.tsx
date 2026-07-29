@@ -28,6 +28,7 @@ import {
   deleteWhatIf,
   makeSavingsBucket,
   setBucketApy,
+  setRenewalDate,
   setBucketGoal,
   setBucketStartingBalance,
   toggleBucketFlexible,
@@ -729,8 +730,34 @@ export function ExpensesPanel({
             paused ⏸
           </span>
         )}
+        {e.renewal_date && (
+          <span
+            className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300"
+            title="Contract watch: you'll get a heads-up 30 days before this renews."
+          >
+            {`renews ${e.renewal_date} 🔔`}
+          </span>
+        )}
       </span>
       <span className="flex items-center gap-3">
+        {showCadence && (
+          <form
+            action={setRenewalDate}
+            className="flex items-center gap-1"
+            title="Contract watch: set the date this contract renews (insurance, phone, annual plans) and you'll get a shop-it-around nudge 30 days out. Clear the date to stop watching."
+          >
+            <input type="hidden" name="id" value={e.id} />
+            <input
+              name="renewal_date"
+              type="date"
+              defaultValue={e.renewal_date ?? ""}
+              className="w-32 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+            />
+            <button className="text-xs text-slate-500 transition hover:text-sky-300">
+              renews
+            </button>
+          </form>
+        )}
         <form action={updateExpenseAmount} className="flex items-center gap-1">
           <input type="hidden" name="id" value={e.id} />
           <input

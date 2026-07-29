@@ -936,15 +936,66 @@ export async function makeSavingsBucket(formData: FormData) {
 export async function addExpense(formData: FormData) {
   const supabase = await createClient();
   const bucketId = str(formData, "bucket_id");
-  await supabase.from("expenses").insert({
+  const owner = str(formData, "owner");
+  const row: Record<string, unknown> = {
     name: str(formData, "name"),
     amount: num(formData, "amount"),
     bucket_id: bucketId || null,
     due_date: str(formData, "due_date"),
     cadence: str(formData, "cadence"),
-  });
+  };
+  // Partner mode: logging into someone else's budget requires their can_edit
+  // grant — checked here for a clean no-op, enforced again by RLS.
+  if (owner) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user && owner !== user.id) {
+      const { data: grant } = await supabase
+        .from("shared_access")
+        .select("id")
+        .eq("owner_id", owner)
+        .eq("can_edit", true)
+        .maybeSingle();
+      if (!grant) return;
+      row.user_id = owner;
+    }
+  }
+  await supabase.from("expenses").insert(row);
   revalidatePath("/");
   revalidatePath("/budget");
+}
+
+/** Contract watch: set (or clear) the date a bill's contract renews. */
+export async function setRenewalDate(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const date = str(formData, "renewal_date");
+  await supabase
+    .from("expenses")
+    .update({ renewal_date: /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null })
+    .eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+/** Emergency fund target, in months of bills (0 clears it). */
+export async function setEfundTarget(formData: FormData) {
+  const supabase = await createClient();
+  const months = num(formData, "months");
+  await supabase.auth.updateUser({
+    data: { ef_months: [1, 3, 6].includes(months) ? months : null },
+  });
+  revalidatePath("/");
+}
+
+/** Partner mode: flip a sharing grant between read-only and can-edit. */
+export async function toggleShareEdit(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const canEdit = str(formData, "can_edit") === "true";
+  await supabase.from("shared_access").update({ can_edit: canEdit }).eq("id", id);
+  revalidatePath("/settings");
 }
 
 /**

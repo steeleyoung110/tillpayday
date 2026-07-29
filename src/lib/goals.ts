@@ -60,6 +60,46 @@ function crossing(
   return null;
 }
 
+/**
+ * Sinking-fund math: the per-paycheck set-aside that has this goal ready by
+ * its date. "$600 by December = $25/check starting now." Uses the projected
+ * savings line so money already flowing toward the goal counts.
+ */
+export interface GoalPerCheck {
+  /** Extra dollars to set aside from each remaining check (0 = on track). */
+  perCheck: number;
+  /** Paychecks left strictly after today, through the target date. */
+  paydaysLeft: number;
+  /** Where the projection says you'll be on the target date without changes. */
+  projectedAtTarget: number;
+  /** target − projected (≤ 0 means covered). */
+  shortfall: number;
+}
+
+export function goalPerCheck(
+  points: SavingsPoint[],
+  goal: GoalLike,
+  todayISO: string,
+  paydayISOs: string[],
+): GoalPerCheck | null {
+  if (goal.targetDate <= todayISO) return null;
+  const paydaysLeft = paydayISOs.filter(
+    (d) => d > todayISO && d <= goal.targetDate,
+  ).length;
+  if (paydaysLeft === 0) return null;
+
+  const atTarget = [...points].filter((p) => p.date <= goal.targetDate).pop();
+  if (!atTarget) return null;
+
+  const shortfall = Math.round((goal.targetAmount - atTarget.savings) * 100) / 100;
+  return {
+    perCheck: shortfall > 0 ? Math.ceil((shortfall / paydaysLeft) * 100) / 100 : 0,
+    paydaysLeft,
+    projectedAtTarget: Math.round(atTarget.savings * 100) / 100,
+    shortfall,
+  };
+}
+
 export function goalOutlook(
   points: SavingsPoint[],
   goal: GoalLike,

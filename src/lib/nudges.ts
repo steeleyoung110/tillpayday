@@ -18,7 +18,11 @@ const currency = new Intl.NumberFormat("en-US", {
   currency: "USD",
 });
 
-export type NudgeType = "bill-underfunded" | "payday-tomorrow" | "savings-negative";
+export type NudgeType =
+  | "bill-underfunded"
+  | "payday-tomorrow"
+  | "savings-negative"
+  | "renewal-soon";
 
 export interface Nudge {
   type: NudgeType;
@@ -60,6 +64,26 @@ export function computeNudges(
       nudges.push({
         type: "bill-underfunded",
         message: `${e.name} (${currency.format(amount)}) is due ${when} — ${bucketName} is holding ${currency.format(holding)}. The difference will raid your other buckets, fun money first.`,
+      });
+    }
+  }
+
+  // Contract watch: renewals inside the shopping window (30 days out), and a
+  // just-renewed check-in (7 days after) — did the price quietly move?
+  for (const e of data.expenses) {
+    if (!e.renewal_date || e.is_paused) continue;
+    const daysTo = Math.round(
+      (Date.parse(e.renewal_date) - Date.parse(todayISO)) / 86400000,
+    );
+    if (daysTo >= 0 && daysTo <= 30) {
+      nudges.push({
+        type: "renewal-soon",
+        message: `${e.name} renews ${daysTo === 0 ? "today" : `in ${daysTo} day${daysTo === 1 ? "" : "s"} (${e.renewal_date})`} — this is the window to shop it around. Loyalty is usually the expensive option.`,
+      });
+    } else if (daysTo < 0 && daysTo >= -7) {
+      nudges.push({
+        type: "renewal-soon",
+        message: `${e.name} renewed on ${e.renewal_date} — check whether the price moved, and bump its renewal date to next year.`,
       });
     }
   }

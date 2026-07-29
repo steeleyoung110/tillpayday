@@ -109,6 +109,10 @@ export interface ExpenseRow {
   due_date: string;
   cadence: Cadence;
   is_paused: boolean;
+  /** Contract watch: when this bill's contract renews (null = not tracked). */
+  renewal_date: string | null;
+  /** Who added this row (partner attribution; null on pre-0023 rows). */
+  created_by: string | null;
   created_at: string;
 }
 

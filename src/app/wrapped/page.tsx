@@ -152,7 +152,15 @@ export default async function WrappedPage({
               </Link>
             ))}
           </div>
-          <PrintButton />
+          <span className="flex items-center gap-2">
+            <Link
+              href="/wrapped/year"
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-emerald-400"
+            >
+              Year wrapped 🎆
+            </Link>
+            <PrintButton />
+          </span>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">

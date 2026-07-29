@@ -11,10 +11,13 @@ export function QuickSpend({
   data,
   balances,
   todayISO,
+  ownerId,
 }: {
   data: DashboardData;
   balances?: Record<string, number>;
   todayISO: string;
+  /** Partner mode: spends land in this owner's budget instead of your own. */
+  ownerId?: string;
 }) {
   const funBucket = data.buckets.find((b) => b.is_flexible && !b.is_savings);
   const options: BucketOption[] = [
@@ -29,13 +32,14 @@ export function QuickSpend({
   return (
     <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-6 py-4">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300/80">
-        Log a spend
+        {ownerId ? "Log a spend into this budget" : "Log a spend"}
       </p>
       <AddExpenseForm
         options={options}
         todayISO={todayISO}
         variant="quick"
         defaultBucketId={funBucket?.id ?? ""}
+        ownerId={ownerId}
       />
     </div>
   );

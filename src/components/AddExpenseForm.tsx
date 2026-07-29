@@ -37,6 +37,7 @@ export function AddExpenseForm({
   defaultBucketId = "",
   initialName = "",
   initialAmount = "",
+  ownerId,
 }: {
   options: BucketOption[];
   todayISO: string;
@@ -47,6 +48,8 @@ export function AddExpenseForm({
   /** Prefill (e.g. from a Web Share Target share). */
   initialName?: string;
   initialAmount?: string;
+  /** Partner mode: log this spend into another user's budget (their uid). */
+  ownerId?: string;
 }) {
   const quick = variant === "quick";
   const [name, setName] = useState(initialName);
@@ -68,6 +71,7 @@ export function AddExpenseForm({
       fd.append("cadence", cadence);
       fd.append("due_date", dueDate);
       fd.append("bucket_id", finalBucketId);
+      if (ownerId) fd.append("owner", ownerId);
       await addExpense(fd);
       const finalName =
         options.find((o) => o.id === finalBucketId)?.name ?? "Savings / leftover";
