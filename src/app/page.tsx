@@ -46,6 +46,9 @@ import { detectShortCheck } from "@/lib/shortCheck";
 import { expenseShare } from "@/lib/rows";
 import { anniversaryWindow } from "@/lib/anniversary";
 import { findDuplicateSpends } from "@/lib/dupes";
+import { healthScore } from "@/lib/healthScore";
+import { savingsVelocity } from "@/lib/loggingQuality";
+import { monthlySavingsRate } from "@/lib/spendViz";
 import { ReconcileCard } from "@/components/ReconcileCard";
 import type { SpendPreset } from "@/components/PresetChips";
 import { nextPayday, paydayLabel } from "@/lib/payday";
@@ -361,6 +364,45 @@ export default async function Home({
         (p) => typeof p?.name === "string" && Number(p?.amount) > 0,
       )
     : [];
+
+  // Budget health score: five components, weakest one named.
+  const rateRows = monthlySavingsRate(
+    engineIncome,
+    data.incomeEntries,
+    engineExpenses,
+    todayISO,
+  );
+  const lastCompleteRate =
+    [...rateRows].slice(0, -1).reverse().find((r) => r.ratePct !== null)?.ratePct ?? null;
+  const debtNowTotal = nw.liabilities
+    .filter((l) => !l.is_archived)
+    .reduce((s, l) => s + Number(l.current_balance), 0);
+  const debtPeak = nw.snapshots.length
+    ? Math.max(...nw.snapshots.map((s) => Number(s.total_liabilities)), debtNowTotal)
+    : null;
+  const adherenceWindow = completedCycles.slice(0, 4);
+  const health = healthScore({
+    runwayDays: runwayInfo?.days ?? null,
+    efundPct: efStatus?.pct ?? null,
+    savingsRatePct: lastCompleteRate,
+    cyclesKept: adherenceWindow.filter((c) => c.keptPlan).length,
+    cyclesTotal: adherenceWindow.length,
+    debtNow: debtNowTotal,
+    debtPeak,
+  });
+
+  // Kept-plan streak: consecutive completed cycles inside plan, newest first.
+  let keptStreak = 0;
+  for (const c of completedCycles) {
+    if (c.keptPlan) keptStreak += 1;
+    else break;
+  }
+
+  // First 48 hours after payday — where budgets die.
+  const inFirst48 = !viewing && payCycleNow !== null && daysIntoCycle <= 1;
+
+  // Savings velocity: the pace kept-money actually accumulates.
+  const velocity = savingsVelocity(completedCycles);
   const aom = ageOfMoney(engineIncome, engineEntries, engineExpenses, todayISO);
   const funIds = new Set(
     data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
@@ -600,6 +642,19 @@ export default async function Home({
                 .filter(Boolean)
                 .join(" · ") ||
                 "The habit is the win — the numbers follow. Keep logging."}
+            </p>
+          </div>
+        )}
+
+        {inFirst48 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 px-6 py-4">
+            <p className="text-sm font-semibold text-amber-200">
+              ⏳ The first 48 hours after payday — where budgets go to die.
+            </p>
+            <p className="mt-1 text-sm text-amber-100/80">
+              {spend && spend.total > 0
+                ? `You've spent ${heroCurrency.format(spend.total)} of this check already. The people who win this window are the ones who keep it boring.`
+                : "Nothing spent from this check yet. Boring is exactly right — the check that survives its first weekend usually survives the cycle."}
             </p>
           </div>
         )}
@@ -904,7 +959,46 @@ export default async function Home({
           </div>
         )}
 
-        {(runwayInfo || aom || streak || danger || anomalies.length > 0) && (
+        {!viewing && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="font-semibold text-white">Budget health</p>
+              <p
+                className={`text-3xl font-black ${
+                  health.score >= 70
+                    ? "text-emerald-300"
+                    : health.score >= 40
+                      ? "text-amber-300"
+                      : "text-red-300"
+                }`}
+              >
+                {`${health.score} `}
+                <span className="text-lg">{`(${health.grade})`}</span>
+              </p>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-5">
+              {health.components.map((c) => (
+                <div key={c.key} className="rounded-lg bg-slate-800/60 p-2.5" title={c.detail}>
+                  <p className="text-xs text-slate-500">{c.label}</p>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-700">
+                    <div
+                      className={`h-full rounded-full ${
+                        c.points >= 14 ? "bg-emerald-400" : c.points >= 8 ? "bg-amber-400" : "bg-red-400"
+                      }`}
+                      style={{ width: `${(c.points / 20) * 100}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs font-semibold text-slate-300">{`${c.points}/20`}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {`Weakest link: ${health.weakest.label.toLowerCase()} — ${health.weakest.detail} Fix the weakest link first; the score follows.`}
+            </p>
+          </div>
+        )}
+
+        {(runwayInfo || aom || streak || danger || anomalies.length > 0 || keptStreak > 0) && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {danger && (
               <div
@@ -932,6 +1026,19 @@ export default async function Home({
                   {danger.negative
                     ? `On ${danger.date}${danger.causes[0] ? ` when ${danger.causes[0].name} lands` : ""}, your total goes ${heroCurrency.format(Math.abs(danger.low))} negative — a bill is spending money you don't have. Move money or pause something before then.`
                     : `Your low point is ${danger.daysAway === 0 ? "today" : `${danger.date} (${danger.daysAway} day${danger.daysAway === 1 ? "" : "s"} away)`}${danger.causes[0] ? `, after ${danger.causes[0].name} clears` : ""} — then the ${danger.nextPayday} check lands.`}
+                </p>
+              </div>
+            )}
+            {keptStreak > 0 && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+                <p className="text-sm text-slate-400">Cycles inside plan</p>
+                <p className="mt-1 text-4xl font-black tracking-tight text-emerald-300">
+                  {`${keptStreak} in a row`}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  Every completed pay cycle where no bucket ran over its plan.
+                  This streak is the single best predictor of everything else
+                  on this page going green.
                 </p>
               </div>
             )}
@@ -1057,7 +1164,12 @@ export default async function Home({
         )}
 
         {!viewing && efStatus && (
-          <EfundCard status={efStatus} months={efMonths} monthlyLoad={efLoad} />
+          <EfundCard
+            status={efStatus}
+            months={efMonths}
+            monthlyLoad={efLoad}
+            velocity={velocity}
+          />
         )}
 
         {(!viewing || partnerCanEdit) && (

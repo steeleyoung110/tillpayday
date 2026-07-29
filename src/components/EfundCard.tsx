@@ -14,10 +14,13 @@ export function EfundCard({
   status,
   months,
   monthlyLoad,
+  velocity = null,
 }: {
   status: EfundStatus;
   months: number;
   monthlyLoad: number;
+  /** Kept-per-cycle pace, for the "next $1,000" projection. */
+  velocity?: { keptPerCycle: number; cyclesToNextThousand: number | null } | null;
 }) {
   const suggestions = [25, 50, 100]
     .map((perCheck) => ({ perCheck, checks: checksToTarget(status.gap, perCheck) }))
@@ -61,6 +64,13 @@ export function EfundCard({
           {suggestions
             .map((s) => `${cents.format(s.perCheck)}/check → ${s.checks} checks`)
             .join(" · ")}
+        </p>
+      )}
+      {velocity && (
+        <p className="mt-1 text-xs text-slate-500">
+          {velocity.cyclesToNextThousand !== null
+            ? `Your real pace: you keep ~${cents.format(velocity.keptPerCycle)}/cycle — the next $1,000 lands in about ${velocity.cyclesToNextThousand} cycle${velocity.cyclesToNextThousand === 1 ? "" : "s"} at that speed.`
+            : `Your real pace: recent cycles spent MORE than they earned — the fund can't grow until a cycle ends in the black.`}
         </p>
       )}
       <p className="mt-1 text-xs text-slate-500">

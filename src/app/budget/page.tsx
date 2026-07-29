@@ -36,9 +36,13 @@ import {
 } from "@/lib/engine";
 import { CashflowCalendar } from "@/components/CashflowCalendar";
 import { ChallengesCard } from "@/components/ChallengesCard";
+import Link from "next/link";
 import { SplitTuner } from "@/components/SplitTuner";
+import { billTerrain } from "@/lib/billTerrain";
 import { checkHistory } from "@/lib/checkHistory";
+import { roundNumberBias } from "@/lib/loggingQuality";
 import { personalInflation } from "@/lib/personalInflation";
+import { spendTiming } from "@/lib/spendTiming";
 import { buildActivity } from "@/lib/activity";
 import { noSpendStatus, week52Status } from "@/lib/challenges";
 import { optimizeDueDates } from "@/lib/dueDateOptimizer";
@@ -442,6 +446,15 @@ export default async function BudgetPage({
   const mainPaycheckRow = data.income
     .filter((s) => s.kind === "paycheck" && s.frequency !== "irregular")
     .sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+
+  // Bill terrain: which months are mountains (quarterly/yearly lumps).
+  const terrain = billTerrain(engineExpenses, todayISO);
+
+  // Spend timing: first-72h-after-payday share + heaviest weekday.
+  const timing = spendTiming(engineIncome, data.expenses, todayISO);
+
+  // Round-number bias: are these receipts or estimates?
+  const roundBias = roundNumberBias(data.expenses, todayISO);
 
   // Spend visuals: 13-week daily heatmap + 6-month category trend + rate.
   const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
@@ -881,6 +894,88 @@ export default async function BudgetPage({
           </div>
         )}
 
+        {terrain && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">Your bill terrain 🏔️</h2>
+              <p className="text-sm text-slate-400">
+                {`average ${currencyCents.format(terrain.average)}/mo`}
+              </p>
+            </div>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              The next 12 months of scheduled bills. Quarterly and yearly
+              bills make mountains — see them coming instead of meeting them.
+            </p>
+            <div className="flex h-24 items-end gap-1.5">
+              {terrain.months.map((m) => (
+                <div key={m.key} className="flex flex-1 flex-col items-center gap-1">
+                  <div
+                    className={`w-full rounded-t ${
+                      m.key === terrain.heaviest.key ? "bg-red-500/70" : "bg-sky-500/50"
+                    }`}
+                    style={{
+                      height: `${Math.max(6, Math.round((m.total / Math.max(terrain.heaviest.total, 1)) * 100))}%`,
+                    }}
+                    title={`${m.label}: ${currencyCents.format(m.total)}${m.lumpy.length ? ` (${m.lumpy.map((l) => l.name).join(", ")})` : ""}`}
+                  />
+                  <span className="text-[10px] text-slate-500">{m.label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {`Heaviest: ${terrain.heaviest.label} at ${currencyCents.format(terrain.heaviest.total)}`}
+              {terrain.heaviest.lumpy.length > 0 &&
+                ` — ${terrain.heaviest.lumpy.map((l) => `${l.name} (${currencyCents.format(l.amount)})`).join(" and ")} land${terrain.heaviest.lumpy.length === 1 ? "s" : ""} that month`}
+              {`. A sinking-fund bucket flattens the mountain.`}
+            </p>
+          </div>
+        )}
+
+        {timing && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="font-semibold text-white">When the money leaves ⏰</h2>
+            <p
+              className={`mt-2 text-sm ${timing.first72Pct >= 40 ? "font-semibold text-amber-200" : "text-slate-300"}`}
+            >
+              {`${timing.first72Pct}% of your spending (${currencyCents.format(timing.first72Total)} of ${currencyCents.format(timing.total)}) happens in the first 72 hours after a paycheck lands.`}
+              {timing.first72Pct >= 40 &&
+                " That's the payday burn — the check does most of its dying on the first weekend."}
+            </p>
+            <div className="mt-3 flex h-16 items-end gap-1.5">
+              {timing.byWeekday.map((total, i) => {
+                const max = Math.max(...timing.byWeekday, 1);
+                return (
+                  <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                    <div
+                      className={`w-full max-w-10 rounded-t ${
+                        i === timing.heaviestWeekday ? "bg-red-500/70" : "bg-slate-600/60"
+                      }`}
+                      style={{ height: `${Math.max(4, Math.round((total / max) * 100))}%` }}
+                      title={currencyCents.format(total)}
+                    />
+                    <span className="text-[10px] text-slate-500">
+                      {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            {timing.heaviestWeekday !== null && (
+              <p className="mt-2 text-xs text-slate-500">
+                {`${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][timing.heaviestWeekday]} does the most damage. Knowing your pattern beats fighting it blind.`}
+              </p>
+            )}
+          </div>
+        )}
+
+        {roundBias?.suspicious && (
+          <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 px-5 py-4">
+            <p className="text-sm text-sky-200">
+              {`🔍 ${roundBias.pct}% of your last ${roundBias.total} logged spends are whole-dollar amounts — real receipts rarely are. You might be estimating, and estimates drift the same direction every time: down. Log from the receipt when you can.`}
+            </p>
+          </div>
+        )}
+
         {checkHist && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1081,7 +1176,13 @@ export default async function BudgetPage({
                 >
                   <span className="text-slate-200">
                     <span className="mr-2 text-xs text-slate-500">{`#${i + 1}`}</span>
-                    {m.name}
+                    <Link
+                      href={`/budget?q=${encodeURIComponent(m.name.split(/[#0-9]/)[0].trim() || m.name)}#bills`}
+                      className="underline-offset-2 transition hover:text-emerald-300 hover:underline"
+                      title="See every spend at this merchant"
+                    >
+                      {m.name}
+                    </Link>
                     <span className="ml-2 text-xs text-slate-500">
                       {`${m.count} spend${m.count === 1 ? "" : "s"}`}
                     </span>

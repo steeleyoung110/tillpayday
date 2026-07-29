@@ -27,6 +27,7 @@ const DESTINATIONS: { label: string; href: string; keywords: string }[] = [
   { label: "Year wrapped", href: "/wrapped/year", keywords: "annual report interest ledger" },
   { label: "Weekly review", href: "/review", keywords: "checkin ritual streak sunday" },
   { label: "Crisis mode", href: "/crisis", keywords: "job loss emergency worst case pause" },
+  { label: "Guide — what's in here", href: "/guide", keywords: "help features map how to find" },
   { label: "Settings & About", href: "/settings", keywords: "account notifications calendar wage share" },
 ];
 

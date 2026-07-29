@@ -322,7 +322,35 @@ export default async function SettingsPage() {
               ))}
             </div>
           </div>
+
+          <div className="mt-5">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Full backup
+            </p>
+            <a
+              href="/api/backup"
+              className="inline-block rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-300 transition hover:border-emerald-400 hover:text-white"
+            >
+              Download everything as JSON ↓
+            </a>
+            <p className="mt-1 text-xs text-slate-500">
+              Every table, one file — the whole account in a format you can
+              keep, read, or hand to another tool. No lock-in.
+            </p>
+          </div>
         </div>
+
+        <Link
+          href="/guide"
+          className="block rounded-2xl border border-slate-800 bg-slate-900 p-5 transition hover:border-emerald-400/50"
+        >
+          <h3 className="font-semibold text-white">What&apos;s in here 🗺️</h3>
+          <p className="mt-1 text-sm text-slate-400">
+            The whole app organized by the question you&apos;re actually
+            asking. Worth two minutes — there&apos;s more in here than the
+            dashboard shows.
+          </p>
+        </Link>
 
         {isAdmin && (
           <Link
