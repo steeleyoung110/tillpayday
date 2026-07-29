@@ -84,7 +84,12 @@ export async function GET(request: Request) {
       transfers: transfers.data ?? [],
     } as DashboardData;
 
-    const nudges = computeNudges(data, todayISO);
+    // Notification preferences: unchecked types stay in-app only. Negative
+    // savings always alerts — no opt-out for the number that matters most.
+    const prefs = (user.user_metadata?.nudge_prefs ?? {}) as Record<string, boolean>;
+    const nudges = computeNudges(data, todayISO).filter(
+      (n) => n.type === "savings-negative" || prefs[n.type] !== false,
+    );
     if (nudges.length === 0) continue;
 
     // Push first — the lock screen is where a nudge actually lands in time.

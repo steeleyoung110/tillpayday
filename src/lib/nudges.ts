@@ -31,7 +31,9 @@ export type NudgeType =
   | "payday-tomorrow"
   | "savings-negative"
   | "renewal-soon"
-  | "danger-tomorrow";
+  | "danger-tomorrow"
+  | "manual-due"
+  | "autopay-check";
 
 export interface Nudge {
   type: NudgeType;
@@ -74,6 +76,31 @@ export function computeNudges(
         type: "bill-underfunded",
         message: `${e.name} (${currency.format(amount)}) is due ${when} — ${bucketName} is holding ${currency.format(holding)}. The difference will raid your other buckets, fun money first.`,
       });
+    }
+  }
+
+  // Autopay audit: manual bills fail when YOU forget; autopay bills fail
+  // when the charge silently doesn't happen. Different reminders for each.
+  for (const e of data.expenses) {
+    if (e.is_paused || e.autopay === null || e.autopay === undefined) continue;
+    if (e.autopay === false) {
+      // Manual: due today or tomorrow → it's on you.
+      for (const d of generateOccurrences(e.due_date, e.cadence, start, addDays(start, 1))) {
+        const when = toISO(d) === todayISO ? "TODAY" : "tomorrow";
+        nudges.push({
+          type: "manual-due",
+          message: `${e.name} (${currency.format(Number(e.amount))}) is due ${when} and it's on YOU to pay it — no autopay is catching this one.`,
+        });
+      }
+    } else {
+      // Autopay: went due yesterday → confirm the robot actually did its job.
+      const yesterday = addDays(start, -1);
+      if (generateOccurrences(e.due_date, e.cadence, yesterday, yesterday).length > 0) {
+        nudges.push({
+          type: "autopay-check",
+          message: `${e.name} should have auto-paid yesterday — a 10-second glance at your bank confirms the robot did its job.`,
+        });
+      }
     }
   }
 

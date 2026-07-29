@@ -962,6 +962,11 @@ export async function addExpense(formData: FormData) {
     }
   }
   await supabase.from("expenses").insert(row);
+  // Round-up rule: only on YOUR OWN one-time spends (a partner's round-up
+  // would land in their transfers, not this budget).
+  if (!row.user_id && str(formData, "cadence") === "one_time") {
+    await applyRoundup(supabase, num(formData, "amount"), bucketId || null);
+  }
   revalidatePath("/");
   revalidatePath("/budget");
 }
@@ -996,6 +1001,7 @@ export async function quickLogSpend(
     due_date: new Date().toISOString().slice(0, 10),
     cadence: "one_time",
   });
+  await applyRoundup(supabase, amount, fun?.id ?? null);
   revalidatePath("/");
   revalidatePath("/budget");
   return { ok: true, name, amount, bucketName: fun?.name ?? "Savings / leftover" };
@@ -1035,6 +1041,225 @@ export async function setChallenge(formData: FormData) {
       [`challenge_${kind}_start`]: on ? new Date().toISOString().slice(0, 10) : null,
     },
   });
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+/**
+ * Bank reconciliation: the user types their REAL bank balance; we book the
+ * drift as an honest adjustment — unlogged spending (expense) or unlogged
+ * income (income entry) — so the model snaps back to reality. Undoable.
+ */
+export async function reconcile(
+  formData: FormData,
+): Promise<{ ok: boolean; drift?: number; recipe?: UndoRecipe | null }> {
+  const supabase = await createClient();
+  const bank = num(formData, "bank_balance");
+  const model = num(formData, "model_balance");
+  if (!Number.isFinite(bank) || !Number.isFinite(model)) return { ok: false };
+  const drift = Math.round((bank - model) * 100) / 100;
+  if (Math.abs(drift) < 0.01) return { ok: true, drift: 0, recipe: null };
+
+  const today = new Date().toISOString().slice(0, 10);
+  let recipe: UndoRecipe | null = null;
+  if (drift < 0) {
+    const { data: row } = await supabase
+      .from("expenses")
+      .insert({
+        name: "Reconcile: unlogged spending",
+        amount: -drift,
+        bucket_id: null,
+        due_date: today,
+        cadence: "one_time",
+      })
+      .select("id")
+      .single();
+    if (row) recipe = { deletes: [{ table: "expenses", id: row.id }] };
+  } else {
+    const { data: row } = await supabase
+      .from("income_entries")
+      .insert({
+        amount: drift,
+        received_date: today,
+        note: "Reconcile: unlogged income",
+      })
+      .select("id")
+      .single();
+    if (row) recipe = { deletes: [{ table: "income_entries", id: row.id }] };
+  }
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return { ok: true, drift, recipe };
+}
+
+/** Quick-spend presets: up to 6 one-tap chips, stored on the auth user. */
+export async function saveSpendPreset(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  const name = str(formData, "name").trim().slice(0, 30);
+  const amount = num(formData, "amount");
+  if (!name || !(amount > 0)) return;
+  const current = Array.isArray(user.user_metadata?.spend_presets)
+    ? (user.user_metadata.spend_presets as { name: string; amount: number }[])
+    : [];
+  const next = [...current.filter((p) => p.name !== name), { name, amount }].slice(0, 6);
+  await supabase.auth.updateUser({ data: { spend_presets: next } });
+  revalidatePath("/");
+}
+
+export async function removeSpendPreset(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  const name = str(formData, "name");
+  const current = Array.isArray(user.user_metadata?.spend_presets)
+    ? (user.user_metadata.spend_presets as { name: string; amount: number }[])
+    : [];
+  await supabase.auth.updateUser({
+    data: { spend_presets: current.filter((p) => p.name !== name) },
+  });
+  revalidatePath("/");
+}
+
+/** Round-up rule: 0 = off, else round each logged spend up to the next $N. */
+export async function setRoundup(formData: FormData) {
+  const supabase = await createClient();
+  const to = num(formData, "roundup_to");
+  await supabase.auth.updateUser({
+    data: { roundup_to: [1, 5].includes(to) ? to : null },
+  });
+  revalidatePath("/settings");
+}
+
+/**
+ * Round-up bookkeeping shared by the spend paths: move the spare change from
+ * the spend's bucket into savings, marked so the user can see the rule work.
+ */
+async function applyRoundup(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  amount: number,
+  bucketId: string | null,
+) {
+  if (!bucketId) return; // savings-funded spends have no bucket to skim
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const to = user?.user_metadata?.roundup_to;
+  if (to !== 1 && to !== 5) return;
+  const roundup = Math.round((Math.ceil(amount / to) * to - amount) * 100) / 100;
+  if (roundup <= 0) return;
+  await supabase.from("transfers").insert({
+    from_bucket_id: bucketId,
+    to_bucket_id: null,
+    amount: roundup,
+    transfer_date: new Date().toISOString().slice(0, 10),
+    note: "round-up",
+  });
+}
+
+/** Notification preferences: which nudge types may reach the lock screen. */
+export async function saveNudgePrefs(formData: FormData) {
+  const supabase = await createClient();
+  const prefs: Record<string, boolean> = {};
+  for (const key of ["bill-underfunded", "payday-tomorrow", "renewal-soon", "danger-tomorrow", "manual-due", "autopay-check"]) {
+    prefs[key] = formData.get(`pref_${key}`) === "on";
+  }
+  await supabase.auth.updateUser({ data: { nudge_prefs: prefs } });
+  revalidatePath("/settings");
+}
+
+/** Split tuner: apply several bucket allocation changes at once, undoably. */
+export async function applySplitTune(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  let changes: { id: string; value: number }[];
+  try {
+    changes = JSON.parse(str(formData, "changes"));
+  } catch {
+    return null;
+  }
+  const patches: NonNullable<UndoRecipe["patches"]> = [];
+  for (const c of changes) {
+    if (typeof c.id !== "string" || !(c.value >= 0)) continue;
+    const { data: cur } = await supabase
+      .from("buckets")
+      .select("allocation_value")
+      .eq("id", c.id)
+      .single();
+    if (!cur || Number(cur.allocation_value) === c.value) continue;
+    await supabase.from("buckets").update({ allocation_value: c.value }).eq("id", c.id);
+    patches.push({
+      table: "buckets",
+      id: c.id,
+      patch: { allocation_value: Number(cur.allocation_value) },
+    });
+  }
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return patches.length > 0 ? { patches } : null;
+}
+
+/**
+ * Cycle-end debt sweep: kept money goes at a debt. Books the outflow as a
+ * one-time expense from savings AND decrements the liability balance —
+ * one undo puts both back.
+ */
+export async function applyDebtSweep(formData: FormData): Promise<UndoRecipe | null> {
+  const supabase = await createClient();
+  const liabilityId = str(formData, "liability_id");
+  const amount = num(formData, "amount");
+  if (!liabilityId || !(amount > 0)) return null;
+  const { data: liability } = await supabase
+    .from("liabilities")
+    .select("id, name, current_balance")
+    .eq("id", liabilityId)
+    .single();
+  if (!liability) return null;
+  const applied = Math.min(amount, Number(liability.current_balance));
+  if (!(applied > 0)) return null;
+
+  const newBalance = Math.round((Number(liability.current_balance) - applied) * 100) / 100;
+  await supabase.from("liabilities").update({ current_balance: newBalance }).eq("id", liabilityId);
+  const { data: row } = await supabase
+    .from("expenses")
+    .insert({
+      name: `Extra payment: ${liability.name}`,
+      amount: applied,
+      bucket_id: null,
+      due_date: new Date().toISOString().slice(0, 10),
+      cadence: "one_time",
+    })
+    .select("id")
+    .single();
+
+  revalidatePath("/");
+  revalidatePath("/budget");
+  revalidatePath("/net-worth");
+  return {
+    patches: [
+      {
+        table: "liabilities",
+        id: liabilityId,
+        patch: { current_balance: Number(liability.current_balance) },
+      },
+    ],
+    ...(row ? { deletes: [{ table: "expenses", id: row.id }] } : {}),
+  };
+}
+
+/** Autopay audit: classify a bill (autopay / manual / unset). */
+export async function setAutopay(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const mode = str(formData, "autopay"); // "true" | "false" | ""
+  await supabase
+    .from("expenses")
+    .update({ autopay: mode === "" ? null : mode === "true" })
+    .eq("id", id);
   revalidatePath("/");
   revalidatePath("/budget");
 }

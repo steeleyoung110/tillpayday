@@ -7,7 +7,9 @@ import {
   removeShare,
   rotateCalendarToken,
   toggleShareEdit,
+  saveNudgePrefs,
   setHourlyWage,
+  setRoundup,
   signOut,
   submitSuggestion,
   undoRestore,
@@ -369,6 +371,74 @@ export default async function SettingsPage() {
               The lens is off. Stored on your account only.
             </p>
           )}
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Round-up rule 🪙</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Every spend you log rounds up, and the spare change quietly moves
+            to savings. A $4.37 coffee banks $0.63 — small, automatic, real.
+          </p>
+          <form action={setRoundup} className="mt-3 flex items-center gap-2">
+            {[
+              [0, "Off"],
+              [1, "Next $1"],
+              [5, "Next $5"],
+            ].map(([val, label]) => (
+              <button
+                key={val}
+                name="roundup_to"
+                value={val}
+                className={`rounded-lg px-3 py-1.5 text-sm transition ${
+                  (meta.roundup_to ?? 0) === val
+                    ? "bg-emerald-500 font-semibold text-slate-950"
+                    : "border border-slate-700 text-slate-300 hover:border-emerald-400"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </form>
+          <p className="mt-2 text-xs text-slate-500">
+            Each round-up shows as its own move in Budget → Move money, so
+            nothing is hidden and every one is undoable.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <h3 className="font-semibold text-white">Notification volume 🔔</h3>
+          <p className="mt-2 text-sm text-slate-400">
+            Choose which nudges may reach your lock screen and inbox. Unchecked
+            ones still show in the app — negative savings always alerts, no
+            opt-out for that one.
+          </p>
+          <form action={saveNudgePrefs} className="mt-3 space-y-1.5">
+            {(
+              [
+                ["bill-underfunded", "A bill is about to land on an empty bucket"],
+                ["payday-tomorrow", "Payday lands tomorrow"],
+                ["danger-tomorrow", "Tomorrow is the tightest day before payday"],
+                ["renewal-soon", "A contract renews soon — shop it around"],
+                ["manual-due", "A manual-pay bill is due — it's on you"],
+                ["autopay-check", "An autopay bill should have gone through"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  name={`pref_${key}`}
+                  defaultChecked={
+                    (meta.nudge_prefs as Record<string, boolean> | undefined)?.[key] !== false
+                  }
+                  className="accent-emerald-500"
+                />
+                {label}
+              </label>
+            ))}
+            <button className="mt-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+              Save preferences
+            </button>
+          </form>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

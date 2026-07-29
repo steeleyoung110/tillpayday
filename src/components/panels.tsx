@@ -27,6 +27,7 @@ import {
   deleteTransfer,
   deleteWhatIf,
   makeSavingsBucket,
+  setAutopay,
   setBucketApy,
   setRenewalDate,
   setSplitWays,
@@ -770,6 +771,27 @@ export function ExpensesPanel({
             split
           </button>
         </form>
+        {showCadence && (
+          <form
+            action={setAutopay}
+            className="flex items-center gap-1"
+            title="Autopay audit: manual bills get a pay-it reminder on the day; autopay bills get a did-it-actually-charge check the day after."
+          >
+            <input type="hidden" name="id" value={e.id} />
+            <select
+              name="autopay"
+              defaultValue={e.autopay === null || e.autopay === undefined ? "" : String(e.autopay)}
+              className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+            >
+              <option value="">pay: ?</option>
+              <option value="true">autopay 🤖</option>
+              <option value="false">manual ✍️</option>
+            </select>
+            <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+              set
+            </button>
+          </form>
+        )}
         {showCadence && (
           <form
             action={setRenewalDate}

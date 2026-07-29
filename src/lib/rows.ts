@@ -115,6 +115,8 @@ export interface ExpenseRow {
   created_by: string | null;
   /** Roommate mode: how many ways this bill is split (1 = all yours). */
   split_ways: number;
+  /** Autopay audit: true = autopay, false = manual, null = not classified. */
+  autopay: boolean | null;
   created_at: string;
 }
 

@@ -26,6 +26,7 @@ import {
   type ProjectionPoint,
 } from "@/lib/engine";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
+import { earmarkGoals } from "@/lib/earmark";
 import { goalOutlook, goalPerCheck } from "@/lib/goals";
 import {
   LIQUID_CATEGORIES,
@@ -631,20 +632,42 @@ export function ProjectionSection({
       </div>
       </div>
 
-      {/* Goal outlooks: where each goal stands against the savings line */}
+      {/* Goal outlooks: where each goal stands against the savings line.
+          Savings is EARMARKED down the ladder (soonest date first) so three
+          goals can't all claim the same dollars. */}
       {goalOutlooks.length > 0 && (
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Your goals 🎯</h3>
+          {goalOutlooks.length > 1 && (
+            <p className="mt-1 text-xs text-slate-500">
+              One savings pot, honestly divided: money is earmarked to the
+              soonest goal first, then flows down the ladder.
+            </p>
+          )}
           <ul className="mt-3 space-y-4">
-            {goalOutlooks.map(({ goal, outlook: o, perCheck }) => {
+            {(() => {
+              const earmarks = earmarkGoals(
+                startingSavings,
+                activeGoals.map((g) => ({
+                  id: g.id,
+                  target_amount: Number(g.target_amount),
+                  target_date: g.target_date,
+                })),
+              );
+              return goalOutlooks.map(({ goal, outlook: o, perCheck }) => {
               const target = Number(goal.target_amount);
-              const pct = Math.min(100, Math.max(0, (startingSavings / target) * 100));
+              const mark = earmarks.get(goal.id);
+              const earmarked = mark?.earmarked ?? 0;
+              const pct = mark?.pct ?? 0;
               return (
                 <li key={goal.id}>
                   <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                     <span className="font-semibold text-slate-200">{goal.name}</span>
                     <span className="text-slate-400">
-                      {`${currency.format(startingSavings)} of ${currency.format(target)} · by ${prettyDate(goal.target_date)}`}
+                      {`${currency.format(earmarked)} earmarked of ${currency.format(target)} · by ${prettyDate(goal.target_date)}`}
+                      {mark?.fullyCovered && (
+                        <span className="ml-1 text-emerald-300">✓ covered</span>
+                      )}
                     </span>
                   </div>
                   <div className="mt-1.5 h-2.5 w-full overflow-hidden rounded-full bg-slate-800">
@@ -679,7 +702,8 @@ export function ProjectionSection({
                   )}
                 </li>
               );
-            })}
+              });
+            })()}
           </ul>
         </div>
       )}

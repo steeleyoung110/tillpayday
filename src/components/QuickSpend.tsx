@@ -5,6 +5,7 @@
  * "Manage budget →".
  */
 import { AddExpenseForm, type BucketOption } from "@/components/AddExpenseForm";
+import { PresetChips, type SpendPreset } from "@/components/PresetChips";
 import type { DashboardData } from "@/lib/rows";
 
 export function QuickSpend({
@@ -12,12 +13,15 @@ export function QuickSpend({
   balances,
   todayISO,
   ownerId,
+  presets = [],
 }: {
   data: DashboardData;
   balances?: Record<string, number>;
   todayISO: string;
   /** Partner mode: spends land in this owner's budget instead of your own. */
   ownerId?: string;
+  /** One-tap chips for the user's usual purchases (own budget only). */
+  presets?: SpendPreset[];
 }) {
   const funBucket = data.buckets.find((b) => b.is_flexible && !b.is_savings);
   const options: BucketOption[] = [
@@ -34,6 +38,9 @@ export function QuickSpend({
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-300/80">
         {ownerId ? "Log a spend into this budget" : "Log a spend"}
       </p>
+      {!ownerId && funBucket && (
+        <PresetChips presets={presets} funBucketId={funBucket.id} todayISO={todayISO} />
+      )}
       <AddExpenseForm
         options={options}
         todayISO={todayISO}

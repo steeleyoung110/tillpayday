@@ -55,19 +55,19 @@ export function buildDemoData(todayISO: string): DashboardData {
       // Recurring bills are anchored in the past so the engine has months of
       // history to compute runway and past-cycle recaps from (occurrences
       // never predate the first due_date).
-      { id: "demo-e1", name: "Rent", amount: 600, bucket_id: "demo-rent", due_date: d(-65), cadence: "monthly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e2", name: "Spotify", amount: 11.99, bucket_id: "demo-fun", due_date: d(-63), cadence: "monthly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e6", name: "Car insurance", amount: 210, bucket_id: "demo-rent", due_date: d(-82), cadence: "quarterly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
+      { id: "demo-e1", name: "Rent", amount: 600, bucket_id: "demo-rent", due_date: d(-65), cadence: "monthly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e2", name: "Spotify", amount: 11.99, bucket_id: "demo-fun", due_date: d(-63), cadence: "monthly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e6", name: "Car insurance", amount: 210, bucket_id: "demo-rent", due_date: d(-82), cadence: "quarterly", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
       // Past one-time spends give the history texture...
-      { id: "demo-e8", name: "Groceries", amount: 91.3, bucket_id: "demo-food", due_date: d(-25), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e9", name: "Groceries", amount: 74.2, bucket_id: "demo-food", due_date: d(-18), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e10", name: "Takeout", amount: 28, bucket_id: "demo-food", due_date: d(-16), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e11", name: "Bar night", amount: 39, bucket_id: "demo-fun", due_date: d(-30), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
+      { id: "demo-e8", name: "Groceries", amount: 91.3, bucket_id: "demo-food", due_date: d(-25), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e9", name: "Groceries", amount: 74.2, bucket_id: "demo-food", due_date: d(-18), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e10", name: "Takeout", amount: 28, bucket_id: "demo-food", due_date: d(-16), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e11", name: "Bar night", amount: 39, bucket_id: "demo-fun", due_date: d(-30), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
       // ...and this cycle has its own spending, mid-flight.
-      { id: "demo-e3", name: "Groceries", amount: 86.4, bucket_id: "demo-food", due_date: d(-4), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e4", name: "McDonald's", amount: 12.5, bucket_id: "demo-food", due_date: d(-1), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e5", name: "Bar night", amount: 47, bucket_id: "demo-fun", due_date: d(-2), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
-      { id: "demo-e7", name: "Concert tickets", amount: 150, bucket_id: "demo-concert", due_date: d(20), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, created_at: ts },
+      { id: "demo-e3", name: "Groceries", amount: 86.4, bucket_id: "demo-food", due_date: d(-4), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e4", name: "McDonald's", amount: 12.5, bucket_id: "demo-food", due_date: d(-1), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e5", name: "Bar night", amount: 47, bucket_id: "demo-fun", due_date: d(-2), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
+      { id: "demo-e7", name: "Concert tickets", amount: 150, bucket_id: "demo-concert", due_date: d(20), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, created_at: ts },
     ],
     whatIf: [],
     netWorth: [],

@@ -34,13 +34,20 @@ import { InstantAction } from "@/components/InstantAction";
 import {
   addTransfer,
   adoptStarterSetup,
+  applyDebtSweep,
+  deleteExpense,
   dismissAnnouncement,
   markGoalAchieved,
+  undoRestore,
 } from "@/app/actions";
 import { efundStatus, monthlyBillLoad } from "@/lib/efund";
 import { freedomDay } from "@/lib/freedomDay";
 import { detectShortCheck } from "@/lib/shortCheck";
 import { expenseShare } from "@/lib/rows";
+import { anniversaryWindow } from "@/lib/anniversary";
+import { findDuplicateSpends } from "@/lib/dupes";
+import { ReconcileCard } from "@/components/ReconcileCard";
+import type { SpendPreset } from "@/components/PresetChips";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -274,6 +281,86 @@ export default async function Home({
       .toISOString()
       .slice(0, 10);
   }
+
+  // Duplicate-spend guard: same merchant + amount + day in the last 2 weeks.
+  const dupes = viewing ? [] : findDuplicateSpends(data.expenses, 14, todayISO);
+
+  // Yesterday's safe-to-spend, for the "why did my number change?" receipt.
+  const yesterdayISO = new Date(Date.parse(todayISO) - 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const stsYesterday =
+    sts && sts.hasFlexibleBuckets
+      ? safeToSpend(
+          engineIncome,
+          engineBuckets,
+          engineExpenses,
+          yesterdayISO,
+          engineEntries,
+          engineTransfers,
+        )
+      : null;
+  const flexibleIdSet = new Set(
+    data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
+  );
+  const recentFlexHits = data.expenses.filter(
+    (e) =>
+      e.cadence === "one_time" &&
+      !e.is_paused &&
+      e.bucket_id !== null &&
+      flexibleIdSet.has(e.bucket_id) &&
+      (e.due_date === todayISO || e.due_date === yesterdayISO),
+  );
+
+  // Cycle-end debt sweep: fresh cycle + money kept last cycle + a debt to hit.
+  const latestCycle = [...completedCycles].sort((a, b) =>
+    a.cycleStart < b.cycleStart ? 1 : -1,
+  )[0];
+  const keptLastCycle = latestCycle
+    ? Math.max(
+        0,
+        Math.round((latestCycle.paycheckTotal - latestCycle.totalActual) * 100) / 100,
+      )
+    : 0;
+  const daysIntoCycle = payCycleNow
+    ? Math.round((Date.parse(todayISO) - Date.parse(payCycleNow.lastPayday)) / 86400000)
+    : 99;
+  const sweepTarget = [...nw.liabilities]
+    .filter(
+      (l) =>
+        !l.is_archived &&
+        Number(l.current_balance) > 0 &&
+        l.interest_rate !== null &&
+        Number(l.interest_rate) > 0,
+    )
+    .sort((a, b) => Number(b.interest_rate) - Number(a.interest_rate))[0];
+  const sweepAmount = sweepTarget
+    ? Math.min(keptLastCycle, Number(sweepTarget.current_balance))
+    : 0;
+  const showSweep =
+    !viewing &&
+    latestCycle &&
+    payCycleNow?.lastPayday === latestCycle.cycleEnd &&
+    daysIntoCycle <= 3 &&
+    sweepAmount >= 25;
+
+  // Anniversary report: 14-day window after 3/6/12… months in.
+  const annWindow = anniversaryWindow(accountCreatedISO, todayISO);
+  const firstSnap = nw.snapshots[0];
+  const lastSnap = nw.snapshots[nw.snapshots.length - 1];
+  const skippedJar =
+    Math.round(
+      data.whatIf
+        .filter((w) => w.status === "skipped")
+        .reduce((s, w) => s + Number(w.amount), 0) * 100,
+    ) / 100;
+
+  // One-tap presets for the log-a-spend card.
+  const presets: SpendPreset[] = Array.isArray(meta.spend_presets)
+    ? (meta.spend_presets as SpendPreset[]).filter(
+        (p) => typeof p?.name === "string" && Number(p?.amount) > 0,
+      )
+    : [];
   const aom = ageOfMoney(engineIncome, engineEntries, engineExpenses, todayISO);
   const funIds = new Set(
     data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
@@ -461,6 +548,62 @@ export default async function Home({
             </div>
           ))}
 
+        {dupes.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-4">
+            <p className="text-sm font-semibold text-amber-200">
+              🔁 Possible double-log{dupes.length === 1 ? "" : "s"} — same
+              merchant, same amount, same day:
+            </p>
+            <ul className="mt-2 space-y-1">
+              {dupes.map((d) => (
+                <li
+                  key={d.id}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm text-amber-100/90"
+                >
+                  <span>{`${d.name} · ${heroCurrency.format(d.amount)} · ${d.date}`}</span>
+                  <InstantAction
+                    action={deleteExpense}
+                    undoAction={undoRestore}
+                    values={{ id: d.id }}
+                    message={`Removed the duplicate ${d.name}.`}
+                    className="rounded bg-amber-500/20 px-2 py-1 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/30"
+                  >
+                    remove the extra one
+                  </InstantAction>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-amber-100/60">
+              If both are real, ignore this — it disappears in two weeks.
+            </p>
+          </div>
+        )}
+
+        {!viewing && annWindow && (
+          <div className="rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-5">
+            <p className="text-lg font-black text-violet-200">
+              {`🎂 ${annWindow.months} month${annWindow.months === 1 ? "" : "s"} on Till Payday`}
+            </p>
+            <p className="mt-1 text-sm text-violet-100/80">
+              {[
+                firstSnap && lastSnap && firstSnap.snapshot_date !== lastSnap.snapshot_date
+                  ? `Net worth: ${heroCurrency.format(Number(firstSnap.net_worth))} → ${heroCurrency.format(Number(lastSnap.net_worth))}`
+                  : null,
+                reviewStreak > 0 || checkinSet.size > 0
+                  ? `${checkinSet.size} weekly review${checkinSet.size === 1 ? "" : "s"} done`
+                  : null,
+                streak && streak.best > 0
+                  ? `best no-spend run ${streak.best} days`
+                  : null,
+                skippedJar > 0 ? `${heroCurrency.format(skippedJar)} of almost-purchases skipped` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") ||
+                "The habit is the win — the numbers follow. Keep logging."}
+            </p>
+          </div>
+        )}
+
         {!viewing && shortCheck && (
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-4">
             <p className="text-sm font-semibold text-amber-200">
@@ -555,6 +698,34 @@ export default async function Home({
                   ? `Based on ${heroCurrency.format(sts.flexibleBalance)} left across your flexible buckets. Spend less than this today and tomorrow's number goes up.`
                   : "Your flexible buckets are empty this cycle — hang tight till payday."}
               </p>
+              <details className="mt-2 text-xs text-slate-500">
+                <summary className="cursor-pointer transition hover:text-slate-300">
+                  why did my number change?
+                </summary>
+                <div className="mt-1 space-y-1 rounded-lg bg-slate-800/60 px-3 py-2">
+                  <p>
+                    {`The math: ${heroCurrency.format(sts.flexibleBalance)} of flexible money ÷ ${sts.daysUntilPayday} day${sts.daysUntilPayday === 1 ? "" : "s"} until payday = ${heroCurrency.format(sts.perDay)}/day.`}
+                  </p>
+                  {stsYesterday && (
+                    <p>
+                      {`Yesterday it was ${heroCurrency.format(stsYesterday.perDay)}/day (${heroCurrency.format(stsYesterday.flexibleBalance)} ÷ ${stsYesterday.daysUntilPayday} days).`}
+                      {sts.daysUntilPayday !== stsYesterday.daysUntilPayday &&
+                        ` One day closer to payday ${sts.daysUntilPayday < stsYesterday.daysUntilPayday ? "stretches the same money over fewer days" : "reset the cycle"}.`}
+                    </p>
+                  )}
+                  {recentFlexHits.length > 0 && (
+                    <p>
+                      {`Flexible money that left in the last day: ${recentFlexHits
+                        .map((e) => `${e.name} −${heroCurrency.format(expenseShare(e))}`)
+                        .join(", ")}.`}
+                    </p>
+                  )}
+                  <p className="text-slate-600">
+                    No mystery, no magic — spend less than the number and it
+                    rises tomorrow.
+                  </p>
+                </div>
+              </details>
             </div>
           ) : sts ? (
             <p className="mt-3 text-lg text-slate-300">
@@ -622,6 +793,48 @@ export default async function Home({
                   ? `That check must cover ${heroCurrency.format(nextCheck.totalBills)} of bills — it's short by ${heroCurrency.format(nextCheck.shortBy)}. This is next cycle's problem unless you move money now.`
                   : `${heroCurrency.format(nextCheck.totalBills)} of bills land on that check (${nextCheck.bills.length} bill${nextCheck.bills.length === 1 ? "" : "s"}) — ${spokenForPct}% of it is spoken for before it arrives.`}
             </p>
+            {!viewing && (
+              <details className="mt-2 text-xs text-slate-500">
+                <summary className="cursor-pointer transition hover:text-slate-300">
+                  adjust this check once
+                </summary>
+                <form action={addTransfer} className="mt-2 flex flex-wrap items-end gap-2">
+                  <span className="text-slate-400">On payday, move an extra</span>
+                  <input
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="$"
+                    className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-xs text-white outline-none focus:border-emerald-400"
+                  />
+                  <span className="text-slate-400">from savings into</span>
+                  <select
+                    name="to_bucket_id"
+                    className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-xs text-white outline-none focus:border-emerald-400"
+                  >
+                    {data.buckets
+                      .filter((b) => !b.is_savings)
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                  </select>
+                  <input type="hidden" name="from_bucket_id" value="" />
+                  <input type="hidden" name="transfer_date" value={nextCheck.payday} />
+                  <input type="hidden" name="note" value="one-off payday adjustment" />
+                  <button className="rounded bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/30">
+                    set it
+                  </button>
+                </form>
+                <p className="mt-1 text-slate-600">
+                  Just this check — your standing plan doesn&apos;t change.
+                  Undo anytime in Budget → Move money.
+                </p>
+              </details>
+            )}
           </div>
         )}
         </div>
@@ -853,7 +1066,36 @@ export default async function Home({
             balances={balancesToday}
             todayISO={todayISO}
             ownerId={viewing ? uid : undefined}
+            presets={viewing ? [] : presets}
           />
+        )}
+
+        {!viewing && balancesToday && (
+          <ReconcileCard modelBalance={liquidToday} />
+        )}
+
+        {showSweep && sweepTarget && (
+          <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-emerald-200">
+                {`💪 Last cycle you kept ${heroCurrency.format(keptLastCycle)}. Throwing ${heroCurrency.format(sweepAmount)} at ${sweepTarget.name} (${sweepTarget.interest_rate}%) saves ${heroCurrency.format(Math.round(sweepAmount * (Number(sweepTarget.interest_rate) / 100) * 100) / 100)}/yr in interest — every year, forever.`}
+              </p>
+              <InstantAction
+                action={applyDebtSweep}
+                undoAction={undoRestore}
+                values={{ liability_id: sweepTarget.id, amount: String(sweepAmount) }}
+                message={`Sent ${heroCurrency.format(sweepAmount)} at ${sweepTarget.name} — its balance just dropped.`}
+                className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+              >
+                Send it at the debt →
+              </InstantAction>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Books the payment as an expense from savings and lowers the
+              debt&apos;s balance — one undo reverses both. Make the same
+              payment at your actual lender, of course.
+            </p>
+          </div>
         )}
 
         <ProjectionSection

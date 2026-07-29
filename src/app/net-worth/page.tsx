@@ -13,8 +13,10 @@ import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
 import { NetWorthChart } from "@/components/NetWorthChart";
+import { computeTodayBalances } from "@/lib/balances";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import { monthlyBillLoad } from "@/lib/efund";
+import { HYSA_REFERENCE_APY, lazyMoney } from "@/lib/lazyMoney";
 import { paydayRecap } from "@/lib/engine";
 import { freedomStatus } from "@/lib/freedom";
 import { computeTotals } from "@/lib/netWorth";
@@ -114,6 +116,9 @@ export default async function NetWorthPage() {
     dash.expenses.map((e) => ({ ...e, amount: expenseShare(e) })),
   );
   const freedom = freedomStatus(monthlyLoad, investable);
+
+  // Lazy money: savings at big-bank APY while HYSAs pay ~4%.
+  const lazyRows = lazyMoney(dash.buckets, computeTodayBalances(dash, todayISO) ?? null);
 
   // Milestone forecast: where the trend line crosses next, honestly framed.
   const forecast = nwForecast(
@@ -310,6 +315,37 @@ export default async function NetWorthPage() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {lazyRows.length > 0 && (
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
+            <h2 className="font-semibold text-amber-200">Lazy money 😴</h2>
+            <p className="mb-3 mt-1 text-xs text-slate-400">
+              {`Savings sitting at big-bank rates while high-yield accounts pay ~${HYSA_REFERENCE_APY}%. Moving banks is a 20-minute job that pays every year.`}
+            </p>
+            <ul className="space-y-1">
+              {lazyRows.map((r) => (
+                <li
+                  key={r.bucketId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-900/60 px-3 py-1.5 text-sm"
+                >
+                  <span className="text-slate-200">
+                    {r.name}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {`${currency.format(r.balance)} at ${r.apy}% APY`}
+                    </span>
+                  </span>
+                  <span className="text-amber-200">
+                    {`earns ${r.earnsYearly < 1 ? `$${r.earnsYearly.toFixed(2)}` : currency.format(r.earnsYearly)}/yr — at ${HYSA_REFERENCE_APY}% it's ${currency.format(r.atReferenceYearly)}/yr (+${currency.format(r.missedYearly)})`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">
+              Set your bucket&apos;s real APY in Budget → Buckets once you
+              move it, and this card retires itself.
+            </p>
           </div>
         )}
 

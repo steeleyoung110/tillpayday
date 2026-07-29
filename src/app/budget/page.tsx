@@ -36,6 +36,9 @@ import {
 } from "@/lib/engine";
 import { CashflowCalendar } from "@/components/CashflowCalendar";
 import { ChallengesCard } from "@/components/ChallengesCard";
+import { SplitTuner } from "@/components/SplitTuner";
+import { checkHistory } from "@/lib/checkHistory";
+import { personalInflation } from "@/lib/personalInflation";
 import { buildActivity } from "@/lib/activity";
 import { noSpendStatus, week52Status } from "@/lib/challenges";
 import { optimizeDueDates } from "@/lib/dueDateOptimizer";
@@ -425,6 +428,21 @@ export default async function BudgetPage({
     sinceISO,
   );
 
+  // Personal inflation: your own prices — repeat merchants + bill creep.
+  const inflation = personalInflation(
+    data.expenses,
+    priceCreeps.map((c) => ({ name: c.name, first: c.first, last: c.last })),
+    todayISO,
+  );
+
+  // Check-size history: the slow slide the short-check detector can't see.
+  const checkHist = checkHistory(engineEntries);
+
+  // Split tuner frequency: the main paycheck's rhythm (biweekly fallback).
+  const mainPaycheckRow = data.income
+    .filter((s) => s.kind === "paycheck" && s.frequency !== "irregular")
+    .sort((a, b) => Number(b.amount) - Number(a.amount))[0];
+
   // Spend visuals: 13-week daily heatmap + 6-month category trend + rate.
   const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
   const trend = monthlyCategoryTotals(engineExpenses, data.buckets, todayISO);
@@ -813,6 +831,84 @@ export default async function BudgetPage({
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {typicalPaycheck > 0 && (
+          <SplitTuner
+            buckets={engineBuckets}
+            typicalPaycheck={typicalPaycheck}
+            frequency={mainPaycheckRow?.frequency ?? "biweekly"}
+          />
+        )}
+
+        {inflation && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">Your personal inflation 📈</h2>
+              <p
+                className={`text-sm font-bold ${inflation.overallPct > 0 ? "text-red-300" : "text-emerald-300"}`}
+              >
+                {`${inflation.overallPct > 0 ? "+" : ""}${inflation.overallPct}%`}
+              </p>
+            </div>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              Not the news&apos; inflation — YOURS, from your own repeat
+              purchases and bill history.
+            </p>
+            <ul className="space-y-1">
+              {inflation.rows.map((r) => (
+                <li
+                  key={`${r.kind}-${r.label}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm"
+                >
+                  <span className="text-slate-200">
+                    {r.label}
+                    <span className="ml-2 text-xs text-slate-500">
+                      {r.kind === "merchant"
+                        ? `avg of ${r.samples} visits`
+                        : "recurring bill"}
+                    </span>
+                  </span>
+                  <span
+                    className={`font-semibold ${r.pct > 0 ? "text-red-300" : "text-emerald-300"}`}
+                  >
+                    {`${currencyCents.format(r.early)} → ${currencyCents.format(r.late)} (${r.pct > 0 ? "+" : ""}${r.pct}%)`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {checkHist && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold text-white">Your checks, lately 📊</h2>
+              <p className="text-sm text-slate-400">
+                {`average ${currencyCents.format(checkHist.average)}`}
+              </p>
+            </div>
+            <div className="mt-3 flex h-20 items-end gap-1.5">
+              {checkHist.checks.map((c) => (
+                <div
+                  key={c.date}
+                  className="flex-1 rounded-t bg-emerald-500/60"
+                  style={{
+                    height: `${Math.max(8, Math.round((c.amount / checkHist.max) * 100))}%`,
+                  }}
+                  title={`${c.date}: ${currencyCents.format(c.amount)}`}
+                />
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              {`${checkHist.checks.length} logged checks, ${currencyCents.format(checkHist.min)}–${currencyCents.format(checkHist.max)}. `}
+              {checkHist.trendPerMonth === null
+                ? "Holding steady."
+                : checkHist.trendPerMonth > 0
+                  ? `Trending UP about ${currencyCents.format(checkHist.trendPerMonth)}/month — hours are growing.`
+                  : `Trending DOWN about ${currencyCents.format(Math.abs(checkHist.trendPerMonth))}/month. That's a real slide, not a bad week — worth a conversation at work or a plan here.`}
+            </p>
           </div>
         )}
 
