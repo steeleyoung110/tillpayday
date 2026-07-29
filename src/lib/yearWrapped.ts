@@ -72,9 +72,10 @@ export function yearWrapped(
 
     let moneyIn = 0;
     for (const src of income) {
-      if (src.kind !== "paycheck" || src.frequency === "irregular") continue;
+      if (src.frequency === "irregular") continue;
       const dates = generatePayDates(src, first, end);
-      paydayCount += dates.length;
+      // Only paychecks count as "paydays"; side income still counts as money.
+      if (src.kind === "paycheck") paydayCount += dates.length;
       moneyIn += dates.length * src.amount;
     }
     for (const e of entries) {

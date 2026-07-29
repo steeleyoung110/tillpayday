@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LegalFooter } from "@/components/LegalFooter";
 import { completeReview } from "@/app/actions";
+import { cycleStartSavings } from "@/lib/balances";
 import { getDashboardData } from "@/lib/data";
 import {
   addDays,
@@ -86,6 +87,7 @@ export default async function ReviewPage() {
     todayISO,
     data.incomeEntries.map(incomeEntryToEngine),
     data.transfers.map(transferToEngine),
+    cycleStartSavings(data),
   );
 
   // One thing to skip: your biggest merchant of the last 30 days.

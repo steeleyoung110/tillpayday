@@ -3,7 +3,7 @@
  * the dashboard already loads. Pure — data in, nudge list out — so the
  * in-app banners and the daily email route share one brain.
  */
-import { computeTodayBalances } from "@/lib/balances";
+import { computeTodayBalances, cycleStartSavings } from "@/lib/balances";
 import {
   addDays,
   currentPayCycle,
@@ -133,6 +133,7 @@ export function computeNudges(
     todayISO,
     data.incomeEntries.map(incomeEntryToEngine),
     data.transfers.map(transferToEngine),
+    cycleStartSavings(data),
   );
   if (danger && danger.date === tomorrowISO && (danger.negative || danger.low < 50)) {
     nudges.push({

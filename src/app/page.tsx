@@ -8,7 +8,7 @@ import { ProjectionSection } from "@/components/ProjectionSection";
 import { SetupNotice } from "@/components/SetupNotice";
 import { DebtOutlook } from "@/components/DebtOutlook";
 import { QuickSpend } from "@/components/QuickSpend";
-import { computeTodayBalances } from "@/lib/balances";
+import { computeTodayBalances, cycleStartSavings } from "@/lib/balances";
 import { classifyBucket, planColor } from "@/lib/bucketColor";
 import { computeNudges } from "@/lib/nudges";
 import { getDashboardData, getNetWorthData, resolveViewUser } from "@/lib/data";
@@ -222,6 +222,7 @@ export default async function Home({
     todayISO,
     engineEntries,
     engineTransfers,
+    cycleStartSavings(data),
   );
 
   // Short-check detector: a logged check well under typical this cycle.

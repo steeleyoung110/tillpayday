@@ -37,7 +37,10 @@ import {
 import { CashflowCalendar } from "@/components/CashflowCalendar";
 import { ChallengesCard } from "@/components/ChallengesCard";
 import Link from "next/link";
+import { PassThroughCard } from "@/components/PassThroughCard";
 import { SplitTuner } from "@/components/SplitTuner";
+import { cycleStartSavings } from "@/lib/balances";
+import { incomeMonthly, passThroughSummary } from "@/lib/passThrough";
 import { billTerrain } from "@/lib/billTerrain";
 import { checkHistory } from "@/lib/checkHistory";
 import { roundNumberBias } from "@/lib/loggingQuality";
@@ -310,7 +313,55 @@ export default async function BudgetPage({
     todayISO,
     engineEntries,
     engineTransfers,
+    cycleStartSavings(data),
   );
+
+  // Pass-through pairs: income tied to a specific bill (rent → mortgage).
+  const passThrough = passThroughSummary(
+    data.income.map((s) => ({
+      id: s.id,
+      name: s.name,
+      amount: Number(s.amount),
+      frequency: s.frequency,
+      kind: s.kind,
+    })),
+    data.expenses,
+  );
+
+  // All money in, per month — including side income, which the paycheck pie
+  // deliberately excludes (it doesn't flow through the bucket split).
+  const monthlyIncomeAll = Math.round(
+    data.income
+      .filter((s) => s.frequency !== "irregular")
+      .reduce(
+        (sum, s) =>
+          sum +
+          incomeMonthly({
+            id: s.id,
+            name: s.name,
+            amount: Number(s.amount),
+            frequency: s.frequency,
+            kind: s.kind,
+          }),
+        0,
+      ) * 100,
+  ) / 100;
+  const monthlySideAll = Math.round(
+    data.income
+      .filter((s) => s.kind === "side" && s.frequency !== "irregular")
+      .reduce(
+        (sum, s) =>
+          sum +
+          incomeMonthly({
+            id: s.id,
+            name: s.name,
+            amount: Number(s.amount),
+            frequency: s.frequency,
+            kind: s.kind,
+          }),
+        0,
+      ) * 100,
+  ) / 100;
   const calendarWeeks = monthGrid(
     engineIncome,
     engineExpenses,
@@ -339,6 +390,8 @@ export default async function BudgetPage({
     todayISO,
     engineEntries,
     engineTransfers,
+    2,
+    cycleStartSavings(data),
   );
 
   // Challenges: start dates live in user metadata; the data is already here.
@@ -532,7 +585,13 @@ export default async function BudgetPage({
           const paydayLabel =
             days === 0 ? "today 🎉" : days === 1 ? "tomorrow" : `in ${days} days`;
           const tiles: [string, string, string][] = [
-            ["Typical check", currency.format(typicalPaycheck), "text-white"],
+            monthlySideAll > 0
+              ? [
+                  "All money in / month",
+                  currency.format(monthlyIncomeAll),
+                  "text-emerald-300",
+                ]
+              : ["Typical check", currency.format(typicalPaycheck), "text-white"],
             [
               `Spent since ${spend?.since ?? cycle.lastPayday}`,
               spentTotal > 0 ? `−${currencyCents.format(spentTotal)}` : "$0",
@@ -546,17 +605,24 @@ export default async function BudgetPage({
             ["Next payday", paydayLabel, "text-white"],
           ];
           return (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {tiles.map(([label, value, tone]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-slate-800 bg-slate-900 p-4"
-                >
-                  <p className="text-xs text-slate-500">{label}</p>
-                  <p className={`mt-1 text-lg font-bold ${tone}`}>{value}</p>
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {tiles.map(([label, value, tone]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-slate-800 bg-slate-900 p-4"
+                  >
+                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className={`mt-1 text-lg font-bold ${tone}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+              {monthlySideAll > 0 && (
+                <p className="text-xs text-slate-500">
+                  {`Includes ${currency.format(monthlySideAll)}/mo of side income. The pie below splits only your ${currency.format(typicalPaycheck)} paycheck — side income lands in savings instead of flowing through buckets, which is why it isn't in the split.`}
+                </p>
+              )}
+            </>
           );
         })()}
 
@@ -567,7 +633,8 @@ export default async function BudgetPage({
             </h2>
             <p className="mb-3 text-xs text-slate-500">
               Your next few paychecks and the bills already lined up against
-              each one.
+              each one. Side income arriving in a window counts toward covering
+              it (shown in teal).
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {checkGroups.map((g) => (
@@ -583,6 +650,14 @@ export default async function BudgetPage({
                     <p className="text-sm font-semibold text-slate-200">{g.payday}</p>
                     <span className="text-xs text-slate-400">
                       {currency.format(g.paycheckTotal)}
+                      {g.sideTotal > 0 && (
+                        <span
+                          className="ml-1 text-teal-300"
+                          title="Side income arriving inside this window"
+                        >
+                          {`+ ${currency.format(g.sideTotal)}`}
+                        </span>
+                      )}
                     </span>
                   </div>
                   {g.bills.length === 0 ? (
@@ -623,6 +698,8 @@ export default async function BudgetPage({
             </div>
           </div>
         )}
+
+        {passThrough && <PassThroughCard summary={passThrough} />}
 
         <div id="calendar">
           <CashflowCalendar weeks={calendarWeeks} year={calYear} month={calMonth} />

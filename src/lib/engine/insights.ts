@@ -74,7 +74,7 @@ export function ageOfMoney(
 
   const inflows: { date: string; amount: number }[] = [];
   for (const src of income) {
-    if (src.kind !== "paycheck") continue;
+    if (src.frequency === "irregular") continue; // no schedule to walk
     for (const d of generatePayDates(src, start, end)) {
       inflows.push({ date: toISO(d), amount: src.amount });
     }

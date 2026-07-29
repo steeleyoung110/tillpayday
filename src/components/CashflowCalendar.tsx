@@ -87,6 +87,14 @@ export function CashflowCalendar({
                     {`+${cents.format(day.paydayTotal)}`}
                   </p>
                 )}
+                {day.sideTotal > 0 && (
+                  <p
+                    className="mt-0.5 truncate text-xs font-semibold text-teal-300"
+                    title="Side income — real money, but it lands in savings instead of splitting into buckets"
+                  >
+                    {`+${cents.format(day.sideTotal)}`}
+                  </p>
+                )}
                 {day.totalBills > 0 && (
                   <p className="mt-0.5 truncate text-xs text-red-300">
                     {`−${cents.format(day.totalBills)}`}
@@ -106,8 +114,10 @@ export function CashflowCalendar({
         ))}
       </div>
       <p className="mt-2 text-xs text-slate-500">
-        Green in, red out. ⚠️ marks the day your total money bottoms out before
-        the next check — plan around it.
+        Green is a paycheck landing, teal is side income (rent, gigs — real
+        money, but it goes to savings rather than splitting into buckets), red
+        is money leaving. ⚠️ marks the day your total bottoms out before the
+        next check.
       </p>
     </div>
   );

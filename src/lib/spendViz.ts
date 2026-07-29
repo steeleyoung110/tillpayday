@@ -105,9 +105,10 @@ export function monthlySavingsRate(
     const last = addDays(nextFirst, -1);
     const windowEnd = last <= today ? last : today;
 
+    // Every scheduled source counts — side income is income.
     let moneyIn = 0;
     for (const src of income) {
-      if (src.kind !== "paycheck") continue;
+      if (src.frequency === "irregular") continue;
       moneyIn += generatePayDates(src, first, windowEnd).length * src.amount;
     }
     for (const e of entries) {

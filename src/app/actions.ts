@@ -1251,6 +1251,31 @@ export async function applyDebtSweep(formData: FormData): Promise<UndoRecipe | n
   };
 }
 
+/**
+ * Pass-through pairing: mark a bill as funded by a specific income source
+ * (rent → that property's mortgage), or clear the link.
+ */
+export async function setFundedBy(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const incomeId = str(formData, "funded_by_income_id");
+  if (incomeId) {
+    // Only link to an income source you own (RLS would block anyway).
+    const { data: src } = await supabase
+      .from("income_sources")
+      .select("id")
+      .eq("id", incomeId)
+      .maybeSingle();
+    if (!src) return;
+  }
+  await supabase
+    .from("expenses")
+    .update({ funded_by_income_id: incomeId || null })
+    .eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
 /** Autopay audit: classify a bill (autopay / manual / unset). */
 export async function setAutopay(formData: FormData) {
   const supabase = await createClient();

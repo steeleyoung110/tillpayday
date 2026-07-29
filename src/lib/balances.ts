@@ -14,6 +14,22 @@ import {
   type DashboardData,
 } from "@/lib/rows";
 
+/**
+ * Money in savings at the start of the current cycle: the savings bucket's
+ * stated starting balance, else the liquid assets from Net Worth. Every
+ * cycle replay needs this seed — without it the app assumes you began the
+ * cycle at $0 and every large bill looks like a catastrophe.
+ */
+export function cycleStartSavings(data: DashboardData): number {
+  const savingsBucket = data.buckets.find((b) => b.is_savings);
+  if (savingsBucket && Number(savingsBucket.starting_balance) > 0) {
+    return Number(savingsBucket.starting_balance);
+  }
+  return data.netWorth
+    .filter((i) => i.kind === "asset" && LIQUID_CATEGORIES.includes(i.category))
+    .reduce((s, i) => s + Number(i.amount), 0);
+}
+
 /** Balance per bucket id today; "" = savings/leftover. Undefined without a cycle. */
 export function computeTodayBalances(
   data: DashboardData,
@@ -24,13 +40,7 @@ export function computeTodayBalances(
   if (!cycle) return undefined;
 
   const savingsBucket = data.buckets.find((b) => b.is_savings);
-  const liquidNow = data.netWorth
-    .filter((i) => i.kind === "asset" && LIQUID_CATEGORIES.includes(i.category))
-    .reduce((s, i) => s + Number(i.amount), 0);
-  const startingSavings =
-    savingsBucket && Number(savingsBucket.starting_balance) > 0
-      ? Number(savingsBucket.starting_balance)
-      : liquidNow;
+  const startingSavings = cycleStartSavings(data);
 
   const replay = runProjection({
     startDate: cycle.lastPayday,

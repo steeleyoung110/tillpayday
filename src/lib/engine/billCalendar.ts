@@ -3,7 +3,7 @@
  * Answers "can this check handle rent AND the concert?" visually instead of
  * making you do the mental math across a long list of due dates.
  */
-import { addDays, parseISO, toISO } from "./dates";
+import { addDays, diffDays, parseISO, toISO } from "./dates";
 import { generateOccurrences, generatePayDates } from "./projection";
 import { currentPayCycle } from "./safeToSpend";
 import type { Bucket, Expense, IncomeSource } from "./types";
@@ -11,6 +11,14 @@ import type { Bucket, Expense, IncomeSource } from "./types";
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
+
+/** Payments per year, for prorating side income across a check window. */
+const SIDE_PER_YEAR: Record<string, number> = {
+  weekly: 52,
+  biweekly: 26,
+  semimonthly: 24,
+  monthly: 12,
+};
 
 export interface CalendarBill {
   expenseId: string;
@@ -28,6 +36,11 @@ export interface CheckBillGroup {
   nextPayday: string;
   /** Paycheck-kind income landing on `payday`. */
   paycheckTotal: number;
+  /** Side income (rent, gigs) landing anywhere inside this check's window —
+   * money that genuinely helps cover the window's bills. */
+  sideTotal: number;
+  /** paycheckTotal + sideTotal: everything arriving in this window. */
+  incomeTotal: number;
   /** Every bill occurrence due in [payday, nextPayday), earliest first. */
   bills: CalendarBill[];
   totalBills: number;
@@ -54,6 +67,9 @@ export function billsByCheck(
   if (!cycle) return [];
 
   const paychecks = sources.filter((s) => s.kind === "paycheck");
+  const sideSources = sources.filter(
+    (s) => s.kind === "side" && s.frequency !== "irregular",
+  );
   const nameById = new Map(buckets.map((b) => [b.id, b.name]));
   const bucketName = (id: string | null) =>
     id === null ? "Savings / leftover" : nameById.get(id) ?? "Unknown";
@@ -84,6 +100,22 @@ export function billsByCheck(
         .reduce((sum, s) => sum + s.amount, 0),
     );
 
+    // Side income counts toward covering the window, PRORATED by the window's
+    // length rather than by exact landing dates. Monthly rent against a
+    // semimonthly check would otherwise fall on one side of a boundary and
+    // make alternating windows look impossible — the mortgage due the 29th is
+    // really paid out of rent that arrived, not out of thin air.
+    const windowDays = Math.max(1, diffDays(startDate, parseISO(end)));
+    const sideTotal = round2(
+      sideSources.reduce(
+        (sum, s) =>
+          sum +
+          ((s.amount * (SIDE_PER_YEAR[s.frequency] ?? 0)) / 365.25) * windowDays,
+        0,
+      ),
+    );
+    const incomeTotal = round2(paycheckTotal + sideTotal);
+
     const bills: CalendarBill[] = [];
     for (const e of expenses) {
       if (e.isPaused) continue;
@@ -101,12 +133,14 @@ export function billsByCheck(
     bills.sort((a, b) => (a.dueDate < b.dueDate ? -1 : a.dueDate > b.dueDate ? 1 : 0));
 
     const totalBills = round2(bills.reduce((sum, b) => sum + b.amount, 0));
-    const shortBy = round2(Math.max(0, totalBills - paycheckTotal));
+    const shortBy = round2(Math.max(0, totalBills - incomeTotal));
 
     groups.push({
       payday: start,
       nextPayday: end,
       paycheckTotal,
+      sideTotal,
+      incomeTotal,
       bills,
       totalBills,
       fits: shortBy === 0,

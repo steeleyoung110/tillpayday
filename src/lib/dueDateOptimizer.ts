@@ -41,8 +41,11 @@ export function optimizeDueDates(
   incomeEntries: IncomeEntry[] = [],
   transfers: Transfer[] = [],
   maxSuggestions = 2,
+  startingSavings = 0,
 ): DueDateSuggestion[] {
-  const base = dangerDay(sources, buckets, expenses, todayISO, incomeEntries, transfers);
+  const base = dangerDay(
+    sources, buckets, expenses, todayISO, incomeEntries, transfers, startingSavings,
+  );
   if (!base) return [];
 
   const windowStart = parseISO(todayISO);
@@ -63,7 +66,9 @@ export function optimizeDueDates(
       dueDate: toISO(addDays(parseISO(e.dueDate), shiftDays)),
     };
     const withMove = expenses.map((x) => (x.id === e.id ? moved : x));
-    const after = dangerDay(sources, buckets, withMove, todayISO, incomeEntries, transfers);
+    const after = dangerDay(
+      sources, buckets, withMove, todayISO, incomeEntries, transfers, startingSavings,
+    );
     if (!after) continue;
 
     const lift = Math.round((after.low - base.low) * 100) / 100;

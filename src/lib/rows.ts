@@ -117,6 +117,9 @@ export interface ExpenseRow {
   split_ways: number;
   /** Autopay audit: true = autopay, false = manual, null = not classified. */
   autopay: boolean | null;
+  /** Pass-through pair: the income source that exists to pay this bill
+   * (rental income → that property's mortgage). Null = personal bill. */
+  funded_by_income_id: string | null;
   created_at: string;
 }
 

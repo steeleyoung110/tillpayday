@@ -79,9 +79,10 @@ export default async function WrappedPage({
   let paydayCount = 0;
   let moneyIn = 0;
   for (const src of engineIncome) {
-    if (src.kind !== "paycheck") continue;
+    if (src.frequency === "irregular") continue;
     const dates = generatePayDates(src, first, end);
-    paydayCount += dates.length;
+    // Paydays count paychecks; money-in counts every scheduled source.
+    if (src.kind === "paycheck") paydayCount += dates.length;
     moneyIn += dates.length * src.amount;
   }
   for (const e of data.incomeEntries) {

@@ -29,6 +29,7 @@ import {
   makeSavingsBucket,
   setAutopay,
   setBucketApy,
+  setFundedBy,
   setRenewalDate,
   setSplitWays,
   setBucketGoal,
@@ -740,6 +741,14 @@ export function ExpensesPanel({
             {`renews ${e.renewal_date} 🔔`}
           </span>
         )}
+        {e.funded_by_income_id && (
+          <span
+            className="ml-2 rounded bg-teal-500/20 px-1.5 py-0.5 text-xs text-teal-300"
+            title="Pass-through: this bill is paid by a specific income source, not your bucket split."
+          >
+            {`paid by ${data.income.find((s) => s.id === e.funded_by_income_id)?.name ?? "linked income"} 🏘️`}
+          </span>
+        )}
         {Number(e.split_ways) > 1 && (
           <span
             className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-xs text-violet-300"
@@ -771,6 +780,30 @@ export function ExpensesPanel({
             split
           </button>
         </form>
+        {showCadence && data.income.length > 0 && (
+          <form
+            action={setFundedBy}
+            className="flex items-center gap-1"
+            title="Pass-through pairing: if a specific income source exists to pay this bill (rent → that property's mortgage), link them and the app reports whether the pair covers itself."
+          >
+            <input type="hidden" name="id" value={e.id} />
+            <select
+              name="funded_by_income_id"
+              defaultValue={e.funded_by_income_id ?? ""}
+              className="max-w-36 rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-teal-400"
+            >
+              <option value="">paid by: me</option>
+              {data.income.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <button className="text-xs text-slate-500 transition hover:text-teal-300">
+              link
+            </button>
+          </form>
+        )}
         {showCadence && (
           <form
             action={setAutopay}

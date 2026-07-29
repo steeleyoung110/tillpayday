@@ -44,9 +44,12 @@ export function freedomDay(
   const last = addDays(new Date(Date.UTC(year, month + 1, 1)), -1);
   const daysInMonth = last.getUTCDate();
 
+  // ALL scheduled income counts — a rental check pays bills exactly as well
+  // as a paycheck does. (Only "it varies" income is excluded; it has no
+  // schedule to count.)
   let monthIncome = 0;
   for (const s of income) {
-    if (s.kind !== "paycheck" || s.frequency === "irregular") continue;
+    if (s.frequency === "irregular") continue;
     monthIncome += generatePayDates(s, first, last).length * s.amount;
   }
   monthIncome = Math.round(monthIncome * 100) / 100;

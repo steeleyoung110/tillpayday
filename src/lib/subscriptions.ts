@@ -84,9 +84,11 @@ export function auditSubscriptions(
     rows.filter((r) => !r.isPaused).reduce((s, r) => s + r.yearlyCost, 0),
   );
 
+  // All scheduled income — judging bills against only part of your money
+  // inflates every percentage.
   const yearlyIncome = round2(
     income
-      .filter((s) => s.kind === "paycheck")
+      .filter((s) => s.frequency !== "irregular")
       .reduce(
         (s, i) => s + Number(i.amount) * (CHECKS_PER_YEAR[i.frequency] ?? 0),
         0,

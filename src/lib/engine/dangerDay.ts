@@ -6,7 +6,7 @@
  * low-water mark.
  */
 import { addDays, parseISO, toISO } from "./dates";
-import { generateOccurrences, runProjection } from "./projection";
+import { UNALLOCATED_KEY, generateOccurrences, runProjection } from "./projection";
 import { currentPayCycle } from "./safeToSpend";
 import type { Bucket, Expense, IncomeEntry, IncomeSource, Transfer } from "./types";
 
@@ -35,10 +35,17 @@ export function dangerDay(
   todayISO: string,
   incomeEntries: IncomeEntry[] = [],
   transfers: Transfer[] = [],
+  /**
+   * Money already in savings at the cycle's start. Without it the replay
+   * assumes you began the cycle at $0, which makes any big bill look like a
+   * catastrophe even when the money is sitting in the bank.
+   */
+  startingSavings = 0,
 ): DangerDayInfo | null {
   const cycle = currentPayCycle(sources, todayISO);
   if (!cycle) return null;
 
+  const savingsBucket = buckets.find((b) => b.isSavings);
   const replay = runProjection({
     startDate: cycle.lastPayday,
     months: 1,
@@ -47,6 +54,9 @@ export function dangerDay(
     expenses,
     incomeEntries,
     transfers,
+    startingBalances: {
+      [savingsBucket ? savingsBucket.id : UNALLOCATED_KEY]: startingSavings,
+    },
   });
 
   // Watch today through the day before payday (payday morning refills).

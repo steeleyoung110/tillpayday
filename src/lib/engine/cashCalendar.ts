@@ -19,6 +19,9 @@ export interface CalendarDayCell {
   isToday: boolean;
   /** Paycheck money landing this day (0 = none). */
   paydayTotal: number;
+  /** Side income (rent, side gigs) landing this day — real money, shown
+   * separately because it doesn't flow through the bucket split. */
+  sideTotal: number;
   bills: { name: string; amount: number }[];
   totalBills: number;
   isDanger: boolean;
@@ -42,13 +45,17 @@ export function monthGrid(
   const gridStart = addDays(first, -first.getUTCDay());
   const gridEnd = addDays(last, 6 - last.getUTCDay());
 
-  // Paydays: paycheck-kind income landing in the grid range.
+  // Money in: paychecks and side income both land on the calendar, tracked
+  // separately so the UI can distinguish "gets split into buckets" from
+  // "lands in savings".
   const paydayByDate = new Map<string, number>();
+  const sideByDate = new Map<string, number>();
   for (const s of sources) {
-    if (s.kind !== "paycheck" || s.frequency === "irregular") continue;
+    if (s.frequency === "irregular") continue;
+    const target = s.kind === "side" ? sideByDate : paydayByDate;
     for (const d of generatePayDates(s, gridStart, gridEnd)) {
       const iso = toISO(d);
-      paydayByDate.set(iso, round2((paydayByDate.get(iso) ?? 0) + s.amount));
+      target.set(iso, round2((target.get(iso) ?? 0) + s.amount));
     }
   }
 
@@ -77,6 +84,7 @@ export function monthGrid(
         inMonth: cursor.getUTCMonth() === month - 1,
         isToday: iso === todayISO,
         paydayTotal: paydayByDate.get(iso) ?? 0,
+        sideTotal: sideByDate.get(iso) ?? 0,
         bills,
         totalBills: round2(bills.reduce((s, b) => s + b.amount, 0)),
         isDanger: iso === dangerISO,
