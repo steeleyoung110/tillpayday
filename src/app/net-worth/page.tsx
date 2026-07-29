@@ -14,8 +14,12 @@ import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
 import { NetWorthChart } from "@/components/NetWorthChart";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
+import { monthlyBillLoad } from "@/lib/efund";
 import { paydayRecap } from "@/lib/engine";
+import { freedomStatus } from "@/lib/freedom";
 import { computeTotals } from "@/lib/netWorth";
+import { nwForecast } from "@/lib/nwForecast";
+import { expenseShare } from "@/lib/rows";
 import {
   LIQUID_CATEGORIES,
   bucketToEngine,
@@ -101,6 +105,24 @@ export default async function NetWorthPage() {
     ...nw.liabilities.filter((l) => l.is_archived).map((l) => ({ ...l, table: "liabilities" as const })),
   ];
   const totals = computeTotals(nw.assets, nw.liabilities, bridge);
+
+  // Financial freedom %: the invested pile whose 4%/yr covers the bills.
+  const investable = activeAssets
+    .filter((a) => ["cash", "savings", "investment", "retirement"].includes(a.category))
+    .reduce((s, a) => s + Number(a.current_value), 0);
+  const monthlyLoad = monthlyBillLoad(
+    dash.expenses.map((e) => ({ ...e, amount: expenseShare(e) })),
+  );
+  const freedom = freedomStatus(monthlyLoad, investable);
+
+  // Milestone forecast: where the trend line crosses next, honestly framed.
+  const forecast = nwForecast(
+    nw.snapshots.map((s) => ({
+      snapshot_date: s.snapshot_date,
+      net_worth: Number(s.net_worth),
+    })),
+    todayISO,
+  );
 
   // Month-over-month: latest snapshot vs the closest one ≥28 days older
   // (or the oldest available when history is younger than a month).
@@ -223,6 +245,73 @@ export default async function NetWorthPage() {
             </p>
           )}
         </div>
+
+        {(freedom || forecast) && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {freedom && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                <h2 className="font-semibold text-white">Financial freedom 🗽</h2>
+                <p className="mt-2 text-4xl font-black tracking-tight text-emerald-300">
+                  {`${freedom.pct}%`}
+                </p>
+                <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-emerald-400"
+                    style={{ width: `${Math.min(100, freedom.pct)}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-sm text-slate-300">
+                  {`Your bills run ${currency.format(freedom.monthlyBills)}/mo, so ${currency.format(freedom.freedomNumber)} invested covers them forever at a 4%/yr withdrawal. Your ${currency.format(freedom.investable)} covers ${currency.format(freedom.coveredMonthly)}/mo today.`}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Small number? Everyone&apos;s starts small. Every bill you
+                  shrink lowers the target AND speeds the climb — that lever
+                  works from both ends.
+                </p>
+              </div>
+            )}
+            {forecast && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+                <h2 className="font-semibold text-white">At this pace… 📈</h2>
+                {forecast.flatOrFalling ? (
+                  <p className="mt-2 text-sm text-slate-300">
+                    {`Your last ${forecast.windowDays} days of snapshots trend flat or downward — no milestone dates will be invented from that. The chart above shows what's really happening; the fix lives in the Budget.`}
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-2 text-sm text-slate-300">
+                      {`You're gaining about ${currency.format(Math.round(forecast.slopePerDay * 30.44))}/month (last ${forecast.windowDays} days of snapshots).`}
+                    </p>
+                    <ul className="mt-3 space-y-2">
+                      {forecast.crossings.map((c) => (
+                        <li
+                          key={c.amount}
+                          className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
+                        >
+                          <span className="font-semibold text-emerald-300">
+                            {c.amount === 0 ? "Crossing $0 🎉" : currency.format(c.amount)}
+                          </span>
+                          <span className="text-slate-400">{`around ${c.date.slice(0, 7)}`}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {forecast.crossings.length === 0 && (
+                      <p className="mt-2 text-sm text-slate-400">
+                        The next milestone is more than 5 years out at this
+                        pace — which is exactly the kind of thing worth
+                        knowing early.
+                      </p>
+                    )}
+                  </>
+                )}
+                <p className="mt-2 text-xs text-slate-500">
+                  A straight-line guess from your own history — markets and
+                  life both wobble. Keep the snapshots coming and it sharpens.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <NetWorthChart snapshots={nw.snapshots} todayISO={todayISO} />
 

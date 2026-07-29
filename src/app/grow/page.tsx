@@ -3,6 +3,7 @@ import { AppShell } from "@/components/AppShell";
 import { GrowTab, type LoanPrefill } from "@/components/GrowTab";
 import { LegalFooter } from "@/components/LegalFooter";
 import { RaiseSim } from "@/components/RaiseSim";
+import { RefinanceSim, type RefiPrefill } from "@/components/RefinanceSim";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import { bucketToEngine } from "@/lib/rows";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -34,6 +35,15 @@ export default async function GrowPage() {
       rate: l.interest_rate !== null ? Number(l.interest_rate) : null,
     }));
 
+  const refiPrefills: RefiPrefill[] = nw.liabilities
+    .filter((l) => !l.is_archived && Number(l.current_balance) > 0)
+    .map((l) => ({
+      name: l.name,
+      balance: Number(l.current_balance),
+      rate: l.interest_rate !== null ? Number(l.interest_rate) : null,
+      payment: Number(l.minimum_payment),
+    }));
+
   return (
     <AppShell active="grow">
       <div className="mx-auto max-w-screen-2xl space-y-4 px-6 pt-6 2xl:px-10">
@@ -47,6 +57,7 @@ export default async function GrowPage() {
           </p>
         </div>
         <GrowTab prefills={prefills} />
+        <RefinanceSim prefills={refiPrefills} />
         {mainPaycheck && (
           <RaiseSim
             buckets={dash.buckets.map(bucketToEngine)}

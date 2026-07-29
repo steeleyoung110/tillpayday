@@ -966,6 +966,79 @@ export async function addExpense(formData: FormData) {
   revalidatePath("/budget");
 }
 
+/**
+ * Ctrl+K natural logging: "12.50 mcdonalds" → a one-time spend from the fun
+ * bucket, today. Parsing lives server-side so the palette stays data-free.
+ */
+export async function quickLogSpend(
+  formData: FormData,
+): Promise<{ ok: boolean; name?: string; amount?: number; bucketName?: string }> {
+  const supabase = await createClient();
+  const m = str(formData, "text")
+    .trim()
+    .match(/^\$?(\d+(?:\.\d{1,2})?)\s+(.{2,60})$/);
+  if (!m) return { ok: false };
+  const amount = Number(m[1]);
+  const name = m[2].trim();
+  if (!(amount > 0)) return { ok: false };
+  const { data: fun } = await supabase
+    .from("buckets")
+    .select("id, name")
+    .eq("is_flexible", true)
+    .eq("is_savings", false)
+    .order("sort_order")
+    .limit(1)
+    .maybeSingle();
+  await supabase.from("expenses").insert({
+    name,
+    amount,
+    bucket_id: fun?.id ?? null,
+    due_date: new Date().toISOString().slice(0, 10),
+    cadence: "one_time",
+  });
+  revalidatePath("/");
+  revalidatePath("/budget");
+  return { ok: true, name, amount, bucketName: fun?.name ?? "Savings / leftover" };
+}
+
+/** Roommate mode: how many ways a bill is split (1 clears it). */
+export async function setSplitWays(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const ways = Math.round(num(formData, "split_ways"));
+  if (ways < 1 || ways > 12) return;
+  await supabase.from("expenses").update({ split_ways: ways }).eq("id", id);
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
+/** Weekly review: mark this week's check-in done (idempotent per week). */
+export async function completeReview(formData: FormData) {
+  const supabase = await createClient();
+  const weekStart = str(formData, "week_start");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) return;
+  await supabase
+    .from("review_checkins")
+    .upsert({ week_start: weekStart }, { onConflict: "user_id,week_start", ignoreDuplicates: true });
+  revalidatePath("/");
+  revalidatePath("/review");
+}
+
+/** Challenges: start/stop lives in user metadata (no tables, no ceremony). */
+export async function setChallenge(formData: FormData) {
+  const supabase = await createClient();
+  const kind = str(formData, "kind"); // "nospend" | "week52"
+  const on = str(formData, "state") === "start";
+  if (!["nospend", "week52"].includes(kind)) return;
+  await supabase.auth.updateUser({
+    data: {
+      [`challenge_${kind}_start`]: on ? new Date().toISOString().slice(0, 10) : null,
+    },
+  });
+  revalidatePath("/");
+  revalidatePath("/budget");
+}
+
 /** Contract watch: set (or clear) the date a bill's contract renews. */
 export async function setRenewalDate(formData: FormData) {
   const supabase = await createClient();

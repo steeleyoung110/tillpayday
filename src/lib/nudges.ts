@@ -7,11 +7,19 @@ import { computeTodayBalances } from "@/lib/balances";
 import {
   addDays,
   currentPayCycle,
+  dangerDay,
   generateOccurrences,
   parseISO,
   toISO,
 } from "@/lib/engine";
-import { incomeToEngine, type DashboardData } from "@/lib/rows";
+import {
+  bucketToEngine,
+  expenseToEngine,
+  incomeEntryToEngine,
+  incomeToEngine,
+  transferToEngine,
+  type DashboardData,
+} from "@/lib/rows";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -22,7 +30,8 @@ export type NudgeType =
   | "bill-underfunded"
   | "payday-tomorrow"
   | "savings-negative"
-  | "renewal-soon";
+  | "renewal-soon"
+  | "danger-tomorrow";
 
 export interface Nudge {
   type: NudgeType;
@@ -86,6 +95,25 @@ export function computeNudges(
         message: `${e.name} renewed on ${e.renewal_date} — check whether the price moved, and bump its renewal date to next year.`,
       });
     }
+  }
+
+  // Danger-day heads-up: tomorrow is the projected low point and it's thin.
+  const tomorrowISO = toISO(addDays(start, 1));
+  const danger = dangerDay(
+    data.income.map(incomeToEngine),
+    data.buckets.map(bucketToEngine),
+    data.expenses.map(expenseToEngine),
+    todayISO,
+    data.incomeEntries.map(incomeEntryToEngine),
+    data.transfers.map(transferToEngine),
+  );
+  if (danger && danger.date === tomorrowISO && (danger.negative || danger.low < 50)) {
+    nudges.push({
+      type: "danger-tomorrow",
+      message: danger.negative
+        ? `Tomorrow is your tightest day before payday — projected ${currency.format(Math.abs(danger.low))} NEGATIVE${danger.causes[0] ? ` when ${danger.causes[0].name} lands` : ""}. Move money today.`
+        : `Tomorrow is your tightest day before payday — projected low of ${currency.format(danger.low)}${danger.causes[0] ? ` after ${danger.causes[0].name}` : ""}.`,
+    });
   }
 
   const cycle = currentPayCycle(data.income.map(incomeToEngine), todayISO);

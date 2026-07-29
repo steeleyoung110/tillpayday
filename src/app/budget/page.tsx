@@ -35,7 +35,13 @@ import {
   splitPaycheck,
 } from "@/lib/engine";
 import { CashflowCalendar } from "@/components/CashflowCalendar";
+import { ChallengesCard } from "@/components/ChallengesCard";
+import { buildActivity } from "@/lib/activity";
+import { noSpendStatus, week52Status } from "@/lib/challenges";
+import { optimizeDueDates } from "@/lib/dueDateOptimizer";
+import { futureValueMonthly } from "@/lib/futureValue";
 import { merchantLeaderboard } from "@/lib/merchants";
+import { expenseShare } from "@/lib/rows";
 import {
   bucketToEngine,
   expenseToEngine,
@@ -311,7 +317,51 @@ export default async function BudgetPage({
   const merchants = merchantLeaderboard(data.expenses, todayISO);
 
   // Subscription auditor: repeating bills × their real yearly multiplier.
-  const subAudit = auditSubscriptions(data.expenses, data.buckets, data.income);
+  // Split bills are audited at YOUR share.
+  const subAudit = auditSubscriptions(
+    data.expenses.map((e) => ({ ...e, amount: expenseShare(e) })),
+    data.buckets,
+    data.income,
+  );
+
+  // Due-date optimizer: which bill move lifts the danger-day low the most.
+  const dueDateFixes = optimizeDueDates(
+    engineIncome,
+    engineBuckets,
+    engineExpenses,
+    todayISO,
+    engineEntries,
+    engineTransfers,
+  );
+
+  // Challenges: start dates live in user metadata; the data is already here.
+  const challengeMeta = user.user_metadata as Record<string, unknown>;
+  const nospendStart =
+    typeof challengeMeta.challenge_nospend_start === "string"
+      ? challengeMeta.challenge_nospend_start
+      : null;
+  const week52Start =
+    typeof challengeMeta.challenge_week52_start === "string"
+      ? challengeMeta.challenge_week52_start
+      : null;
+  const challengeFunIds = new Set(
+    data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
+  );
+  const funSpendDates = data.expenses
+    .filter(
+      (e) =>
+        e.cadence === "one_time" &&
+        e.bucket_id !== null &&
+        challengeFunIds.has(e.bucket_id),
+    )
+    .map((e) => e.due_date);
+  const noSpend = nospendStart
+    ? noSpendStatus(nospendStart, todayISO, funSpendDates)
+    : null;
+  const week52 = week52Start ? week52Status(week52Start, todayISO) : null;
+  const skippedItems = data.whatIf.filter((w) => w.status === "skipped");
+  const skippedTotal =
+    Math.round(skippedItems.reduce((s, w) => s + Number(w.amount), 0) * 100) / 100;
 
   // Price creep: net change per bill from its amount-edit history. An edit
   // that was later reversed nets to zero and stays quiet.
@@ -356,6 +406,24 @@ export default async function BudgetPage({
     })
     .filter((x): x is NonNullable<typeof x> => x !== null)
     .sort((a, b) => b.pct - a.pct);
+
+  // Activity feed: everything that changed in the last 14 days, attributed.
+  const sinceISO = new Date(Date.now() - 14 * 86400000).toISOString();
+  const activity = buildActivity(
+    user.id,
+    data.expenses,
+    data.transfers,
+    data.incomeEntries,
+    (histRaw ?? []) as {
+      expense_id: string;
+      old_amount: number;
+      new_amount: number;
+      changed_at: string;
+    }[],
+    new Map(data.buckets.map((b) => [b.id, b.name])),
+    new Map(),
+    sinceISO,
+  );
 
   // Spend visuals: 13-week daily heatmap + 6-month category trend + rate.
   const heatmap = dailySpendHeatmap(engineExpenses, todayISO);
@@ -528,6 +596,32 @@ export default async function BudgetPage({
         <div id="calendar">
           <CashflowCalendar weeks={calendarWeeks} year={calYear} month={calMonth} />
         </div>
+
+        {dueDateFixes.length > 0 && (
+          <div className="rounded-2xl border border-sky-500/30 bg-sky-500/5 p-5">
+            <h2 className="font-semibold text-sky-200">
+              Your due dates are working against you 📅
+            </h2>
+            <p className="mb-3 mt-1 text-xs text-slate-400">
+              These bills land in the starving days right before payday — and
+              most billers will move a due date with one phone call.
+            </p>
+            <ul className="space-y-2">
+              {dueDateFixes.map((s) => (
+                <li
+                  key={s.expenseId}
+                  className="rounded-lg bg-slate-900/60 px-3 py-2 text-sm text-slate-200"
+                >
+                  {`Moving ${s.name} (${currencyCents.format(s.amount)}, due ${s.currentDue}) to after payday (${s.suggestedDue}) lifts your tightest-day low from ${currencyCents.format(s.oldLow)} to ${currencyCents.format(s.newLow)} — ${currencyCents.format(s.lift)} of breathing room.`}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-xs text-slate-500">
+              If they agree, update the bill&apos;s due date in Bills below and
+              the whole projection follows.
+            </p>
+          </div>
+        )}
 
         {pieSlices.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -854,6 +948,12 @@ export default async function BudgetPage({
                   </span>
                   <span className="font-semibold text-slate-300">
                     {`${currencyCents.format(r.yearlyCost)}/yr`}
+                    <span
+                      className="ml-2 text-xs font-normal text-violet-300/80"
+                      title="Future-me price tag: the same monthly amount invested for 10 years at 7%/yr — an assumption, not a promise."
+                    >
+                      {`≈ ${currencyCents.format(futureValueMonthly(r.yearlyCost / 12))} in 10y invested`}
+                    </span>
                   </span>
                 </li>
               ))}
@@ -898,6 +998,43 @@ export default async function BudgetPage({
                       </span>
                     )}
                   </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <ChallengesCard
+          skippedTotal={skippedTotal}
+          skippedCount={skippedItems.length}
+          noSpend={noSpend}
+          week52={week52}
+          funBucketId={funBucket?.id ?? null}
+          todayISO={todayISO}
+        />
+
+        {activity.length > 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+            <h2 className="font-semibold text-white">Recent activity 📜</h2>
+            <p className="mb-3 mt-1 text-xs text-slate-500">
+              The last 14 days of changes — the paper trail, especially useful
+              once a partner can log spending too.
+            </p>
+            <ul className="space-y-1">
+              {activity.map((a, i) => (
+                <li
+                  key={`${a.at}-${i}`}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm text-slate-300"
+                >
+                  <span>
+                    {a.by ? (
+                      <span className="mr-1 rounded bg-violet-500/20 px-1.5 py-0.5 text-xs text-violet-300">
+                        {a.by}
+                      </span>
+                    ) : null}
+                    {a.text}
+                  </span>
+                  <span className="text-xs text-slate-500">{a.day}</span>
                 </li>
               ))}
             </ul>

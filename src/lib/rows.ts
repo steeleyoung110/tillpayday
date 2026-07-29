@@ -113,7 +113,15 @@ export interface ExpenseRow {
   renewal_date: string | null;
   /** Who added this row (partner attribution; null on pre-0023 rows). */
   created_by: string | null;
+  /** Roommate mode: how many ways this bill is split (1 = all yours). */
+  split_ways: number;
   created_at: string;
+}
+
+/** Your true share of a possibly-split bill. */
+export function expenseShare(r: Pick<ExpenseRow, "amount" | "split_ways">): number {
+  const ways = Number(r.split_ways) >= 2 ? Number(r.split_ways) : 1;
+  return Math.round((Number(r.amount) / ways) * 100) / 100;
 }
 
 /** A logged income event (powers irregular mode and windfalls). */
@@ -222,7 +230,9 @@ export function expenseToEngine(r: ExpenseRow): Expense {
   return {
     id: r.id,
     name: r.name,
-    amount: Number(r.amount),
+    // Split bills hit YOUR money at your share — the engine only ever sees
+    // the part you actually pay.
+    amount: expenseShare(r),
     bucketId: r.bucket_id,
     dueDate: r.due_date,
     cadence: r.cadence,

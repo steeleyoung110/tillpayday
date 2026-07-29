@@ -5,9 +5,10 @@
  * whose payment doesn't cover its own interest is called out for what it is.
  */
 import Link from "next/link";
+import { debtProgress } from "@/lib/debtMilestones";
 import { addMonths, parseISO, toISO } from "@/lib/engine";
 import { amortize } from "@/lib/grow";
-import type { LiabilityRow } from "@/lib/rows";
+import type { LiabilityRow, SnapshotRow } from "@/lib/rows";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -26,14 +27,37 @@ function fmtMonths(m: number): string {
 export function DebtOutlook({
   liabilities,
   todayISO,
+  snapshots = [],
 }: {
   liabilities: LiabilityRow[];
   todayISO: string;
+  snapshots?: Pick<SnapshotRow, "total_liabilities">[];
 }) {
   const active = liabilities.filter(
     (l) => !l.is_archived && Number(l.current_balance) > 0,
   );
-  if (active.length === 0) return null;
+  // A debt hitting exactly $0 is a win worth shouting about, even when
+  // every other debt still stands.
+  const paidOff = liabilities.filter(
+    (l) => !l.is_archived && Number(l.current_balance) <= 0,
+  );
+  if (active.length === 0 && paidOff.length === 0) return null;
+
+  const totalNow = active.reduce((s, l) => s + Number(l.current_balance), 0);
+  const progress = debtProgress(
+    snapshots.map((s) => ({ total_liabilities: Number(s.total_liabilities) })),
+    totalNow,
+  );
+
+  if (active.length === 0) {
+    return (
+      <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-5">
+        <p className="font-semibold text-emerald-200">
+          {`🎉 ${paidOff.map((l) => l.name).join(", ")} ${paidOff.length === 1 ? "is" : "are"} at $0 — that's a debt DEAD, not managed. Archive it on the Net worth page and let the number stay a trophy.`}
+        </p>
+      </div>
+    );
+  }
 
   const totalDebt = active.reduce((s, l) => s + Number(l.current_balance), 0);
   const rows = active.map((l) => {
@@ -77,6 +101,39 @@ export function DebtOutlook({
         <p className="mt-1 text-sm text-emerald-300">
           {`At your current payments, debt-free ${latest.slice(0, 7)}.`}
         </p>
+      )}
+      {paidOff.length > 0 && (
+        <p className="mt-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-200">
+          {`🎉 ${paidOff.map((l) => l.name).join(", ")} hit $0 — one down. Archive it on the Net worth page and keep the momentum on the next one.`}
+        </p>
+      )}
+      {progress && progress.paidPct > 0 && (
+        <div className="mt-3">
+          <div className="relative h-2.5 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full rounded-full bg-emerald-400"
+              style={{ width: `${progress.paidPct}%` }}
+            />
+            {[25, 50, 75].map((m) => (
+              <span
+                key={m}
+                className="absolute top-0 h-full w-px bg-slate-600"
+                style={{ left: `${m}%` }}
+              />
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {`${progress.paidPct}% of your peak ${currency.format(progress.peak)} debt is gone${
+              progress.crossed.filter((c) => c < 100).length > 0
+                ? ` — past the ${progress.crossed.filter((c) => c < 100).join("% and ")}% marker${progress.crossed.filter((c) => c < 100).length > 1 ? "s" : ""}`
+                : ""
+            }.${
+              progress.nextMilestonePct !== null && progress.nextMilestoneBalance !== null
+                ? ` Next milestone: ${progress.nextMilestonePct}% paid, at a balance of ${currency.format(progress.nextMilestoneBalance)}.`
+                : ""
+            }`}
+          </p>
+        </div>
       )}
       <ul className="mt-3 space-y-2">
         {rows.map((r) => (

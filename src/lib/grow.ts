@@ -321,3 +321,44 @@ export function debtVsInvest(
     payoffMonth,
   };
 }
+
+/**
+ * Refinance what-if: the same balance and payment at a lower (or higher —
+ * honesty cuts both ways) rate. No products, no pitches — just what the
+ * rate change does to total interest and the payoff date.
+ */
+export interface RefinanceCompare {
+  oldInterest: number;
+  newInterest: number;
+  /** Interest saved by the new rate (negative = the new rate costs MORE). */
+  saved: number;
+  oldMonths: number | null;
+  newMonths: number | null;
+  monthsSooner: number | null;
+  oldNeverPaysOff: boolean;
+  newNeverPaysOff: boolean;
+}
+
+export function refinanceCompare(
+  balance: number,
+  oldAprPercent: number,
+  newAprPercent: number,
+  monthlyPayment: number,
+): RefinanceCompare | null {
+  if (!(balance > 0) || !(monthlyPayment > 0)) return null;
+  const oldRun = amortize(balance, oldAprPercent, monthlyPayment);
+  const newRun = amortize(balance, newAprPercent, monthlyPayment);
+  return {
+    oldInterest: oldRun.totalInterest,
+    newInterest: newRun.totalInterest,
+    saved: round2(oldRun.totalInterest - newRun.totalInterest),
+    oldMonths: oldRun.months,
+    newMonths: newRun.months,
+    monthsSooner:
+      oldRun.months !== null && newRun.months !== null
+        ? oldRun.months - newRun.months
+        : null,
+    oldNeverPaysOff: oldRun.neverPaysOff,
+    newNeverPaysOff: newRun.neverPaysOff,
+  };
+}

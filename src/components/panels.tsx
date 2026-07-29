@@ -29,6 +29,7 @@ import {
   makeSavingsBucket,
   setBucketApy,
   setRenewalDate,
+  setSplitWays,
   setBucketGoal,
   setBucketStartingBalance,
   toggleBucketFlexible,
@@ -36,7 +37,7 @@ import {
   togglePaused,
   undoRestore,
 } from "@/app/actions";
-import type { DashboardData } from "@/lib/rows";
+import { expenseShare, type DashboardData } from "@/lib/rows";
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -738,8 +739,37 @@ export function ExpensesPanel({
             {`renews ${e.renewal_date} 🔔`}
           </span>
         )}
+        {Number(e.split_ways) > 1 && (
+          <span
+            className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-xs text-violet-300"
+            title="Roommate mode: only YOUR share hits your buckets and projections."
+          >
+            {`split ×${e.split_ways} — yours ${currency.format(expenseShare(e))}`}
+          </span>
+        )}
       </span>
       <span className="flex items-center gap-3">
+        <form
+          action={setSplitWays}
+          className="flex items-center gap-1"
+          title="Roommate mode: split this bill N ways — your projections only carry your share. (You still front the full amount; collecting is on you.)"
+        >
+          <input type="hidden" name="id" value={e.id} />
+          <select
+            name="split_ways"
+            defaultValue={String(e.split_ways ?? 1)}
+            className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-violet-400"
+          >
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <option key={n} value={n}>
+                {n === 1 ? "not split" : `÷ ${n}`}
+              </option>
+            ))}
+          </select>
+          <button className="text-xs text-slate-500 transition hover:text-violet-300">
+            split
+          </button>
+        </form>
         {showCadence && (
           <form
             action={setRenewalDate}
@@ -835,6 +865,17 @@ export function ExpensesPanel({
           </a>
         )}
       </form>
+
+      {(() => {
+        const owed = data.expenses
+          .filter((e) => Number(e.split_ways) > 1 && !e.is_paused)
+          .reduce((s, e) => s + (Number(e.amount) - expenseShare(e)), 0);
+        return owed > 0 ? (
+          <p className="mb-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-200">
+            {`🤝 Roommate ledger: ${currency.format(Math.round(owed * 100) / 100)} of the bills listed is other people's share. You front it; they owe it. Chase it — "I'll get you back" is not a payment method.`}
+          </p>
+        ) : null;
+      })()}
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>

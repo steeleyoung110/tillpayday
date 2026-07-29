@@ -4,6 +4,7 @@
  * to close the gap. Server component — the month buttons post a server
  * action, everything else is arithmetic already done upstream.
  */
+import Link from "next/link";
 import { setEfundTarget } from "@/app/actions";
 import { checksToTarget, type EfundStatus } from "@/lib/efund";
 
@@ -63,7 +64,10 @@ export function EfundCard({
         </p>
       )}
       <p className="mt-1 text-xs text-slate-500">
-        {`Target computed from your actual bills (${cents.format(monthlyLoad)}/month) — not a made-up number.`}
+        {`Target computed from your actual bills (${cents.format(monthlyLoad)}/month) — not a made-up number. `}
+        <Link href="/crisis" className="text-sky-300 transition hover:text-sky-200">
+          Worst-case plan →
+        </Link>
       </p>
     </div>
   );

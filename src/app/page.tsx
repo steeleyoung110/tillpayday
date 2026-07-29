@@ -31,9 +31,16 @@ import { AppBadge } from "@/components/AppBadge";
 import { AffordCheck } from "@/components/AffordCheck";
 import { EfundCard } from "@/components/EfundCard";
 import { InstantAction } from "@/components/InstantAction";
-import { addTransfer, adoptStarterSetup, dismissAnnouncement } from "@/app/actions";
+import {
+  addTransfer,
+  adoptStarterSetup,
+  dismissAnnouncement,
+  markGoalAchieved,
+} from "@/app/actions";
 import { efundStatus, monthlyBillLoad } from "@/lib/efund";
+import { freedomDay } from "@/lib/freedomDay";
 import { detectShortCheck } from "@/lib/shortCheck";
+import { expenseShare } from "@/lib/rows";
 import { nextPayday, paydayLabel } from "@/lib/payday";
 import {
   LIQUID_CATEGORIES,
@@ -228,8 +235,45 @@ export default async function Home({
     typeof meta.ef_months === "number" && [1, 3, 6].includes(meta.ef_months)
       ? meta.ef_months
       : 3;
-  const efLoad = monthlyBillLoad(data.expenses);
+  const efLoad = monthlyBillLoad(
+    data.expenses.map((e) => ({ ...e, amount: expenseShare(e) })),
+  );
   const efStatus = efundStatus(efLoad, efMonths, liquidToday);
+
+  // Freedom Day: the day this month stops working for the bills.
+  const freedom = freedomDay(engineIncome, engineExpenses, todayISO);
+
+  // Goal crossed? Celebrate it properly instead of a quiet line of text.
+  const savingsNow = recap?.savingsTotal ?? liquidToday;
+  const goalsCrossed = data.goals.filter(
+    (g) =>
+      !g.achieved_at && !g.is_archived && savingsNow >= Number(g.target_amount),
+  );
+
+  // Weekly review chip: this week's Monday, done-or-not, and the streak.
+  const todayDow = new Date(`${todayISO}T00:00:00Z`).getUTCDay();
+  const weekStartMs =
+    Date.parse(todayISO) - (todayDow === 0 ? 6 : todayDow - 1) * 86400000;
+  const weekStart = new Date(weekStartMs).toISOString().slice(0, 10);
+  const { data: checkinRows } = await supabase
+    .from("review_checkins")
+    .select("week_start")
+    .order("week_start", { ascending: false })
+    .limit(20);
+  const checkinSet = new Set(
+    (checkinRows ?? []).map((c: { week_start: string }) => c.week_start),
+  );
+  const reviewDone = checkinSet.has(weekStart);
+  let reviewStreak = 0;
+  let reviewCursor = reviewDone
+    ? weekStart
+    : new Date(weekStartMs - 7 * 86400000).toISOString().slice(0, 10);
+  while (checkinSet.has(reviewCursor)) {
+    reviewStreak += 1;
+    reviewCursor = new Date(Date.parse(reviewCursor) - 7 * 86400000)
+      .toISOString()
+      .slice(0, 10);
+  }
   const aom = ageOfMoney(engineIncome, engineEntries, engineExpenses, todayISO);
   const funIds = new Set(
     data.buckets.filter((b) => b.is_flexible && !b.is_savings).map((b) => b.id),
@@ -396,6 +440,26 @@ export default async function Home({
             </p>
           </div>
         ))}
+
+        {!viewing &&
+          goalsCrossed.map((g) => (
+            <div
+              key={g.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/50 bg-emerald-500/15 px-6 py-5"
+            >
+              <p className="text-lg font-black text-emerald-200">
+                {`🎉🎊 You did it — your savings crossed ${heroCurrency.format(Number(g.target_amount))} and "${g.name}" is DONE.`}
+              </p>
+              <InstantAction
+                action={markGoalAchieved}
+                values={{ id: g.id }}
+                message={`"${g.name}" marked achieved — it moves to your trophy shelf in Budget → Goals.`}
+                className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400"
+              >
+                Mark it achieved 🏆
+              </InstantAction>
+            </div>
+          ))}
 
         {!viewing && shortCheck && (
           <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-6 py-4">
@@ -700,6 +764,29 @@ export default async function Home({
                 </p>
               </div>
             )}
+            {freedom && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+                <p className="text-sm text-slate-400">
+                  Freedom Day this month
+                </p>
+                <p
+                  className={`mt-1 text-4xl font-black tracking-tight ${
+                    freedom.neverFree
+                      ? "text-red-300"
+                      : freedom.day > 24
+                        ? "text-amber-300"
+                        : "text-emerald-300"
+                  }`}
+                >
+                  {freedom.neverFree ? "—" : `the ${freedom.day}${[1, 21, 31].includes(freedom.day) ? "st" : [2, 22].includes(freedom.day) ? "nd" : [3, 23].includes(freedom.day) ? "rd" : "th"}`}
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  {freedom.neverFree
+                    ? `Bills (${heroCurrency.format(freedom.monthBills)}) meet or beat this month's income (${heroCurrency.format(freedom.monthIncome)}) — every day works for the bills. That's the problem to attack first.`
+                    : `Bills take ${Math.round(freedom.billShare * 100)}% of this month's income — you work for them through ${freedom.date.slice(5)}. After that, you work for you. Watch this date move earlier.`}
+                </p>
+              </div>
+            )}
             {runwayInfo && (
               <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
                 <p className="text-sm text-slate-400">
@@ -717,7 +804,10 @@ export default async function Home({
                   {`${runwayInfo.days} day${runwayInfo.days === 1 ? "" : "s"}`}
                 </p>
                 <p className="mt-2 text-xs text-slate-500">
-                  {`That's how long ${heroCurrency.format(runwayInfo.liquid)} on hand lasts at your real pace of ${heroCurrency.format(runwayInfo.avgDailySpend)}/day. This number growing is the whole game.`}
+                  {`That's how long ${heroCurrency.format(runwayInfo.liquid)} on hand lasts at your real pace of ${heroCurrency.format(runwayInfo.avgDailySpend)}/day. This number growing is the whole game. `}
+                  <Link href="/crisis" className="text-sky-300 hover:text-sky-200">
+                    Worst-case plan →
+                  </Link>
                 </p>
               </div>
             )}
@@ -736,6 +826,21 @@ export default async function Home({
               </div>
             )}
           </div>
+        )}
+
+        {!viewing && !reviewDone && (
+          <Link
+            href="/review"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-sky-500/30 bg-sky-500/5 px-6 py-4 transition hover:border-sky-400/60"
+          >
+            <span className="text-sm text-sky-200">
+              🧭 This week&apos;s 2-minute review is waiting — what left, what&apos;s
+              coming, one thing to skip.
+            </span>
+            <span className="text-sm font-semibold text-sky-300">
+              {reviewStreak > 0 ? `Keep the ${reviewStreak}-week streak →` : "Start the habit →"}
+            </span>
+          </Link>
         )}
 
         {!viewing && efStatus && (
@@ -757,7 +862,11 @@ export default async function Home({
           anchorISO={viewing ? todayISO : (user.created_at ?? todayISO).slice(0, 10)}
         />
 
-        <DebtOutlook liabilities={nw.liabilities} todayISO={todayISO} />
+        <DebtOutlook
+          liabilities={nw.liabilities}
+          todayISO={todayISO}
+          snapshots={nw.snapshots}
+        />
 
         {/* The glance ends here — changes live in Budget. */}
         {!viewing && (
