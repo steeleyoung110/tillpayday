@@ -5,6 +5,7 @@
 import { AddExpenseForm, type BucketOption } from "@/components/AddExpenseForm";
 import { CoolingCountdown } from "@/components/CoolingCountdown";
 import { ExpenseBucketSelect } from "@/components/ExpenseBucketSelect";
+import { IncomeAmountField } from "@/components/IncomeAmountField";
 import { InstantAction } from "@/components/InstantAction";
 import { LogIncome, type ShortfallTarget } from "@/components/LogIncome";
 import { coolingState } from "@/lib/coolingOff";
@@ -163,13 +164,7 @@ export function IncomePanel({
 
       <form action={addIncome} className="grid grid-cols-2 gap-2">
         <input name="name" placeholder="Name (e.g. Day job)" required className={`${inputCls} col-span-2`} />
-        <input name="amount" type="number" step="0.01" min="0" placeholder="Amount per check" required className={inputCls} />
-        <select name="frequency" required className={inputCls} defaultValue="biweekly">
-          <option value="weekly">Weekly</option>
-          <option value="biweekly">Every 2 weeks</option>
-          <option value="semimonthly">Twice a month</option>
-          <option value="monthly">Monthly</option>
-        </select>
+        <IncomeAmountField />
         <label className="col-span-2 text-xs text-slate-400">
           Next (or any recent) pay date
           <input name="anchor_date" type="date" required className={`${inputCls} mt-1`} />

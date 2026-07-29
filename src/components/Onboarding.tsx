@@ -9,6 +9,7 @@
  */
 import { useState } from "react";
 import { completeOnboarding } from "@/app/actions";
+import { CHECKS_PER_YEAR, salaryPerCheck, type PayFrequency } from "@/lib/salary";
 import { STARTER_TEMPLATES } from "@/lib/templates";
 
 type Mode = "regular" | "irregular";
@@ -44,10 +45,20 @@ export function Onboarding({
   const [entries, setEntries] = useState<EntryDraft[]>([
     { amount: "", date: todayISO },
   ]);
+  // Salary mode: they know "$65k a year", not one check — we do the division.
+  const [salaryMode, setSalaryMode] = useState(false);
+  const [salary, setSalary] = useState("");
+  const [takeHomePct, setTakeHomePct] = useState("100");
+  const perCheck = salaryPerCheck(
+    Number(salary),
+    frequency as PayFrequency,
+    Number(takeHomePct),
+  );
+  const checkAmount = salaryMode ? perCheck : Number(amount) || 0;
 
   const payload = JSON.stringify({
     mode: hasIncome ? "skip" : mode,
-    amount: Number(amount) || 0,
+    amount: checkAmount,
     frequency,
     nextPayday,
     entries: entries
@@ -92,19 +103,77 @@ export function Onboarding({
               Whatever usually lands in your account. A close guess is fine —
               you can change it anytime.
             </p>
-            <div className="mt-6">
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                placeholder="$ 0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className={`${inputCls} text-center text-3xl font-bold`}
-                autoFocus
-              />
-            </div>
+            {!salaryMode && (
+              <div className="mt-6">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="$ 0.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className={`${inputCls} text-center text-3xl font-bold`}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setSalaryMode(true)}
+                  className="mt-3 text-sm text-sky-300 transition hover:text-sky-200"
+                >
+                  I know my yearly salary, not my paycheck →
+                </button>
+              </div>
+            )}
+            {salaryMode && (
+              <div className="mt-6 space-y-3 text-left">
+                <label className="block text-sm text-slate-400">
+                  Annual salary
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    placeholder="$ 65,000"
+                    value={salary}
+                    onChange={(e) => setSalary(e.target.value)}
+                    className={`${inputCls} mt-1 text-center text-2xl font-bold`}
+                    autoFocus
+                  />
+                </label>
+                <label className="block text-sm text-slate-400">
+                  % of pay that actually hits your bank (after taxes, 401k, insurance)
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="100"
+                    value={takeHomePct}
+                    onChange={(e) => setTakeHomePct(e.target.value)}
+                    className={`${inputCls} mt-1 text-center`}
+                  />
+                </label>
+                {perCheck > 0 && (
+                  <p className="rounded-xl bg-slate-800/60 px-4 py-3 text-sm text-slate-200">
+                    {`≈ $${perCheck.toLocaleString("en-US", { minimumFractionDigits: 2 })} per check (${CHECKS_PER_YEAR[frequency as PayFrequency]} checks a year)`}
+                    {Number(takeHomePct) >= 100 && (
+                      <span className="mt-1 block text-xs text-amber-300">
+                        That&apos;s before taxes — take-home usually runs 20–30%
+                        lower. Set the % above if you know it, or fix the
+                        amount later from a real deposit.
+                      </span>
+                    )}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSalaryMode(false)}
+                  className="text-sm text-sky-300 transition hover:text-sky-200"
+                >
+                  ← I know my exact paycheck
+                </button>
+              </div>
+            )}
             <div className="mt-4 grid grid-cols-2 gap-2">
               {FREQUENCIES.map((f) => (
                 <button
@@ -123,7 +192,7 @@ export function Onboarding({
             </div>
             <button
               type="button"
-              disabled={!(Number(amount) > 0)}
+              disabled={!(checkAmount > 0)}
               onClick={() => {
                 setMode("regular");
                 setStep(2);
