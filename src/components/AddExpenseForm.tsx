@@ -11,6 +11,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { addExpense } from "@/app/actions";
 import { showToast } from "@/components/InstantAction";
+import { haptic } from "@/lib/haptics";
 import { lastBucket, rememberBucket } from "@/lib/lastBucket";
 import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
 
@@ -88,6 +89,7 @@ export function AddExpenseForm({
       if (ownerId) fd.append("owner", ownerId);
       rememberBucket(finalBucketId);
       await addExpense(fd);
+      haptic("save");
       const finalName =
         options.find((o) => o.id === finalBucketId)?.name ?? "Savings / leftover";
       showToast(

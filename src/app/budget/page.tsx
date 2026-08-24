@@ -1432,7 +1432,7 @@ export default async function BudgetPage({
             hourlyWage={hourlyWage}
           />
           <GoalsPanel data={data} todayISO={todayISO} />
-          <WhatIfPanel data={data} />
+          <WhatIfPanel data={data} todayISO={todayISO} />
           <IncomeShock
             income={engineIncome}
             buckets={engineBuckets}

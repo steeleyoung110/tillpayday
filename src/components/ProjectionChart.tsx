@@ -1,5 +1,6 @@
 "use client";
 
+import { usePrefersReducedMotion } from "@/lib/useReducedMotion";
 import {
   CartesianGrid,
   Legend,
@@ -86,6 +87,7 @@ export function ProjectionChart({
   height?: string;
 }) {
   const nameByKey = new Map(series.map((s) => [s.key, s.name]));
+  const reducedMotion = usePrefersReducedMotion();
 
   return (
     <div className={`${height} w-full`}>
@@ -199,7 +201,16 @@ export function ProjectionChart({
               strokeWidth={s.emphasis ? 2.5 : 1.5}
               strokeDasharray={s.dashed ? "6 4" : undefined}
               dot={false}
-              isAnimationActive={false}
+              /**
+               * Morph rather than redraw: when the projection inputs change
+               * (a new what-if, a different zoom), the line eases into its
+               * new shape so you can see WHAT moved instead of the chart
+               * blinking into a different picture. Off entirely for anyone
+               * who asked for reduced motion.
+               */
+              isAnimationActive={!reducedMotion}
+              animationDuration={380}
+              animationEasing="ease-out"
             />
           ))}
         </LineChart>

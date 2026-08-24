@@ -1,3 +1,5 @@
+import { SkeletonWatchdog } from "@/components/SkeletonWatchdog";
+
 /**
  * Skeleton primitives: gray shapes that match the real layout, so a loading
  * screen reads as "your numbers are on their way" instead of a blank flash
@@ -97,8 +99,12 @@ export function SkeletonChart({ height = "h-64" }: { height?: string }) {
  */
 export function SkeletonAnnounce({ what }: { what: string }) {
   return (
-    <p role="status" aria-live="polite" className="sr-only">
-      {`Loading your ${what}…`}
-    </p>
+    <>
+      <p role="status" aria-live="polite" className="sr-only">
+        {`Loading your ${what}…`}
+      </p>
+      {/* Every skeleton also watches itself: see SkeletonWatchdog. */}
+      <SkeletonWatchdog route={what} />
+    </>
   );
 }

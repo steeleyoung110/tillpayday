@@ -7,6 +7,7 @@
  * undoRestore. No confirmation dialogs for everyday actions.
  */
 import { useEffect, useRef, useState, useTransition } from "react";
+import { haptic } from "@/lib/haptics";
 
 type ServerAction = (formData: FormData) => Promise<unknown>;
 
@@ -125,6 +126,9 @@ export function InstantAction({
           const fd = new FormData();
           for (const [k, v] of Object.entries(values)) fd.append(k, v);
           const recipe = await action(fd);
+          // A short buzz confirms it landed without another thing to read.
+          // "said no 💪" gets its own feel — saying no should feel good.
+          haptic(/said no|skip/i.test(message) ? "skip" : "save");
           pushToast?.({
             message,
             undo:

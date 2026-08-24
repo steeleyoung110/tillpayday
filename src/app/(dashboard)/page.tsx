@@ -50,6 +50,8 @@ import { findDuplicateSpends } from "@/lib/dupes";
 import { healthScore } from "@/lib/healthScore";
 import { savingsVelocity } from "@/lib/loggingQuality";
 import { monthlySavingsRate } from "@/lib/spendViz";
+import { Confetti } from "@/components/Confetti";
+import { HeroAmount } from "@/components/HeroAmount";
 import { ReconcileCard } from "@/components/ReconcileCard";
 import type { SpendPreset } from "@/components/PresetChips";
 import { nextPayday, paydayLabel } from "@/lib/payday";
@@ -399,6 +401,8 @@ export default async function Home({
     if (c.keptPlan) keptStreak += 1;
     else break;
   }
+  // Milestones only — celebrating every single cycle would make it wallpaper.
+  const streakMilestone = [3, 6, 12, 24, 52].includes(keptStreak);
 
   // First 48 hours after payday — where budgets die.
   const inFirst48 = !viewing && payCycleNow !== null && daysIntoCycle <= 1;
@@ -587,8 +591,10 @@ export default async function Home({
           goalsCrossed.map((g) => (
             <div
               key={g.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/50 bg-emerald-500/15 px-6 py-5"
+              className="relative flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-2xl border border-emerald-500/50 bg-emerald-500/15 px-6 py-5"
             >
+              {/* Celebration #2 of 3: a goal actually reached. */}
+              <Confetti active pieces={24} />
               <p className="text-lg font-black text-emerald-200">
                 {`🎉🎊 You did it — your savings crossed ${heroCurrency.format(Number(g.target_amount))} and "${g.name}" is DONE.`}
               </p>
@@ -751,7 +757,7 @@ export default async function Home({
           {sts && sts.hasFlexibleBuckets ? (
             <div className="mt-2">
               <p className="text-6xl font-black tracking-tight text-white sm:text-7xl">
-                {heroCurrency.format(sts.perDay)}
+                <HeroAmount value={sts.perDay} />
                 <span className="ml-1 text-2xl font-semibold text-slate-400">/day</span>
               </p>
               <p className="mt-2 text-lg font-semibold text-emerald-300">
@@ -1040,10 +1046,19 @@ export default async function Home({
               </div>
             )}
             {keptStreak > 0 && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
+              <div
+                className={`relative overflow-hidden rounded-2xl border px-6 py-5 ${
+                  streakMilestone
+                    ? "border-emerald-500/50 bg-emerald-500/10"
+                    : "border-slate-800 bg-slate-900"
+                }`}
+              >
+                {/* Celebration #3 of 3: a streak milestone (3, 6, 12…). */}
+                {streakMilestone && <Confetti active pieces={20} />}
                 <p className="text-sm text-slate-400">Cycles inside plan</p>
                 <p className="mt-1 text-4xl font-black tracking-tight text-emerald-300">
                   {`${keptStreak} in a row`}
+                  {streakMilestone && <span className="ml-2 text-2xl">🎉</span>}
                 </p>
                 <p className="mt-2 text-xs text-slate-500">
                   Every completed pay cycle where no bucket ran over its plan.

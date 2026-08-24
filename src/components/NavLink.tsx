@@ -26,6 +26,15 @@ export function NavLink({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  /**
+   * Hover only — deliberately NOT touch or focus as well.
+   *
+   * Every prefetch of a dynamic route is a real server request that
+   * re-validates the session. Firing on three separate triggers across five
+   * nav links produced a burst of concurrent requests all refreshing the
+   * same auth token, which is a good way to wedge a session. One trigger,
+   * on clear intent, plus Next's own viewport prefetching, is plenty.
+   */
   const warm = useCallback(() => {
     router.prefetch(href);
   }, [router, href]);
@@ -35,8 +44,6 @@ export function NavLink({
       href={href}
       prefetch
       onMouseEnter={warm}
-      onTouchStart={warm}
-      onFocus={warm}
       aria-current={active ? "page" : undefined}
       className={className}
     >

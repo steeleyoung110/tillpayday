@@ -5,6 +5,8 @@
  * which is what guarantees the "exactly once".
  */
 import { celebratePayday } from "@/app/actions";
+import { Confetti } from "@/components/Confetti";
+import { SweepHaptic } from "@/components/SweepHaptic";
 import type { PaydayRecap } from "@/lib/engine";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -40,6 +42,9 @@ export function CelebrationOverlay({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-6 backdrop-blur-sm">
+      {/* One of the app's three celebrations: money actually moved. */}
+      <Confetti active />
+      <SweepHaptic />
       <div className="w-full max-w-md rounded-3xl border border-emerald-500/40 bg-slate-900 p-8 text-center shadow-2xl shadow-emerald-500/10">
         <p className="animate-bounce text-6xl">🎉</p>
         <h2 className="mt-2 text-3xl font-black text-white">Payday!</h2>

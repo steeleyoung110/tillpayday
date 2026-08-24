@@ -336,6 +336,90 @@ export function BucketsPanel({
   /** Cycle pace per bucket id: % of plan spent vs % of cycle elapsed. */
   pace?: Record<string, { spentPct: number; elapsedPct: number; status: string }>;
 }) {
+
+  /**
+   * One bucket's settings controls. Rendered inline on desktop and inside
+   * a bottom sheet on phones — defined once so the two stay identical.
+   */
+  const bucketSettings = (b: DashboardData["buckets"][number]) => (
+    <>
+                {b.is_savings && (
+                  <form action={setBucketGoal} className="flex items-center gap-1">
+                    <input type="hidden" name="id" value={b.id} />
+                    <MoneyInput
+                      name="goal_amount"
+                      defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : null}
+                      placeholder="Goal $"
+                      ariaLabel={`Goal amount for ${b.name}`}
+                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                    />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      set
+                    </button>
+                  </form>
+                )}
+                {b.is_savings && (
+                  <form action={setBucketStartingBalance} className="flex items-center gap-1">
+                    <input type="hidden" name="id" value={b.id} />
+                    <MoneyInput
+                      name="starting_balance"
+                      defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : null}
+                      placeholder="Start $"
+                      ariaLabel={`Starting balance for ${b.name}`}
+                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                    />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      set
+                    </button>
+                  </form>
+                )}
+                <form action={setBucketApy} className="flex items-center gap-1">
+                  <input type="hidden" name="id" value={b.id} />
+                  <input
+                    name="apy"
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    defaultValue={Number(b.apy) > 0 ? Number(b.apy) : undefined}
+                    placeholder="% rate"
+                    title="The interest rate (APY) your bank pays on this money"
+                    className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+                  />
+                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                    set
+                  </button>
+                </form>
+                {!b.is_savings && (
+                  <form
+                    action={toggleBucketRollsOver}
+                    title="Sinking funds keep their balance between paychecks and stack up their allocation every check."
+                  >
+                    <input type="hidden" name="id" value={b.id} />
+                    <input type="hidden" name="rolls_over" value={b.rolls_over ? "false" : "true"} />
+                    <button className="text-xs text-slate-500 transition hover:text-violet-300">
+                      {b.rolls_over ? "sweep each check" : "make it roll over"}
+                    </button>
+                  </form>
+                )}
+                {!b.is_savings && (
+                  <form action={toggleBucketFlexible}>
+                    <input type="hidden" name="id" value={b.id} />
+                    <input type="hidden" name="flexible" value={b.is_flexible ? "false" : "true"} />
+                    <button className="text-xs text-slate-500 transition hover:text-amber-300">
+                      {b.is_flexible ? "not flexible" : "make flexible"}
+                    </button>
+                  </form>
+                )}
+                {!b.is_savings && (
+                  <form action={makeSavingsBucket}>
+                    <input type="hidden" name="id" value={b.id} />
+                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                      make savings
+                    </button>
+                  </form>
+                )}
+    </>
+  );
   return (
     <Panel title="Buckets (how each paycheck splits)" id="buckets">
       <ul className="mb-4 space-y-2">
@@ -467,86 +551,22 @@ export function BucketsPanel({
               </div>
             )}
 
-            <details className="mt-2 text-xs">
+            {/* Phones get a bottom sheet; wider screens keep the inline
+                disclosure, which is quicker with a mouse. Both render
+                bucketSettings, so they can never drift apart. */}
+            <div className="mt-2 sm:hidden">
+              <RowEditSheet title={`${b.name} settings`} label="Settings">
+                <div className="flex flex-col gap-4 text-xs">
+                  {bucketSettings(b)}
+                </div>
+              </RowEditSheet>
+            </div>
+            <details className="mt-2 hidden text-xs sm:block">
               <summary className="cursor-pointer text-slate-500 transition hover:text-slate-300">
                 settings
               </summary>
               <div className="mt-2 flex flex-wrap items-center gap-3">
-                {b.is_savings && (
-                  <form action={setBucketGoal} className="flex items-center gap-1">
-                    <input type="hidden" name="id" value={b.id} />
-                    <MoneyInput
-                      name="goal_amount"
-                      defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : null}
-                      placeholder="Goal $"
-                      ariaLabel={`Goal amount for ${b.name}`}
-                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-                    />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                      set
-                    </button>
-                  </form>
-                )}
-                {b.is_savings && (
-                  <form action={setBucketStartingBalance} className="flex items-center gap-1">
-                    <input type="hidden" name="id" value={b.id} />
-                    <MoneyInput
-                      name="starting_balance"
-                      defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : null}
-                      placeholder="Start $"
-                      ariaLabel={`Starting balance for ${b.name}`}
-                      className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-                    />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                      set
-                    </button>
-                  </form>
-                )}
-                <form action={setBucketApy} className="flex items-center gap-1">
-                  <input type="hidden" name="id" value={b.id} />
-                  <input
-                    name="apy"
-                    type="number"
-                    step="0.001"
-                    min="0"
-                    defaultValue={Number(b.apy) > 0 ? Number(b.apy) : undefined}
-                    placeholder="% rate"
-                    title="The interest rate (APY) your bank pays on this money"
-                    className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-                  />
-                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                    set
-                  </button>
-                </form>
-                {!b.is_savings && (
-                  <form
-                    action={toggleBucketRollsOver}
-                    title="Sinking funds keep their balance between paychecks and stack up their allocation every check."
-                  >
-                    <input type="hidden" name="id" value={b.id} />
-                    <input type="hidden" name="rolls_over" value={b.rolls_over ? "false" : "true"} />
-                    <button className="text-xs text-slate-500 transition hover:text-violet-300">
-                      {b.rolls_over ? "sweep each check" : "make it roll over"}
-                    </button>
-                  </form>
-                )}
-                {!b.is_savings && (
-                  <form action={toggleBucketFlexible}>
-                    <input type="hidden" name="id" value={b.id} />
-                    <input type="hidden" name="flexible" value={b.is_flexible ? "false" : "true"} />
-                    <button className="text-xs text-slate-500 transition hover:text-amber-300">
-                      {b.is_flexible ? "not flexible" : "make flexible"}
-                    </button>
-                  </form>
-                )}
-                {!b.is_savings && (
-                  <form action={makeSavingsBucket}>
-                    <input type="hidden" name="id" value={b.id} />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-                      make savings
-                    </button>
-                  </form>
-                )}
+                {bucketSettings(b)}
               </div>
             </details>
           </li>
@@ -993,7 +1013,13 @@ export function ExpensesPanel({
 
 // ---------------------------------------------------------------------------
 
-export function WhatIfPanel({ data }: { data: DashboardData }) {
+export function WhatIfPanel({
+  data,
+  todayISO,
+}: {
+  data: DashboardData;
+  todayISO: string;
+}) {
   const considering = data.whatIf.filter((w) => w.status === "considering");
   const decided = data.whatIf.filter((w) => w.status !== "considering");
   const now = Date.now();
@@ -1011,7 +1037,7 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
             <span className="text-slate-200">
               {w.name}{" "}
               <span className="text-slate-400">
-                {`— ${currency.format(Number(w.amount))} · around ${w.target_date}`}
+                {`— ${currency.format(Number(w.amount))} · around ${relativeDay(w.target_date, todayISO)}`}
               </span>
             </span>
             <span className="flex flex-wrap items-center justify-end gap-2">

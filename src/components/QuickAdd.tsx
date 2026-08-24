@@ -13,6 +13,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { MoneyInput } from "@/components/MoneyInput";
 import { showToast } from "@/components/InstantAction";
 import { addExpense, addWhatIf, logIncome } from "@/app/actions";
+import { haptic } from "@/lib/haptics";
 import { lastBucket, rememberBucket } from "@/lib/lastBucket";
 
 type Mode = "menu" | "expense" | "whatif" | "income";
@@ -68,6 +69,7 @@ export function QuickAdd({
         await logIncome(fd);
         showToast("Income logged.");
       }
+      haptic(kind === "whatif" ? "skip" : "save");
       close();
     });
 

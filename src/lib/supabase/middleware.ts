@@ -34,9 +34,26 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: getUser() must be called to refresh the token. Do not add code
   // between createServerClient and this call.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  //
+  // This can hang or fail when the stored refresh token is stale — a session
+  // left open overnight, or one rotated out from under this browser. Left
+  // unguarded the request stalls, and with a loading skeleton on every route
+  // that stall looks exactly like "still loading" forever. Bound it, and
+  // treat any failure as simply signed out.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  let sessionBroken = false;
+  try {
+    const result = await Promise.race([
+      supabase.auth.getUser(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("auth-timeout")), 5000),
+      ),
+    ]);
+    user = result.data.user;
+    if (result.error) sessionBroken = true;
+  } catch {
+    sessionBroken = true;
+  }
 
   const path = request.nextUrl.pathname;
   const isPublic =
@@ -47,7 +64,19 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    // A dead session's cookies would fail the same way on every subsequent
+    // request, so clear them on the way out. Otherwise the user bounces
+    // between a skeleton and the login page with no way to recover but
+    // clearing site data by hand.
+    if (sessionBroken) {
+      for (const c of request.cookies.getAll()) {
+        if (c.name.startsWith("sb-") && c.name.includes("-auth-token")) {
+          redirect.cookies.delete(c.name);
+        }
+      }
+    }
+    return redirect;
   }
 
   if (user && path.startsWith("/login")) {

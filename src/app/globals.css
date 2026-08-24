@@ -37,3 +37,16 @@ body {
     opacity: 1;
   }
 }
+
+/* Confetti fall. Only ever mounted by the Confetti component, which renders a
+   static equivalent instead when prefers-reduced-motion is set. */
+@keyframes confettiFall {
+  0% {
+    transform: translate3d(0, -10%, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 105vh, 0) rotate(540deg);
+    opacity: 0;
+  }
+}
