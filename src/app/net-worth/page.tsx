@@ -12,7 +12,8 @@ import { DebtStrategy } from "@/components/DebtStrategy";
 import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
-import { NetWorthChart } from "@/components/NetWorthChart";
+import { InViewport } from "@/components/InViewport";
+import { LazyNetWorthChart as NetWorthChart } from "@/components/lazy/LazyCharts";
 import { computeTodayBalances } from "@/lib/balances";
 import { getDashboardData, getNetWorthData } from "@/lib/data";
 import { monthlyBillLoad } from "@/lib/efund";
@@ -349,7 +350,9 @@ export default async function NetWorthPage() {
           </div>
         )}
 
-        <NetWorthChart snapshots={nw.snapshots} todayISO={todayISO} />
+        <InViewport minHeight="18rem">
+          <NetWorthChart snapshots={nw.snapshots} todayISO={todayISO} />
+        </InViewport>
 
         {/* 9D bridge */}
         {savingsBucket && (

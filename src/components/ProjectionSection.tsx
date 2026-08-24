@@ -1,6 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
+import { InViewport } from "@/components/InViewport";
 import { applyShortfallFix, rightSizeBucket } from "@/app/actions";
 import {
   DEFAULT_PRESET,
@@ -37,13 +39,24 @@ import {
   type DashboardData,
 } from "@/lib/rows";
 import {
-  ProjectionChart,
   TOTAL_COLOR,
   type ChartRow,
   type ChartSeries,
   type EventDot,
   type GoalLine,
 } from "./ProjectionChart";
+
+// Recharts is the heaviest dependency in the app and nothing above the fold
+// needs it — split it out and hold its space with a skeleton until it lands.
+const ProjectionChart = dynamic(
+  () => import("./ProjectionChart").then((m) => m.ProjectionChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full rounded bg-slate-800 motion-safe:animate-pulse" />
+    ),
+  },
+);
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -490,14 +503,16 @@ export function ProjectionSection({
             </div>
           </div>
 
-          <ProjectionChart
-            data={snapshot.rows}
-            series={baseSeries}
-            granularity="day"
-            todayMarker={todayISO}
-            eventDots={snapshot.dots}
-            height="h-64 2xl:h-[26rem]"
-          />
+          <InViewport minHeight="16rem">
+            <ProjectionChart
+              data={snapshot.rows}
+              series={baseSeries}
+              granularity="day"
+              todayMarker={todayISO}
+              eventDots={snapshot.dots}
+              height="h-64 2xl:h-[26rem]"
+            />
+          </InViewport>
           <p className="mt-2 text-xs text-slate-500">
             Dots mark bills leaving their buckets. This view rolls forward on
             its own when your next paycheck lands.
@@ -584,14 +599,16 @@ export function ProjectionSection({
 
         {hasIncome ? (
           <>
-            <ProjectionChart
-              data={chartRows}
-              series={series}
-              granularity={displayPlan.granularity}
-              goalLines={goalLines}
-              todayMarker={todayISO}
-              height="h-72 2xl:h-[26rem]"
-            />
+            <InViewport minHeight="18rem">
+              <ProjectionChart
+                data={chartRows}
+                series={series}
+                granularity={displayPlan.granularity}
+                goalLines={goalLines}
+                todayMarker={todayISO}
+                height="h-72 2xl:h-[26rem]"
+              />
+            </InViewport>
             <p className="mt-2 text-xs text-slate-500">
               {baseline.irregularWeekly !== null &&
                 `Based on your typical income — about ${currency.format(baseline.irregularWeekly)}/week from what you've logged, counted at a careful 85%. `}

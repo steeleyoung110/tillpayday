@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { GrowTab, type LoanPrefill } from "@/components/GrowTab";
+import { LazyGrowTab as GrowTab } from "@/components/lazy/LazyCharts";
+import type { LoanPrefill } from "@/components/GrowTab";
 import { LegalFooter } from "@/components/LegalFooter";
 import { RaiseSim } from "@/components/RaiseSim";
 import { RefinanceSim, type RefiPrefill } from "@/components/RefinanceSim";

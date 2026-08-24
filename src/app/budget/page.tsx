@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { LegalFooter } from "@/components/LegalFooter";
-import { PaycheckPie, type PieSlice } from "@/components/PaycheckPie";
+import { InViewport } from "@/components/InViewport";
+import { LazyPaycheckPie as PaycheckPie } from "@/components/lazy/LazyCharts";
+import type { PieSlice } from "@/components/PaycheckPie";
 import {
   UNSPENT_GREEN,
   classifyBucket,
@@ -743,7 +745,9 @@ export default async function BudgetPage({
                   The plan
                 </p>
                 <div className="flex flex-wrap items-center gap-6">
-                  <PaycheckPie slices={pieSlices} paycheck={typicalPaycheck} />
+                  <InViewport minHeight="10rem">
+                    <PaycheckPie slices={pieSlices} paycheck={typicalPaycheck} />
+                  </InViewport>
                   <ul className="min-w-44 flex-1 space-y-2 text-sm">
                     {pieSlices.map((s) => (
                       <li key={s.name} className="flex items-center justify-between gap-3">
@@ -773,7 +777,9 @@ export default async function BudgetPage({
                 </p>
                 {spentSlices.length > 0 ? (
                   <div className="flex flex-wrap items-center gap-6">
-                    <PaycheckPie slices={spentSlices} paycheck={typicalPaycheck} />
+                    <InViewport minHeight="10rem">
+                      <PaycheckPie slices={spentSlices} paycheck={typicalPaycheck} />
+                    </InViewport>
                     <ul className="min-w-44 flex-1 space-y-2 text-sm">
                       {spentRows.map((r) => (
                         <li key={r.name} className="flex items-center justify-between gap-3">

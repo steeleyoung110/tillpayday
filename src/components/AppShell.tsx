@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NavLink } from "@/components/NavLink";
 import { QuickNav } from "@/components/QuickNav";
 
 /**
@@ -33,9 +34,10 @@ export function AppShell({
         </Link>
         <nav className="mt-8 flex flex-col gap-1">
           {ITEMS.map((item) => (
-            <Link
+            <NavLink
               key={item.key}
               href={item.href}
+              active={active === item.key}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
                 active === item.key
                   ? "bg-emerald-500/15 text-emerald-300"
@@ -44,7 +46,7 @@ export function AppShell({
             >
               <span aria-hidden>{item.icon}</span>
               {item.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
       </aside>
@@ -65,9 +67,10 @@ export function AppShell({
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {ITEMS.map((item) => (
-          <Link
+          <NavLink
             key={item.key}
             href={item.href}
+            active={active === item.key}
             className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition ${
               active === item.key ? "text-emerald-300" : "text-slate-500"
             }`}
@@ -76,7 +79,7 @@ export function AppShell({
               {item.icon}
             </span>
             {item.label}
-          </Link>
+          </NavLink>
         ))}
       </nav>
     </div>

@@ -21,6 +21,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  /**
+   * NOTE: do not set `experimental.staleTimes.dynamic` here.
+   *
+   * It looks like the obvious win — every screen is dynamic (per-user, cookie
+   * scoped), so caching RSC payloads client-side should make revisiting a tab
+   * instant. Measured on 2026-08-23 it does the opposite: with `loading.tsx`
+   * present, the prefetched entry for a dynamic route is only the shell down
+   * to the loading boundary, and caching that shell means revisits render the
+   * skeleton and never resolve to real content. Verified twice: pages hang on
+   * the skeleton indefinitely with it on, and settle in ~400ms with it off.
+   */
   async headers() {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
