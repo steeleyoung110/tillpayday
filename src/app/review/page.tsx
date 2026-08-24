@@ -13,6 +13,7 @@ import {
   toISO,
 } from "@/lib/engine";
 import { merchantLeaderboard } from "@/lib/merchants";
+import { relativeDayWithDate } from "@/lib/relativeDate";
 import {
   bucketToEngine,
   expenseShare,
@@ -170,7 +171,7 @@ export default async function ReviewPage() {
           )}
           {danger && (
             <p className="mt-3 text-sm text-amber-200">
-              {`Tightest day before payday: ${danger.date} at ${currency.format(danger.low)}${danger.negative ? " — that's NEGATIVE. Fix it now, not then." : "."}`}
+              {`Tightest day before payday: ${relativeDayWithDate(danger.date, todayISO)} at ${currency.format(danger.low)}${danger.negative ? " — that's NEGATIVE. Fix it now, not then." : "."}`}
             </p>
           )}
         </div>

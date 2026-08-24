@@ -7,6 +7,8 @@
  */
 import { useState } from "react";
 import { canIAfford } from "@/lib/afford";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
+import { relativeDay } from "@/lib/relativeDate";
 
 const cents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
@@ -14,6 +16,7 @@ export function AffordCheck({
   flexibleBalance,
   daysUntilPayday,
   nextPayday,
+  todayISO,
   savingsBalance,
   dangerLow,
   dangerDate,
@@ -22,13 +25,14 @@ export function AffordCheck({
   flexibleBalance: number;
   daysUntilPayday: number;
   nextPayday: string;
+  todayISO: string;
   savingsBalance: number;
   dangerLow: number | null;
   dangerDate: string | null;
   hourlyWage: number | null;
 }) {
   const [price, setPrice] = useState("");
-  const value = Number(price) || 0;
+  const value = Number(parseMoneyInput(price)) || 0;
   const verdict = canIAfford({
     price: value,
     flexibleBalance,
@@ -45,13 +49,13 @@ export function AffordCheck({
       <div className="flex flex-wrap items-center gap-3">
         <p className="font-semibold text-white">Can I afford…</p>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          min="0"
-          step="0.01"
+          autoComplete="off"
+          aria-label="Price of the thing you're considering"
           placeholder="$ 0.00"
           value={price}
-          onChange={(e) => setPrice(e.target.value)}
+          onChange={(e) => setPrice(formatMoneyInput(e.target.value))}
           className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
         />
         {hours && (
@@ -73,10 +77,10 @@ export function AffordCheck({
             <>
               <p className="font-bold text-emerald-300">Yes.</p>
               <p className="mt-1 text-sm text-emerald-100/80">
-                {`It fits your flexible money — ${cents.format(verdict.remainingFlexible)} left after it, ${cents.format(verdict.newPerDay)}/day until payday (${nextPayday}).`}
+                {`It fits your flexible money — ${cents.format(verdict.remainingFlexible)} left after it, ${cents.format(verdict.newPerDay)}/day until payday ${relativeDay(nextPayday, todayISO)}.`}
                 {verdict.dangerAfter !== null &&
                   dangerDate &&
-                  ` Your tightest day (${dangerDate}) still clears with ${cents.format(verdict.dangerAfter)}.`}
+                  ` Your tightest day (${relativeDay(dangerDate, todayISO)}) still clears with ${cents.format(verdict.dangerAfter)}.`}
               </p>
             </>
           )}
@@ -84,7 +88,7 @@ export function AffordCheck({
             <>
               <p className="font-bold text-amber-300">Yes, but.</p>
               <p className="mt-1 text-sm text-amber-100/80">
-                {`It empties your flexible money and pulls ${cents.format(verdict.savingsDip)} out of savings. Nothing left for fun until payday (${nextPayday}) — your call whether it's worth that.`}
+                {`It empties your flexible money and pulls ${cents.format(verdict.savingsDip)} out of savings. Nothing left for fun until payday ${relativeDay(nextPayday, todayISO)} — your call whether it's worth that.`}
               </p>
             </>
           )}
@@ -93,7 +97,7 @@ export function AffordCheck({
               <p className="font-bold text-red-300">No.</p>
               <p className="mt-1 text-sm text-red-100/80">
                 {verdict.breaksDangerDay && dangerDate
-                  ? `It fits today, but on ${dangerDate} your total would go ${cents.format(Math.abs(verdict.dangerAfter ?? 0))} negative when your bills land. You'd be spending money a bill already owns.`
+                  ? `It fits today, but ${relativeDay(dangerDate, todayISO)} your total would go ${cents.format(Math.abs(verdict.dangerAfter ?? 0))} negative when your bills land. You'd be spending money a bill already owns.`
                   : `You're ${cents.format(verdict.shortBy)} short even after draining flexible money and savings. This one is a "not yet."`}
               </p>
             </>

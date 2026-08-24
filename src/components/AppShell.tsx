@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NavLink } from "@/components/NavLink";
+import { QuickAdd } from "@/components/QuickAdd";
 import { QuickNav } from "@/components/QuickNav";
 
 /**
@@ -20,9 +21,16 @@ const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
 export function AppShell({
   active,
   children,
+  quickAdd,
 }: {
   active: NavKey;
   children: React.ReactNode;
+  /** Enables the floating "+" — omitted on screens with no budget context. */
+  quickAdd?: {
+    buckets: { id: string; name: string }[];
+    todayISO: string;
+    fallbackBucketId: string;
+  };
 }) {
   return (
     <div className="min-h-screen bg-slate-950">
@@ -60,6 +68,14 @@ export function AppShell({
 
       {/* Content */}
       <div className="pb-24 md:pb-10 md:pl-52">{children}</div>
+
+      {quickAdd && (
+        <QuickAdd
+          buckets={quickAdd.buckets}
+          todayISO={quickAdd.todayISO}
+          fallbackBucketId={quickAdd.fallbackBucketId}
+        />
+      )}
 
       {/* Mobile bottom tab bar */}
       <nav

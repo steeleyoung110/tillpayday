@@ -11,6 +11,8 @@
  * wreck every projection downstream.
  */
 import { useState } from "react";
+import { MoneyInput } from "@/components/MoneyInput";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
 import { CHECKS_PER_YEAR, salaryPerCheck, type PayFrequency } from "@/lib/salary";
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -31,7 +33,12 @@ export function IncomeAmountField() {
   const [salary, setSalary] = useState("");
   const [pct, setPct] = useState("100");
 
-  const perCheck = salaryPerCheck(Number(salary), frequency, Number(pct));
+  // The field shows "65,000"; the math needs 65000.
+  const perCheck = salaryPerCheck(
+    Number(parseMoneyInput(salary)),
+    frequency,
+    Number(pct),
+  );
   const checksPerYear = CHECKS_PER_YEAR[frequency];
   const grossMode = Number(pct) >= 100;
 
@@ -54,13 +61,11 @@ export function IncomeAmountField() {
   if (mode === "check") {
     return (
       <>
-        <input
+        <MoneyInput
           name="amount"
-          type="number"
-          step="0.01"
-          min="0"
           placeholder="Amount per check"
           required
+          ariaLabel="Amount per check"
           className={inputCls}
         />
         {frequencySelect}
@@ -78,13 +83,13 @@ export function IncomeAmountField() {
   return (
     <>
       <input
-        type="number"
+        type="text"
         inputMode="decimal"
-        min="0"
-        step="0.01"
-        placeholder="Annual salary (e.g. 65000)"
+        autoComplete="off"
+        aria-label="Annual salary"
+        placeholder="Annual salary (e.g. 65,000)"
         value={salary}
-        onChange={(e) => setSalary(e.target.value)}
+        onChange={(e) => setSalary(formatMoneyInput(e.target.value))}
         className={inputCls}
         autoFocus
       />

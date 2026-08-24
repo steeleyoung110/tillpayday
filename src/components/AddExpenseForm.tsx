@@ -8,9 +8,11 @@
  * money first), and only savings absorbs a negative — after everything
  * else is at zero. This popup shows you that chain before you commit.
  */
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { addExpense } from "@/app/actions";
 import { showToast } from "@/components/InstantAction";
+import { lastBucket, rememberBucket } from "@/lib/lastBucket";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
 
 const cents = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -60,18 +62,31 @@ export function AddExpenseForm({
   const [decideOpen, setDecideOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const value = Number(amount) || 0;
+  // The field shows "1,234.56"; everything downstream wants 1234.56.
+  const value = Number(parseMoneyInput(amount)) || 0;
   const chosen = options.find((o) => o.id === bucketId);
+
+  // Smart default: the bucket you used last time, if it still exists.
+  useEffect(() => {
+    setBucketId((current) =>
+      current === defaultBucketId
+        ? lastBucket(options.map((o) => o.id), defaultBucketId)
+        : current,
+    );
+    // Only on mount — never fight a choice the user just made.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = (finalBucketId: string) => {
     startTransition(async () => {
       const fd = new FormData();
       fd.append("name", name);
-      fd.append("amount", amount);
+      fd.append("amount", parseMoneyInput(amount));
       fd.append("cadence", cadence);
       fd.append("due_date", dueDate);
       fd.append("bucket_id", finalBucketId);
       if (ownerId) fd.append("owner", ownerId);
+      rememberBucket(finalBucketId);
       await addExpense(fd);
       const finalName =
         options.find((o) => o.id === finalBucketId)?.name ?? "Savings / leftover";
@@ -111,14 +126,14 @@ export function AddExpenseForm({
             className={`${inputCls} min-w-40 flex-1`}
           />
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            step="0.01"
-            min="0"
+            autoComplete="off"
             placeholder="$"
+            aria-label="Amount"
             required
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(formatMoneyInput(e.target.value))}
             className={`${inputCls} w-24`}
           />
           <label className="text-xs text-slate-400">
@@ -151,14 +166,14 @@ export function AddExpenseForm({
           className={`${inputCls} col-span-2`}
         />
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          step="0.01"
-          min="0"
+          autoComplete="off"
           placeholder="Amount"
+          aria-label="Amount"
           required
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => setAmount(formatMoneyInput(e.target.value))}
           className={inputCls}
         />
         <select

@@ -46,7 +46,15 @@ export default async function GrowPage() {
     }));
 
   return (
-    <AppShell active="grow">
+    <AppShell
+      active="grow"
+      quickAdd={{
+        buckets: dash.buckets.map((b) => ({ id: b.id, name: b.name })),
+        todayISO: new Date().toISOString().slice(0, 10),
+        fallbackBucketId:
+          dash.buckets.find((b) => b.is_flexible && !b.is_savings)?.id ?? "",
+      }}
+    >
       <div className="mx-auto max-w-screen-2xl space-y-4 px-6 pt-6 2xl:px-10">
         <div>
           <h2 className="text-lg font-semibold text-white">

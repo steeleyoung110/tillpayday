@@ -7,6 +7,9 @@ import { CoolingCountdown } from "@/components/CoolingCountdown";
 import { ExpenseBucketSelect } from "@/components/ExpenseBucketSelect";
 import { IncomeAmountField } from "@/components/IncomeAmountField";
 import { InstantAction } from "@/components/InstantAction";
+import { MoneyInput } from "@/components/MoneyInput";
+import { RowEditSheet } from "@/components/RowEditSheet";
+import { prettyDate, relativeDay, relativeDayWithDate } from "@/lib/relativeDate";
 import { LogIncome, type ShortfallTarget } from "@/components/LogIncome";
 import { coolingState } from "@/lib/coolingOff";
 import {
@@ -196,7 +199,7 @@ export function IncomePanel({
             {recentEntries.map((e) => (
               <li key={e.id} className="flex items-center justify-between text-slate-400">
                 <span>
-                  {`${e.is_windfall ? "💰 " : ""}${currency.format(Number(e.amount))} on ${e.received_date}${e.note ? ` · ${e.note}` : ""}`}
+                  {`${e.is_windfall ? "💰 " : ""}${currency.format(Number(e.amount))} ${relativeDayWithDate(e.received_date, todayISO)}${e.note ? ` · ${e.note}` : ""}`}
                 </span>
                 <InstantAction
                   action={deleteIncomeEntry}
@@ -218,7 +221,13 @@ export function IncomePanel({
 
 // ---------------------------------------------------------------------------
 
-export function GoalsPanel({ data }: { data: DashboardData }) {
+export function GoalsPanel({
+  data,
+  todayISO,
+}: {
+  data: DashboardData;
+  todayISO: string;
+}) {
   const active = data.goals.filter((g) => !g.achieved_at && !g.is_archived);
   const achieved = data.goals.filter((g) => g.achieved_at);
 
@@ -233,7 +242,7 @@ export function GoalsPanel({ data }: { data: DashboardData }) {
             <span className="text-slate-200">
               {g.name}{" "}
               <span className="text-slate-400">
-                {`— ${currency.format(Number(g.target_amount))} by ${g.target_date}`}
+                {`— ${currency.format(Number(g.target_amount))} by ${prettyDate(g.target_date, todayISO)}`}
               </span>
               {g.notes && (
                 <span className="ml-2 text-xs text-slate-500">{g.notes}</span>
@@ -272,7 +281,7 @@ export function GoalsPanel({ data }: { data: DashboardData }) {
 
       <form action={addGoal} className="grid grid-cols-2 gap-2 sm:max-w-md">
         <input name="name" placeholder="Goal (e.g. House down payment)" required className={`${inputCls} col-span-2`} />
-        <input name="target_amount" type="number" step="0.01" min="1" placeholder="Amount to reach" required className={inputCls} />
+        <MoneyInput name="target_amount" placeholder="Amount to reach" required className={inputCls} ariaLabel="Amount to reach" />
         <label className="text-xs text-slate-400">
           By when
           <input name="target_date" type="date" required className={`${inputCls} mt-1`} />
@@ -466,13 +475,11 @@ export function BucketsPanel({
                 {b.is_savings && (
                   <form action={setBucketGoal} className="flex items-center gap-1">
                     <input type="hidden" name="id" value={b.id} />
-                    <input
+                    <MoneyInput
                       name="goal_amount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : undefined}
+                      defaultValue={Number(b.goal_amount) > 0 ? Number(b.goal_amount) : null}
                       placeholder="Goal $"
+                      ariaLabel={`Goal amount for ${b.name}`}
                       className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                     />
                     <button className="text-xs text-slate-500 transition hover:text-emerald-300">
@@ -483,13 +490,11 @@ export function BucketsPanel({
                 {b.is_savings && (
                   <form action={setBucketStartingBalance} className="flex items-center gap-1">
                     <input type="hidden" name="id" value={b.id} />
-                    <input
+                    <MoneyInput
                       name="starting_balance"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : undefined}
+                      defaultValue={Number(b.starting_balance) > 0 ? Number(b.starting_balance) : null}
                       placeholder="Start $"
+                      ariaLabel={`Starting balance for ${b.name}`}
                       className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                     />
                     <button className="text-xs text-slate-500 transition hover:text-emerald-300">
@@ -594,13 +599,11 @@ export function BucketsPanel({
                   ))}
               </select>
             </label>
-            <input
+            <MoneyInput
               name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
               placeholder="$"
               required
+              ariaLabel="Amount to move"
               className={`${inputCls} w-24`}
             />
             <button className={btnCls}>Move it</button>
@@ -709,6 +712,134 @@ export function ExpensesPanel({
     })),
   ];
 
+  /**
+   * The edit controls for one bill. Rendered inline on desktop and inside a
+   * bottom sheet on phones — one definition, so the two can never drift.
+   */
+  const billControls = (
+    e: DashboardData["expenses"][number],
+    showCadence: boolean,
+  ) => (
+    <>
+      <form
+        action={setSplitWays}
+        className="flex items-center gap-1"
+        title="Roommate mode: split this bill N ways — your projections only carry your share. (You still front the full amount; collecting is on you.)"
+      >
+        <input type="hidden" name="id" value={e.id} />
+        <select
+          name="split_ways"
+          aria-label={`Split ${e.name} how many ways`}
+          defaultValue={String(e.split_ways ?? 1)}
+          className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-violet-400"
+        >
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <option key={n} value={n}>
+              {n === 1 ? "not split" : `÷ ${n}`}
+            </option>
+          ))}
+        </select>
+        <button className="text-xs text-slate-500 transition hover:text-violet-300">
+          split
+        </button>
+      </form>
+      {showCadence && data.income.length > 0 && (
+        <form
+          action={setFundedBy}
+          className="flex items-center gap-1"
+          title="Pass-through pairing: if a specific income source exists to pay this bill (rent → that property's mortgage), link them and the app reports whether the pair covers itself."
+        >
+          <input type="hidden" name="id" value={e.id} />
+          <select
+            name="funded_by_income_id"
+            aria-label={`Which income pays ${e.name}`}
+            defaultValue={e.funded_by_income_id ?? ""}
+            className="max-w-36 rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-teal-400"
+          >
+            <option value="">paid by: me</option>
+            {data.income.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          <button className="text-xs text-slate-500 transition hover:text-teal-300">
+            link
+          </button>
+        </form>
+      )}
+      {showCadence && (
+        <form
+          action={setAutopay}
+          className="flex items-center gap-1"
+          title="Autopay audit: manual bills get a pay-it reminder on the day; autopay bills get a did-it-actually-charge check the day after."
+        >
+          <input type="hidden" name="id" value={e.id} />
+          <select
+            name="autopay"
+            aria-label={`How ${e.name} gets paid`}
+            defaultValue={e.autopay === null || e.autopay === undefined ? "" : String(e.autopay)}
+            className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+          >
+            <option value="">pay: ?</option>
+            <option value="true">autopay 🤖</option>
+            <option value="false">manual ✍️</option>
+          </select>
+          <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+            set
+          </button>
+        </form>
+      )}
+      {showCadence && (
+        <form
+          action={setRenewalDate}
+          className="flex items-center gap-1"
+          title="Contract watch: set the date this contract renews (insurance, phone, annual plans) and you'll get a shop-it-around nudge 30 days out. Clear the date to stop watching."
+        >
+          <input type="hidden" name="id" value={e.id} />
+          <input
+            name="renewal_date"
+            type="date"
+            aria-label={`Renewal date for ${e.name}`}
+            defaultValue={e.renewal_date ?? ""}
+            className="w-32 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+          />
+          <button className="text-xs text-slate-500 transition hover:text-sky-300">
+            renews
+          </button>
+        </form>
+      )}
+      <form action={updateExpenseAmount} className="flex items-center gap-1">
+        <input type="hidden" name="id" value={e.id} />
+        <MoneyInput
+          name="amount"
+          placeholder="new $"
+          ariaLabel={`New amount for ${e.name}`}
+          className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
+        />
+        <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+          set
+        </button>
+      </form>
+      <ExpenseBucketSelect
+        expenseId={e.id}
+        expenseName={e.name}
+        current={e.bucket_id}
+        buckets={bucketChoices}
+      />
+      <PauseToggle table="expenses" id={e.id} name={e.name} isPaused={e.is_paused} />
+      <InstantAction
+        action={deleteExpense}
+        undoAction={undoRestore}
+        values={{ id: e.id }}
+        message={`Removed ${e.name}.`}
+        className={delCls}
+      >
+        remove
+      </InstantAction>
+    </>
+  );
+
   const row = (e: DashboardData["expenses"][number], showCadence: boolean) => (
     <li
       key={e.id}
@@ -721,7 +852,7 @@ export function ExpensesPanel({
         <span className="text-slate-400">
           {`— ${currency.format(Number(e.amount))}${
             showCadence ? ` · ${REPEAT_LABELS[e.cadence] ?? e.cadence}` : ""
-          } · due ${e.due_date}`}
+          } · due ${relativeDayWithDate(e.due_date, todayISO)}`}
         </span>
         {hourlyWage && hourlyWage > 0 && (
           <span className="ml-2 text-xs text-amber-300/80">
@@ -738,7 +869,7 @@ export function ExpensesPanel({
             className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300"
             title="Contract watch: you'll get a heads-up 30 days before this renews."
           >
-            {`renews ${e.renewal_date} 🔔`}
+            {`renews ${relativeDay(e.renewal_date, todayISO)} 🔔`}
           </span>
         )}
         {e.funded_by_income_id && (
@@ -758,127 +889,13 @@ export function ExpensesPanel({
           </span>
         )}
       </span>
-      <span className="flex items-center gap-3">
-        <form
-          action={setSplitWays}
-          className="flex items-center gap-1"
-          title="Roommate mode: split this bill N ways — your projections only carry your share. (You still front the full amount; collecting is on you.)"
-        >
-          <input type="hidden" name="id" value={e.id} />
-          <select
-            name="split_ways"
-            defaultValue={String(e.split_ways ?? 1)}
-            className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-violet-400"
-          >
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <option key={n} value={n}>
-                {n === 1 ? "not split" : `÷ ${n}`}
-              </option>
-            ))}
-          </select>
-          <button className="text-xs text-slate-500 transition hover:text-violet-300">
-            split
-          </button>
-        </form>
-        {showCadence && data.income.length > 0 && (
-          <form
-            action={setFundedBy}
-            className="flex items-center gap-1"
-            title="Pass-through pairing: if a specific income source exists to pay this bill (rent → that property's mortgage), link them and the app reports whether the pair covers itself."
-          >
-            <input type="hidden" name="id" value={e.id} />
-            <select
-              name="funded_by_income_id"
-              defaultValue={e.funded_by_income_id ?? ""}
-              className="max-w-36 rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-teal-400"
-            >
-              <option value="">paid by: me</option>
-              {data.income.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            <button className="text-xs text-slate-500 transition hover:text-teal-300">
-              link
-            </button>
-          </form>
-        )}
-        {showCadence && (
-          <form
-            action={setAutopay}
-            className="flex items-center gap-1"
-            title="Autopay audit: manual bills get a pay-it reminder on the day; autopay bills get a did-it-actually-charge check the day after."
-          >
-            <input type="hidden" name="id" value={e.id} />
-            <select
-              name="autopay"
-              defaultValue={e.autopay === null || e.autopay === undefined ? "" : String(e.autopay)}
-              className="rounded border border-slate-700 bg-slate-800 px-1 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-            >
-              <option value="">pay: ?</option>
-              <option value="true">autopay 🤖</option>
-              <option value="false">manual ✍️</option>
-            </select>
-            <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-              set
-            </button>
-          </form>
-        )}
-        {showCadence && (
-          <form
-            action={setRenewalDate}
-            className="flex items-center gap-1"
-            title="Contract watch: set the date this contract renews (insurance, phone, annual plans) and you'll get a shop-it-around nudge 30 days out. Clear the date to stop watching."
-          >
-            <input type="hidden" name="id" value={e.id} />
-            <input
-              name="renewal_date"
-              type="date"
-              defaultValue={e.renewal_date ?? ""}
-              className="w-32 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-            />
-            <button className="text-xs text-slate-500 transition hover:text-sky-300">
-              renews
-            </button>
-          </form>
-        )}
-        <form action={updateExpenseAmount} className="flex items-center gap-1">
-          <input type="hidden" name="id" value={e.id} />
-          <input
-            name="amount"
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="new $"
-            title="Change this bill's amount — the old price is remembered, so price creep stays visible."
-            className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
-          />
-          <button className="text-xs text-slate-500 transition hover:text-emerald-300">
-            set
-          </button>
-        </form>
-        <ExpenseBucketSelect
-          expenseId={e.id}
-          expenseName={e.name}
-          current={e.bucket_id}
-          buckets={bucketChoices}
-        />
-        <PauseToggle
-          table="expenses"
-          id={e.id}
-          name={e.name}
-          isPaused={e.is_paused}
-        />
-        <InstantAction
-          action={deleteExpense}
-          undoAction={undoRestore}
-          values={{ id: e.id }}
-          message={`Removed ${e.name}.`}
-          className={delCls}
-        >
-          remove
-        </InstantAction>
+      {/* Same controls, two homes: inline on wide screens, in a bottom
+          sheet on phones where these would be cramped and mis-tappable. */}
+      <span className="hidden items-center gap-3 sm:flex">
+        {billControls(e, showCadence)}
+      </span>
+      <span className="sm:hidden">
+        <RowEditSheet title={e.name}>{billControls(e, showCadence)}</RowEditSheet>
       </span>
     </li>
   );
@@ -1054,7 +1071,7 @@ export function WhatIfPanel({ data }: { data: DashboardData }) {
 
       <form action={addWhatIf} className="mb-4 grid grid-cols-2 gap-2">
         <input name="name" placeholder="Thing (e.g. New phone)" required className={`${inputCls} col-span-2`} />
-        <input name="amount" type="number" step="0.01" min="0" placeholder="Cost" required className={inputCls} />
+        <MoneyInput name="amount" placeholder="Cost" required className={inputCls} ariaLabel="Cost" />
         <label className="text-xs text-slate-400">
           When you&apos;d buy it
           <input name="target_date" type="date" required className={`${inputCls} mt-1`} />

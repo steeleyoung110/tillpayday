@@ -89,7 +89,14 @@ export default async function SettingsPage() {
     typeof meta.legal_accepted_at === "string" ? meta.legal_accepted_at : null;
 
   return (
-    <AppShell active="settings">
+    <AppShell
+      active="settings"
+      quickAdd={{
+        buckets: data.buckets.map((b) => ({ id: b.id, name: b.name })),
+        todayISO: new Date().toISOString().slice(0, 10),
+        fallbackBucketId: funBucket?.id ?? "",
+      }}
+    >
       <div className="mx-auto max-w-4xl space-y-6 px-6 pt-6">
         <h2 className="text-lg font-semibold text-white">Settings &amp; About</h2>
 

@@ -221,7 +221,15 @@ export default async function NetWorthPage() {
   );
 
   return (
-    <AppShell active="networth">
+    <AppShell
+      active="networth"
+      quickAdd={{
+        buckets: dash.buckets.map((b) => ({ id: b.id, name: b.name })),
+        todayISO,
+        fallbackBucketId:
+          dash.buckets.find((b) => b.is_flexible && !b.is_savings)?.id ?? "",
+      }}
+    >
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         {/* Hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">

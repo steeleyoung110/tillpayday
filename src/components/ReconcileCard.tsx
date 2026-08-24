@@ -8,6 +8,7 @@
  */
 import { useState, useTransition } from "react";
 import { reconcile, undoRestore } from "@/app/actions";
+import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
 import { showToast } from "@/components/InstantAction";
 
 const cents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
@@ -15,7 +16,7 @@ const cents = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD
 export function ReconcileCard({ modelBalance }: { modelBalance: number }) {
   const [bank, setBank] = useState("");
   const [pending, startTransition] = useTransition();
-  const value = Number(bank);
+  const value = Number(parseMoneyInput(bank));
   const drift =
     bank !== "" && Number.isFinite(value)
       ? Math.round((value - modelBalance) * 100) / 100
@@ -25,7 +26,7 @@ export function ReconcileCard({ modelBalance }: { modelBalance: number }) {
     if (drift === null || Math.abs(drift) < 0.01) return;
     startTransition(async () => {
       const fd = new FormData();
-      fd.append("bank_balance", bank);
+      fd.append("bank_balance", parseMoneyInput(bank));
       fd.append("model_balance", String(modelBalance));
       const res = await reconcile(fd);
       if (res.ok) {
@@ -55,12 +56,13 @@ export function ReconcileCard({ modelBalance }: { modelBalance: number }) {
           {`Till Payday thinks you have ${cents.format(modelBalance)}. My bank says…`}
         </span>
         <input
-          type="number"
+          type="text"
           inputMode="decimal"
-          step="0.01"
+          autoComplete="off"
+          aria-label="Your real bank balance"
           placeholder="$ 0.00"
           value={bank}
-          onChange={(e) => setBank(e.target.value)}
+          onChange={(e) => setBank(formatMoneyInput(e.target.value))}
           className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
         />
       </div>

@@ -45,6 +45,7 @@ import { freedomDay } from "@/lib/freedomDay";
 import { detectShortCheck } from "@/lib/shortCheck";
 import { expenseShare } from "@/lib/rows";
 import { anniversaryWindow } from "@/lib/anniversary";
+import { relativeDay, relativeDayWithDate } from "@/lib/relativeDate";
 import { findDuplicateSpends } from "@/lib/dupes";
 import { healthScore } from "@/lib/healthScore";
 import { savingsVelocity } from "@/lib/loggingQuality";
@@ -513,7 +514,18 @@ export default async function Home({
   }
 
   return (
-    <AppShell active="dashboard">
+    <AppShell
+      active="dashboard"
+      quickAdd={
+        viewing
+          ? undefined
+          : {
+              buckets: data.buckets.map((b) => ({ id: b.id, name: b.name })),
+              todayISO,
+              fallbackBucketId: funBucketRow?.id ?? "",
+            }
+      }
+    >
       {!viewing && showCelebration && recap && (
         <CelebrationOverlay
           recap={recap}
@@ -806,14 +818,10 @@ export default async function Home({
           <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="font-semibold text-white">
-                {`Next payday — ${nextCheck.payday}`}
-                <span className="ml-2 text-sm font-normal text-slate-400">
-                  {daysToNextCheck === 0
-                    ? "today 🎉"
-                    : daysToNextCheck === 1
-                      ? "tomorrow"
-                      : `in ${daysToNextCheck} days`}
-                </span>
+                {`Next payday — ${relativeDayWithDate(nextCheck.payday, todayISO)}`}
+                {daysToNextCheck === 0 && (
+                  <span className="ml-2 text-sm font-normal text-emerald-300">🎉</span>
+                )}
               </h2>
               <p className="text-sm font-bold text-emerald-300">
                 {`+${heroCurrency.format(nextCheck.paycheckTotal)} lands`}
@@ -900,6 +908,7 @@ export default async function Home({
             flexibleBalance={sts.flexibleBalance}
             daysUntilPayday={sts.daysUntilPayday}
             nextPayday={sts.nextPayday}
+            todayISO={todayISO}
             savingsBalance={balancesToday?.[""] ?? 0}
             dangerLow={danger?.low ?? null}
             dangerDate={danger?.date ?? null}
@@ -1025,8 +1034,8 @@ export default async function Home({
                 </p>
                 <p className="mt-2 text-xs text-slate-500">
                   {danger.negative
-                    ? `On ${danger.date}${danger.causes[0] ? ` when ${danger.causes[0].name} lands` : ""}, your total goes ${heroCurrency.format(Math.abs(danger.low))} negative — a bill is spending money you don't have. Move money or pause something before then.`
-                    : `Your low point is ${danger.daysAway === 0 ? "today" : `${danger.date} (${danger.daysAway} day${danger.daysAway === 1 ? "" : "s"} away)`}${danger.causes[0] ? `, after ${danger.causes[0].name} clears` : ""} — then the ${danger.nextPayday} check lands.`}
+                    ? `${relativeDay(danger.date, todayISO) === "today" ? "Today" : `${relativeDay(danger.date, todayISO).replace(/^in /, "In ")}`}${danger.causes[0] ? `, when ${danger.causes[0].name} lands` : ""}, your total goes ${heroCurrency.format(Math.abs(danger.low))} negative — a bill is spending money you don't have. Move money or pause something before then.`
+                    : `Your low point is ${relativeDayWithDate(danger.date, todayISO)}${danger.causes[0] ? `, after ${danger.causes[0].name} clears` : ""} — then the next check lands ${relativeDay(danger.nextPayday, todayISO)}.`}
                 </p>
               </div>
             )}

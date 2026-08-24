@@ -43,6 +43,7 @@ import { PassThroughCard } from "@/components/PassThroughCard";
 import { SplitTuner } from "@/components/SplitTuner";
 import { cycleStartSavings } from "@/lib/balances";
 import { incomeMonthly, passThroughSummary } from "@/lib/passThrough";
+import { prettyDate, relativeDay, relativeDayWithDate } from "@/lib/relativeDate";
 import { billTerrain } from "@/lib/billTerrain";
 import { checkHistory } from "@/lib/checkHistory";
 import { roundNumberBias } from "@/lib/loggingQuality";
@@ -547,7 +548,14 @@ export default async function BudgetPage({
   }
 
   return (
-    <AppShell active="budget">
+    <AppShell
+      active="budget"
+      quickAdd={{
+        buckets: data.buckets.map((b) => ({ id: b.id, name: b.name })),
+        todayISO,
+        fallbackBucketId: funBucket?.id ?? "",
+      }}
+    >
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
         <div>
           <h2 className="text-lg font-semibold text-white">Your budget</h2>
@@ -595,7 +603,7 @@ export default async function BudgetPage({
                 ]
               : ["Typical check", currency.format(typicalPaycheck), "text-white"],
             [
-              `Spent since ${spend?.since ?? cycle.lastPayday}`,
+              `Spent since payday (${relativeDay(spend?.since ?? cycle.lastPayday, todayISO)})`,
               spentTotal > 0 ? `−${currencyCents.format(spentTotal)}` : "$0",
               spentTotal > 0 ? "text-red-300" : "text-slate-300",
             ],
@@ -649,7 +657,9 @@ export default async function BudgetPage({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-slate-200">{g.payday}</p>
+                    <p className="text-sm font-semibold text-slate-200">
+                      {relativeDayWithDate(g.payday, todayISO)}
+                    </p>
                     <span className="text-xs text-slate-400">
                       {currency.format(g.paycheckTotal)}
                       {g.sideTotal > 0 && (
@@ -673,7 +683,7 @@ export default async function BudgetPage({
                           key={`${b.expenseId}-${b.dueDate}`}
                           className="flex items-center justify-between text-xs text-slate-400"
                         >
-                          <span>{`${b.name} (${b.dueDate})`}</span>
+                          <span>{`${b.name} (${relativeDay(b.dueDate, todayISO)})`}</span>
                           <span>{currency.format(b.amount)}</span>
                         </li>
                       ))}
@@ -772,7 +782,7 @@ export default async function BudgetPage({
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {spend
-                    ? `This cycle so far (since ${spend.since})`
+                    ? `This cycle so far (since payday, ${relativeDay(spend.since, todayISO)})`
                     : "This cycle so far"}
                 </p>
                 {spentSlices.length > 0 ? (
@@ -1314,7 +1324,9 @@ export default async function BudgetPage({
                     ) : null}
                     {a.text}
                   </span>
-                  <span className="text-xs text-slate-500">{a.day}</span>
+                  <span className="text-xs text-slate-500">
+                    {relativeDay(a.day, todayISO)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1353,7 +1365,7 @@ export default async function BudgetPage({
                   >
                     <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
                       <span className="text-slate-300">
-                        {`${c.cycleStart} → ${c.cycleEnd}`}
+                        {`${prettyDate(c.cycleStart, todayISO)} → ${prettyDate(c.cycleEnd, todayISO)}`}
                       </span>
                       <span className="flex items-center gap-2">
                         <span className="text-slate-400">
@@ -1419,7 +1431,7 @@ export default async function BudgetPage({
             searchQuery={q ?? ""}
             hourlyWage={hourlyWage}
           />
-          <GoalsPanel data={data} />
+          <GoalsPanel data={data} todayISO={todayISO} />
           <WhatIfPanel data={data} />
           <IncomeShock
             income={engineIncome}
