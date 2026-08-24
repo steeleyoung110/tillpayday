@@ -24,6 +24,13 @@ export function Confetti({
 }) {
   const reduced = usePrefersReducedMotion();
   const [done, setDone] = useState(false);
+  /**
+   * Decide nothing until we're on the client. Confetti is decoration, so
+   * rendering none of it server-side avoids both a hydration mismatch and
+   * the trap of committing to "reduced motion" before we can actually ask.
+   */
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Positions are fixed per mount so a re-render doesn't reshuffle mid-flight.
   const bits = useMemo(
@@ -44,7 +51,7 @@ export function Confetti({
     return () => clearTimeout(t);
   }, [active, reduced]);
 
-  if (!active || done) return null;
+  if (!mounted || !active || done) return null;
 
   if (reduced) {
     // Static equivalent: a still band of color, present but motionless.

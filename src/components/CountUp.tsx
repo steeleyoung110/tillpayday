@@ -28,8 +28,13 @@ export function CountUp({
   format: (n: number) => string;
   className?: string;
 }) {
-  const [shown, setShown] = useState(value);
-  const fromRef = useRef(value);
+  /**
+   * Start at zero so the very first render counts UP to the number rather
+   * than simply presenting it. Every later change animates from wherever the
+   * number already was.
+   */
+  const [shown, setShown] = useState(0);
+  const fromRef = useRef(0);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
