@@ -145,7 +145,7 @@ export default async function ReviewPage() {
                 .slice(0, 6)
                 .map((e) => (
                   <li key={e.id} className="flex justify-between">
-                    <span>{`${e.name} · ${e.due_date}`}</span>
+                    <span className="min-w-0 break-words">{`${e.name} · ${e.due_date}`}</span>
                     <span className="text-red-300">{`−${currency.format(expenseShare(e))}`}</span>
                   </li>
                 ))}
@@ -163,7 +163,7 @@ export default async function ReviewPage() {
             <ul className="mt-2 space-y-1 text-sm text-slate-300">
               {upcoming.map((u) => (
                 <li key={`${u.name}-${u.due}`} className="flex justify-between">
-                  <span>{`${u.name} · ${u.due}`}</span>
+                  <span className="min-w-0 break-words">{`${u.name} · ${u.due}`}</span>
                   <span>{currency.format(u.amount)}</span>
                 </li>
               ))}

@@ -147,7 +147,7 @@ export function IncomePanel({
             key={s.id}
             className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
           >
-            <span className="text-slate-200">
+            <span className="min-w-0 break-words text-slate-200">
               {s.name}{" "}
               <span className="text-slate-400">
                 — {currency.format(Number(s.amount))} {s.frequency}
@@ -240,7 +240,7 @@ export function GoalsPanel({
             key={g.id}
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
           >
-            <span className="text-slate-200">
+            <span className="min-w-0 break-words text-slate-200">
               {g.name}{" "}
               <span className="text-slate-400">
                 {`— ${currency.format(Number(g.target_amount))} by ${prettyDate(g.target_date, todayISO)}`}
@@ -299,7 +299,7 @@ export function GoalsPanel({
           <ul className="mt-2 space-y-1">
             {achieved.map((g) => (
               <li key={g.id} className="flex items-center justify-between text-slate-400">
-                <span>{`🏆 ${g.name} — ${currency.format(Number(g.target_amount))}`}</span>
+                <span className="min-w-0 break-words">{`🏆 ${g.name} — ${currency.format(Number(g.target_amount))}`}</span>
                 <InstantAction
                   action={deleteGoal}
                   undoAction={undoRestore}
@@ -448,7 +448,7 @@ export function BucketsPanel({
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-slate-200">
+              <span className="min-w-0 break-words text-slate-200">
                 {b.name}{" "}
                 <span className="text-slate-400">
                   —{" "}
@@ -866,7 +866,7 @@ export function ExpensesPanel({
         e.is_paused ? "opacity-50" : ""
       }`}
     >
-      <span className="text-slate-200">
+      <span className="min-w-0 break-words text-slate-200">
         {e.name}{" "}
         <span className="text-slate-400">
           {`— ${currency.format(Number(e.amount))}${
@@ -1036,7 +1036,7 @@ export function WhatIfPanel({
             key={w.id}
             className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
           >
-            <span className="text-slate-200">
+            <span className="min-w-0 break-words text-slate-200">
               {w.name}{" "}
               <span className="text-slate-400">
                 {`— ${currency.format(Number(w.amount))} · around ${relativeDay(w.target_date, todayISO)}`}
@@ -1128,7 +1128,7 @@ export function WhatIfPanel({
           <ul className="mt-2 space-y-1">
             {decided.map((w) => (
               <li key={w.id} className="flex items-center justify-between text-slate-400">
-                <span>
+                <span className="min-w-0 break-words">
                   {`${w.status === "skipped" ? "🙅 Skipped" : "🛍️ Bought"}: ${w.name} (${currency.format(Number(w.amount))})`}
                 </span>
                 <InstantAction

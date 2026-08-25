@@ -173,7 +173,9 @@ export default async function NetWorthPage() {
       key={item.id}
       className="flex items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
     >
-      <span className="text-slate-200">
+      {/* min-w-0 so a long name can shrink instead of shoving the row
+          past the screen edge; break-words for a name with no spaces. */}
+      <span className="min-w-0 break-words text-slate-200">
         {item.name}
         {"interest_rate" in item && item.interest_rate !== null && (
           <span className="ml-2 text-xs text-slate-400">{`${Number(item.interest_rate)}% interest`}</span>
@@ -495,7 +497,7 @@ export default async function NetWorthPage() {
             <ul className="mt-3 space-y-2">
               {archived.map((item) => (
                 <li key={item.id} className="flex items-center justify-between text-slate-400">
-                  <span>
+                  <span className="min-w-0 break-words">
                     {item.name} ·{" "}
                     {currency.format(
                       Number(

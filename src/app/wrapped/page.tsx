@@ -205,7 +205,7 @@ export default async function WrappedPage({
                     key={r.name}
                     className="flex items-center justify-between rounded-lg bg-slate-800/60 px-3 py-2 text-sm"
                   >
-                    <span className="text-slate-200">{r.name}</span>
+                    <span className="min-w-0 break-words text-slate-200">{r.name}</span>
                     <span className="flex items-center gap-3">
                       <span className="text-slate-400">
                         {`${currency.format(r.actual)} of ${currency.format(r.planned)} planned`}
