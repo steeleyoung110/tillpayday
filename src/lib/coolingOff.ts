@@ -37,3 +37,24 @@ export function formatRemaining(remainingMs: number): string {
   if (hours === 0) return `${minutes}m`;
   return `${hours}h ${minutes}m`;
 }
+
+/**
+ * Should editing a what-if restart its cooling-off clock?
+ *
+ * Yes, whenever the price moved and a clock is actually running. The pause is
+ * the whole point of the feature, and re-typing the number is the easiest way
+ * to talk yourself past it — "I found the same one for $50 less" is a new
+ * decision, not a correction to an old one. Editing the name or the date
+ * leaves the clock alone; neither changes what the money does.
+ *
+ * Raising the price restarts it too. That looks harsh, but a rule you can
+ * predict beats one that guesses at your motives.
+ */
+export function shouldRestartCooling(
+  oldAmount: number,
+  newAmount: number,
+  coolingStartedAtISO: string | null,
+): boolean {
+  if (!coolingStartedAtISO) return false;
+  return oldAmount !== newAmount;
+}

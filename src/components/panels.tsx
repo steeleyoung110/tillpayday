@@ -42,6 +42,7 @@ import {
   toggleBucketRollsOver,
   togglePaused,
   undoRestore,
+  updateWhatIf,
 } from "@/app/actions";
 import { expenseShare, type DashboardData } from "@/lib/rows";
 
@@ -1077,6 +1078,59 @@ export function WhatIfPanel({
               >
                 said no 💪
               </InstantAction>
+              <RowEditSheet
+                title={w.name}
+                everywhere
+                hint={
+                  cooling.phase === "cooling"
+                    ? "Changing the price restarts the 48-hour wait. A different price is a different decision."
+                    : "Save applies all four at once."
+                }
+              >
+                <form action={updateWhatIf} className="grid grid-cols-2 gap-2">
+                  <input type="hidden" name="id" value={w.id} />
+                  <input
+                    name="name"
+                    defaultValue={w.name}
+                    required
+                    aria-label="What it is"
+                    className={`${inputCls} col-span-2`}
+                  />
+                  <MoneyInput
+                    name="amount"
+                    defaultValue={String(Number(w.amount))}
+                    required
+                    className={inputCls}
+                    ariaLabel="Cost"
+                  />
+                  <label className="text-xs text-slate-400">
+                    When you&apos;d buy it
+                    <input
+                      name="target_date"
+                      type="date"
+                      defaultValue={w.target_date}
+                      required
+                      className={`${inputCls} mt-1`}
+                    />
+                  </label>
+                  <label className="col-span-2 text-xs text-slate-400">
+                    Comes out of
+                    <select
+                      name="bucket_id"
+                      defaultValue={w.bucket_id ?? ""}
+                      className={`${inputCls} mt-1`}
+                    >
+                      <option value="">Savings / leftover</option>
+                      {data.buckets.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button className={`${btnCls} col-span-2`}>Save changes</button>
+                </form>
+              </RowEditSheet>
               <InstantAction
                 action={deleteWhatIf}
                 undoAction={undoRestore}

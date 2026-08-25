@@ -11,7 +11,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { APP_VERSION } from "@/lib/version";
-import { coolingState } from "@/lib/coolingOff";
+import { coolingState, shouldRestartCooling } from "@/lib/coolingOff";
 import { getDashboardData } from "@/lib/data";
 import { buildPaydayRecapEmail } from "@/lib/email/paydayRecap";
 import { sendEmail } from "@/lib/email/send";
@@ -1738,6 +1738,52 @@ export async function addWhatIf(formData: FormData) {
     status: "considering",
   });
   revalidatePath("/");
+}
+
+/**
+ * Change a what-if you're still considering. Until now the only way to fix a
+ * price was to delete the thing and add it again, which quietly threw away the
+ * cooling-off clock — the one part of this feature that does any work.
+ *
+ * The price is the exception: change it while the timer is running and the
+ * timer restarts. A different price is a different decision, and "find the
+ * same thing $50 cheaper" is the most common way an impulse talks its way
+ * past a pause. The sheet says so before you save.
+ */
+export async function updateWhatIf(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const amount = num(formData, "amount");
+  const name = str(formData, "name");
+  const targetDate = str(formData, "target_date");
+  if (!id || !name || !(amount > 0) || !targetDate) return;
+
+  const { data: cur } = await supabase
+    .from("whatif_items")
+    .select("amount, cooling_off_started_at, status")
+    .eq("id", id)
+    .single();
+  if (!cur || cur.status !== "considering") return;
+
+  const restart = shouldRestartCooling(
+    Number(cur.amount),
+    amount,
+    cur.cooling_off_started_at,
+  );
+  const bucketId = str(formData, "bucket_id");
+  await supabase
+    .from("whatif_items")
+    .update({
+      name,
+      amount,
+      target_date: targetDate,
+      bucket_id: bucketId || null,
+      ...(restart ? { cooling_off_started_at: new Date().toISOString() } : {}),
+    })
+    .eq("id", id)
+    .eq("status", "considering");
+  revalidatePath("/");
+  revalidatePath("/budget");
 }
 
 /** Step 1 of buying: start the 48-hour cooling-off timer. */
