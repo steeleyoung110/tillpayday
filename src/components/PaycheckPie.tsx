@@ -93,7 +93,7 @@ export function PaycheckPie({
       {/* Center label */}
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-lg font-bold text-white">{currency.format(paycheck)}</span>
-        <span className="text-xs text-slate-500">per check</span>
+        <span className="text-xs text-slate-400">per check</span>
       </div>
     </div>
   );

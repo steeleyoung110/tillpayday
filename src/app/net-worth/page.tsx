@@ -173,13 +173,13 @@ export default async function NetWorthPage() {
       <span className="text-slate-200">
         {item.name}
         {"interest_rate" in item && item.interest_rate !== null && (
-          <span className="ml-2 text-xs text-slate-500">{`${Number(item.interest_rate)}% interest`}</span>
+          <span className="ml-2 text-xs text-slate-400">{`${Number(item.interest_rate)}% interest`}</span>
         )}
         {"minimum_payment" in item && Number(item.minimum_payment) > 0 && (
-          <span className="ml-2 text-xs text-slate-500">{`${currency.format(Number(item.minimum_payment))}/mo`}</span>
+          <span className="ml-2 text-xs text-slate-400">{`${currency.format(Number(item.minimum_payment))}/mo`}</span>
         )}
         {item.notes && (
-          <span className="ml-2 text-xs text-slate-500">{item.notes}</span>
+          <span className="ml-2 text-xs text-slate-400">{item.notes}</span>
         )}
       </span>
       <span className="flex items-center gap-3">
@@ -200,7 +200,7 @@ export default async function NetWorthPage() {
               title="What you actually pay on this each month — unlocks the payoff date on your Dashboard."
               className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
             />
-            <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+            <button className="text-xs text-slate-400 transition hover:text-emerald-300">
               set
             </button>
           </form>
@@ -211,7 +211,7 @@ export default async function NetWorthPage() {
           undoAction={undoRestore}
           values={{ table, id: item.id, archived: "true" }}
           message={`${item.name} archived — it keeps its history, just doesn't count anymore.`}
-          className="text-xs text-slate-500 transition hover:text-amber-300"
+          className="text-xs text-slate-400 transition hover:text-amber-300"
           title="Archive — stops counting toward your total but keeps the history."
         >
           archive
@@ -277,7 +277,7 @@ export default async function NetWorthPage() {
                 <p className="mt-2 text-sm text-slate-300">
                   {`Your bills run ${currency.format(freedom.monthlyBills)}/mo, so ${currency.format(freedom.freedomNumber)} invested covers them forever at a 4%/yr withdrawal. Your ${currency.format(freedom.investable)} covers ${currency.format(freedom.coveredMonthly)}/mo today.`}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-400">
                   Small number? Everyone&apos;s starts small. Every bill you
                   shrink lowers the target AND speeds the climb — that lever
                   works from both ends.
@@ -318,7 +318,7 @@ export default async function NetWorthPage() {
                     )}
                   </>
                 )}
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   A straight-line guess from your own history — markets and
                   life both wobble. Keep the snapshots coming and it sharpens.
                 </p>
@@ -341,7 +341,7 @@ export default async function NetWorthPage() {
                 >
                   <span className="text-slate-200">
                     {r.name}
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-400">
                       {`${currency.format(r.balance)} at ${r.apy}% APY`}
                     </span>
                   </span>
@@ -351,7 +351,7 @@ export default async function NetWorthPage() {
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               Set your bucket&apos;s real APY in Budget → Buckets once you
               move it, and this card retires itself.
             </p>
@@ -399,7 +399,7 @@ export default async function NetWorthPage() {
             )}
             {assetsByCat.map((g) => (
               <div key={g.cat} className="mb-4">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   {ASSET_LABELS[g.cat]}
                 </p>
                 <ul className="space-y-2">
@@ -408,7 +408,7 @@ export default async function NetWorthPage() {
               </div>
             ))}
             {activeAssets.length === 0 && !bridgeOn && (
-              <p className="mb-4 text-sm text-slate-500">
+              <p className="mb-4 text-sm text-slate-400">
                 Start with whatever's easy — your checking balance counts.
               </p>
             )}
@@ -430,7 +430,7 @@ export default async function NetWorthPage() {
             <h2 className="mb-3 font-semibold text-white">What you owe</h2>
             {liabilitiesByCat.map((g) => (
               <div key={g.cat} className="mb-4">
-                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   {LIABILITY_LABELS[g.cat]}
                 </p>
                 <ul className="space-y-2">
@@ -439,7 +439,7 @@ export default async function NetWorthPage() {
               </div>
             ))}
             {activeLiabilities.length === 0 && (
-              <p className="mb-4 text-sm text-slate-500">
+              <p className="mb-4 text-sm text-slate-400">
                 Cards, loans, anything you&apos;re paying down. No judgment —
                 just a starting point.
               </p>
@@ -485,7 +485,7 @@ export default async function NetWorthPage() {
             </summary>
             <ul className="mt-3 space-y-2">
               {archived.map((item) => (
-                <li key={item.id} className="flex items-center justify-between text-slate-500">
+                <li key={item.id} className="flex items-center justify-between text-slate-400">
                   <span>
                     {item.name} ·{" "}
                     {currency.format(
@@ -499,7 +499,7 @@ export default async function NetWorthPage() {
                     undoAction={undoRestore}
                     values={{ table: item.table, id: item.id, archived: "false" }}
                     message={`${item.name} is back in your totals.`}
-                    className="text-xs text-slate-500 transition hover:text-emerald-300"
+                    className="text-xs text-slate-400 transition hover:text-emerald-300"
                   >
                     bring back
                   </InstantAction>

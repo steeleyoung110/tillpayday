@@ -576,7 +576,7 @@ export default async function BudgetPage({
               <a
                 key={href}
                 href={href}
-                className="text-slate-500 underline-offset-2 transition hover:text-emerald-300 hover:underline"
+                className="text-slate-400 underline-offset-2 transition hover:text-emerald-300 hover:underline"
               >
                 {label}
               </a>
@@ -622,13 +622,13 @@ export default async function BudgetPage({
                     key={label}
                     className="rounded-2xl border border-slate-800 bg-slate-900 p-4"
                   >
-                    <p className="text-xs text-slate-500">{label}</p>
+                    <p className="text-xs text-slate-400">{label}</p>
                     <p className={`mt-1 text-lg font-bold ${tone}`}>{value}</p>
                   </div>
                 ))}
               </div>
               {monthlySideAll > 0 && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-400">
                   {`Includes ${currency.format(monthlySideAll)}/mo of side income. The pie below splits only your ${currency.format(typicalPaycheck)} paycheck — side income lands in savings instead of flowing through buckets, which is why it isn't in the split.`}
                 </p>
               )}
@@ -641,7 +641,7 @@ export default async function BudgetPage({
             <h2 className="mb-1 font-semibold text-white">
               Which check covers what
             </h2>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-slate-400">
               Your next few paychecks and the bills already lined up against
               each one. Side income arriving in a window counts toward covering
               it (shown in teal).
@@ -673,7 +673,7 @@ export default async function BudgetPage({
                     </span>
                   </div>
                   {g.bills.length === 0 ? (
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-slate-400">
                       Nothing due against this check yet.
                     </p>
                   ) : (
@@ -690,7 +690,7 @@ export default async function BudgetPage({
                     </ul>
                   )}
                   <div className="mt-2 flex items-center justify-between border-t border-slate-700/60 pt-2 text-xs">
-                    <span className="text-slate-500">
+                    <span className="text-slate-400">
                       {`${currency.format(g.totalBills)} due`}
                     </span>
                     <span
@@ -736,7 +736,7 @@ export default async function BudgetPage({
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               If they agree, update the bill&apos;s due date in Bills below and
               the whole projection follows.
             </p>
@@ -751,7 +751,7 @@ export default async function BudgetPage({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
               {/* The plan */}
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   The plan
                 </p>
                 <div className="flex flex-wrap items-center gap-6">
@@ -780,7 +780,7 @@ export default async function BudgetPage({
 
               {/* The reality, so far this cycle */}
               <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   {spend
                     ? `This cycle so far (since payday, ${relativeDay(spend.since, todayISO)})`
                     : "This cycle so far"}
@@ -806,7 +806,7 @@ export default async function BudgetPage({
                               {`−${currencyCents.format(r.amount)} · ${r.share}%`}
                             </span>
                           ) : (
-                            <span className="text-slate-500">$0 so far</span>
+                            <span className="text-slate-400">$0 so far</span>
                           )}
                         </li>
                       ))}
@@ -828,7 +828,7 @@ export default async function BudgetPage({
                     </ul>
                   </div>
                 ) : (
-                  <p className="py-10 text-sm text-slate-500">
+                  <p className="py-10 text-sm text-slate-400">
                     Nothing spent yet this cycle — the whole check is intact.
                     As bills come due, this chart fills in so you can compare
                     it against the plan.
@@ -836,7 +836,7 @@ export default async function BudgetPage({
                 )}
               </div>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-400">
               The two lists line up row for row: the plan&apos;s share on the
               left, what you&apos;ve actually spent (in red) on the right.
               Green is money still standing; red is money gone.
@@ -853,7 +853,7 @@ export default async function BudgetPage({
                   {`${currencyCents.format(heatmap.total)} total`}
                 </p>
               </div>
-              <p className="mb-3 mt-1 text-xs text-slate-500">
+              <p className="mb-3 mt-1 text-xs text-slate-400">
                 Darker red, heavier day. Hover any square for the damage.
               </p>
               <div className="grid grid-flow-col grid-rows-7 gap-[3px] overflow-x-auto">
@@ -875,7 +875,7 @@ export default async function BudgetPage({
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
               <h2 className="font-semibold text-white">Six months, by category</h2>
-              <p className="mb-3 mt-1 text-xs text-slate-500">
+              <p className="mb-3 mt-1 text-xs text-slate-400">
                 Where the money has actually been going, month over month. The
                 current month is partial — it only counts what&apos;s already
                 gone.
@@ -901,7 +901,7 @@ export default async function BudgetPage({
                         ) : null,
                       )}
                     </div>
-                    <span className="text-xs text-slate-500">{m.label}</span>
+                    <span className="text-xs text-slate-400">{m.label}</span>
                     <span className="text-xs font-semibold text-slate-300">
                       {m.total > 0 ? currencyCents.format(m.total) : "—"}
                     </span>
@@ -920,7 +920,7 @@ export default async function BudgetPage({
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 &ldquo;Kept&rdquo; is your savings rate — the share of that
                 month&apos;s income that didn&apos;t leave. Negative means the
                 month spent money you didn&apos;t earn in it.
@@ -958,7 +958,7 @@ export default async function BudgetPage({
                 {`${inflation.overallPct > 0 ? "+" : ""}${inflation.overallPct}%`}
               </p>
             </div>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               Not the news&apos; inflation — YOURS, from your own repeat
               purchases and bill history.
             </p>
@@ -970,7 +970,7 @@ export default async function BudgetPage({
                 >
                   <span className="text-slate-200">
                     {r.label}
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-400">
                       {r.kind === "merchant"
                         ? `avg of ${r.samples} visits`
                         : "recurring bill"}
@@ -995,7 +995,7 @@ export default async function BudgetPage({
                 {`average ${currencyCents.format(terrain.average)}/mo`}
               </p>
             </div>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               The next 12 months of scheduled bills. Quarterly and yearly
               bills make mountains — see them coming instead of meeting them.
             </p>
@@ -1011,11 +1011,11 @@ export default async function BudgetPage({
                     }}
                     title={`${m.label}: ${currencyCents.format(m.total)}${m.lumpy.length ? ` (${m.lumpy.map((l) => l.name).join(", ")})` : ""}`}
                   />
-                  <span className="text-[10px] text-slate-500">{m.label}</span>
+                  <span className="text-[10px] text-slate-400">{m.label}</span>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               {`Heaviest: ${terrain.heaviest.label} at ${currencyCents.format(terrain.heaviest.total)}`}
               {terrain.heaviest.lumpy.length > 0 &&
                 ` — ${terrain.heaviest.lumpy.map((l) => `${l.name} (${currencyCents.format(l.amount)})`).join(" and ")} land${terrain.heaviest.lumpy.length === 1 ? "s" : ""} that month`}
@@ -1046,7 +1046,7 @@ export default async function BudgetPage({
                       style={{ height: `${Math.max(4, Math.round((total / max) * 100))}%` }}
                       title={currencyCents.format(total)}
                     />
-                    <span className="text-[10px] text-slate-500">
+                    <span className="text-[10px] text-slate-400">
                       {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i]}
                     </span>
                   </div>
@@ -1054,7 +1054,7 @@ export default async function BudgetPage({
               })}
             </div>
             {timing.heaviestWeekday !== null && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 {`${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][timing.heaviestWeekday]} does the most damage. Knowing your pattern beats fighting it blind.`}
               </p>
             )}
@@ -1089,7 +1089,7 @@ export default async function BudgetPage({
                 />
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               {`${checkHist.checks.length} logged checks, ${currencyCents.format(checkHist.min)}–${currencyCents.format(checkHist.max)}. `}
               {checkHist.trendPerMonth === null
                 ? "Holding steady."
@@ -1146,7 +1146,7 @@ export default async function BudgetPage({
         {priceCreeps.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <h2 className="font-semibold text-white">Price creep watch 🐍</h2>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               Bills whose price has changed since you added them. Companies
               count on you not noticing — this list is you noticing.
             </p>
@@ -1158,7 +1158,7 @@ export default async function BudgetPage({
                 >
                   <span className="text-slate-200">
                     {c.name}
-                    <span className="ml-2 text-xs text-slate-500">{`since ${c.since}`}</span>
+                    <span className="ml-2 text-xs text-slate-400">{`since ${c.since}`}</span>
                   </span>
                   <span
                     className={`font-semibold ${c.pct > 0 ? "text-red-300" : "text-emerald-300"}`}
@@ -1196,7 +1196,7 @@ export default async function BudgetPage({
                 )}
               </p>
             </div>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               Nobody multiplies by 12 in their head. This is the yearly bill
               for everything that renews itself.
             </p>
@@ -1210,7 +1210,7 @@ export default async function BudgetPage({
                 >
                   <span className="text-slate-200">
                     {r.name}
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-400">
                       {`${currencyCents.format(r.amount)} ${
                         r.cadence === "monthly"
                           ? "× 12"
@@ -1243,7 +1243,7 @@ export default async function BudgetPage({
               ))}
             </ul>
             {subAudit.rows.some((r) => r.cancelCandidate && !r.isPaused) && (
-              <p className="mt-3 text-xs text-slate-500">
+              <p className="mt-3 text-xs text-slate-400">
                 🔪 Cancel candidates feed fun-money buckets — the first place
                 to look when this number needs to shrink. Pausing one in Bills
                 below removes it from the total instantly.
@@ -1257,7 +1257,7 @@ export default async function BudgetPage({
             <h2 className="font-semibold text-white">
               Where the swipes go — last 90 days
             </h2>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               Your logged spending grouped by merchant. Nobody feels $22 at a
               time; everybody feels the quarterly total.
             </p>
@@ -1268,7 +1268,7 @@ export default async function BudgetPage({
                   className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-800/60 px-3 py-1.5 text-sm"
                 >
                   <span className="text-slate-200">
-                    <span className="mr-2 text-xs text-slate-500">{`#${i + 1}`}</span>
+                    <span className="mr-2 text-xs text-slate-400">{`#${i + 1}`}</span>
                     <Link
                       href={`/budget?q=${encodeURIComponent(m.name.split(/[#0-9]/)[0].trim() || m.name)}#bills`}
                       className="underline-offset-2 transition hover:text-emerald-300 hover:underline"
@@ -1276,7 +1276,7 @@ export default async function BudgetPage({
                     >
                       {m.name}
                     </Link>
-                    <span className="ml-2 text-xs text-slate-500">
+                    <span className="ml-2 text-xs text-slate-400">
                       {`${m.count} spend${m.count === 1 ? "" : "s"}`}
                     </span>
                   </span>
@@ -1306,7 +1306,7 @@ export default async function BudgetPage({
         {activity.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <h2 className="font-semibold text-white">Recent activity 📜</h2>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               The last 14 days of changes — the paper trail, especially useful
               once a partner can log spending too.
             </p>
@@ -1324,7 +1324,7 @@ export default async function BudgetPage({
                     ) : null}
                     {a.text}
                   </span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-400">
                     {relativeDay(a.day, todayISO)}
                   </span>
                 </li>
@@ -1338,7 +1338,7 @@ export default async function BudgetPage({
         {pastCycles.length > 0 && (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
             <h2 className="mb-1 font-semibold text-white">Past cycles</h2>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-slate-400">
               Every completed pay cycle, planned vs. actual. Patterns only show
               up over time — a single cycle over plan is a bad week; several
               in a row is where to look.

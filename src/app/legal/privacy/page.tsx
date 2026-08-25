@@ -5,7 +5,7 @@ export default function PrivacyPage() {
   return (
     <main className="flex min-h-screen flex-col bg-slate-950">
       <div className="mx-auto w-full max-w-3xl flex-1 px-6 pt-10">
-        <Link href="/legal" className="text-sm text-slate-500 transition hover:text-slate-300">
+        <Link href="/legal" className="text-sm text-slate-400 transition hover:text-slate-300">
           ← About &amp; Legal
         </Link>
         <h1 className="mt-4 text-3xl font-black text-white">Privacy Policy</h1>

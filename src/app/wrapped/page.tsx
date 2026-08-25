@@ -33,7 +33,7 @@ const MONTHS = [
 ];
 
 function gradeFor(actual: number, planned: number): { grade: string; tone: string } {
-  if (planned <= 0) return { grade: "—", tone: "text-slate-500" };
+  if (planned <= 0) return { grade: "—", tone: "text-slate-400" };
   const ratio = actual / planned;
   if (ratio <= 1) return { grade: "A", tone: "text-emerald-300" };
   if (ratio <= 1.1) return { grade: "B", tone: "text-lime-300" };
@@ -176,21 +176,21 @@ export default async function WrappedPage({
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">Money in</p>
+              <p className="text-xs text-slate-400">Money in</p>
               <p className="mt-1 text-xl font-bold text-emerald-300">{currency.format(moneyIn)}</p>
-              <p className="text-xs text-slate-500">{`${paydayCount} payday${paydayCount === 1 ? "" : "s"}`}</p>
+              <p className="text-xs text-slate-400">{`${paydayCount} payday${paydayCount === 1 ? "" : "s"}`}</p>
             </div>
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">Money out</p>
+              <p className="text-xs text-slate-400">Money out</p>
               <p className="mt-1 text-xl font-bold text-red-300">{`−${currency.format(moneyOut)}`}</p>
-              <p className="text-xs text-slate-500">{`${lines.length} spend${lines.length === 1 ? "" : "s"}`}</p>
+              <p className="text-xs text-slate-400">{`${lines.length} spend${lines.length === 1 ? "" : "s"}`}</p>
             </div>
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">{kept >= 0 ? "Kept" : "Overspent by"}</p>
+              <p className="text-xs text-slate-400">{kept >= 0 ? "Kept" : "Overspent by"}</p>
               <p className={`mt-1 text-xl font-bold ${kept >= 0 ? "text-white" : "text-red-300"}`}>
                 {currency.format(Math.abs(kept))}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 {moneyIn > 0 ? `${Math.round((kept / moneyIn) * 100)}% of income` : ""}
               </p>
             </div>
@@ -215,7 +215,7 @@ export default async function WrappedPage({
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 A = within plan · B = up to 10% over · C = up to 30% over ·
                 F = you already know. Grades compare against your own plan,
                 nobody else&apos;s.
@@ -226,14 +226,14 @@ export default async function WrappedPage({
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             {biggest && (
               <div className="rounded-xl bg-slate-800/60 p-4">
-                <p className="text-xs text-slate-500">Biggest single spend</p>
+                <p className="text-xs text-slate-400">Biggest single spend</p>
                 <p className="mt-1 font-semibold text-white">{biggest.name}</p>
                 <p className="text-sm text-red-300">{`−${currency.format(biggest.amount)} · ${biggest.date}`}</p>
               </div>
             )}
             {busiest && (
               <div className="rounded-xl bg-slate-800/60 p-4">
-                <p className="text-xs text-slate-500">Heaviest day</p>
+                <p className="text-xs text-slate-400">Heaviest day</p>
                 <p className="mt-1 font-semibold text-white">{busiest[0]}</p>
                 <p className="text-sm text-red-300">{`−${currency.format(Math.round(busiest[1] * 100) / 100)} in one day`}</p>
               </div>
@@ -241,14 +241,14 @@ export default async function WrappedPage({
           </div>
 
           {lines.length === 0 && (
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 text-sm text-slate-400">
               Nothing recorded this month{isPartial ? " yet" : ""} — either a
               perfectly quiet month or an unlogged one. Only you know which.
             </p>
           )}
         </div>
 
-        <p className="no-print text-xs text-slate-600">
+        <p className="no-print text-xs text-slate-400">
           Educational reflection based on what you logged — not financial
           advice, and only as honest as your logging.
         </p>

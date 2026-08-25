@@ -48,7 +48,7 @@ export function RefinanceSim({ prefills }: { prefills: RefiPrefill[] }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
       <h2 className="font-semibold text-white">What would a better rate do? 🔁</h2>
-      <p className="mb-3 mt-1 text-xs text-slate-500">
+      <p className="mb-3 mt-1 text-xs text-slate-400">
         The refinance math, straight: same balance, same monthly payment, a
         different rate. (Balance transfers and refis have fees — ask about
         them before believing any offer.)

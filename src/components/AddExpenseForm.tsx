@@ -11,6 +11,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { addExpense } from "@/app/actions";
 import { showToast } from "@/components/InstantAction";
+import { isOffline } from "@/components/OfflineBadge";
 import { haptic } from "@/lib/haptics";
 import { lastBucket, rememberBucket } from "@/lib/lastBucket";
 import { formatMoneyInput, parseMoneyInput } from "@/lib/moneyInput";
@@ -79,6 +80,10 @@ export function AddExpenseForm({
   }, []);
 
   const submit = (finalBucketId: string) => {
+    if (isOffline()) {
+      showToast("You're offline — that didn't save. Try again once you're back.");
+      return;
+    }
     startTransition(async () => {
       const fd = new FormData();
       fd.append("name", name);
@@ -274,7 +279,7 @@ export function AddExpenseForm({
             <button
               type="button"
               onClick={() => setDecideOpen(false)}
-              className="mt-4 w-full text-sm text-slate-500 transition hover:text-slate-300"
+              className="mt-4 w-full text-sm text-slate-400 transition hover:text-slate-300"
             >
               Never mind — rethink this bill
             </button>

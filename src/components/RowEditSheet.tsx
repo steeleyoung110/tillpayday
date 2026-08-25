@@ -37,7 +37,7 @@ export function RowEditSheet({
 
       <BottomSheet open={open} onClose={() => setOpen(false)} title={title}>
         <div className="space-y-4 [&_form]:flex-wrap">{children}</div>
-        <p className="mt-4 text-xs text-slate-500">
+        <p className="mt-4 text-xs text-slate-400">
           Changes save as you make them — close when you&apos;re done.
         </p>
       </BottomSheet>

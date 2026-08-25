@@ -59,7 +59,7 @@ export function AffordCheck({
           className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white outline-none focus:border-emerald-400"
         />
         {hours && (
-          <span className="text-xs text-slate-500">{`≈ ${hours}h of work`}</span>
+          <span className="text-xs text-slate-400">{`≈ ${hours}h of work`}</span>
         )}
       </div>
 
@@ -106,7 +106,7 @@ export function AffordCheck({
       )}
 
       {!verdict && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-slate-400">
           The honest version of &ldquo;treat yourself&rdquo; — checked against
           your flexible money, savings, and the bills already scheduled before
           payday.

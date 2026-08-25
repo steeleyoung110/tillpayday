@@ -48,7 +48,7 @@ export default async function LoginPage({
         <form className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <div>
             <label htmlFor="name" className="mb-1 block text-sm text-slate-300">
-              Name <span className="text-slate-500">(for sign-up)</span>
+              Name <span className="text-slate-400">(for sign-up)</span>
             </label>
             <input
               id="name"
@@ -119,7 +119,7 @@ export default async function LoginPage({
           </div>
         </form>
 
-        <div className="my-4 flex items-center gap-3 text-xs text-slate-500">
+        <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
           <div className="h-px flex-1 bg-slate-800" />
           or
           <div className="h-px flex-1 bg-slate-800" />

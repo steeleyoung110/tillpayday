@@ -767,12 +767,12 @@ export default async function Home({
                     : `${sts.daysUntilPayday} days`
                 } till payday`}
               </p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-400">
                 {sts.flexibleBalance > 0
                   ? `Based on ${heroCurrency.format(sts.flexibleBalance)} left across your flexible buckets. Spend less than this today and tomorrow's number goes up.`
                   : "Your flexible buckets are empty this cycle — hang tight till payday."}
               </p>
-              <details className="mt-2 text-xs text-slate-500">
+              <details className="mt-2 text-xs text-slate-400">
                 <summary className="cursor-pointer transition hover:text-slate-300">
                   why did my number change?
                 </summary>
@@ -794,7 +794,7 @@ export default async function Home({
                         .join(", ")}.`}
                     </p>
                   )}
-                  <p className="text-slate-600">
+                  <p className="text-slate-400">
                     No mystery, no magic — spend less than the number and it
                     rises tomorrow.
                   </p>
@@ -834,7 +834,7 @@ export default async function Home({
               </p>
             </div>
             {sweepEstimate > 0 && (
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 {`First: the ${heroCurrency.format(sweepEstimate)} still sitting in spending buckets sweeps into savings. Then the new check splits:`}
               </p>
             )}
@@ -864,7 +864,7 @@ export default async function Home({
                   : `${heroCurrency.format(nextCheck.totalBills)} of bills land on that check (${nextCheck.bills.length} bill${nextCheck.bills.length === 1 ? "" : "s"}) — ${spokenForPct}% of it is spoken for before it arrives.`}
             </p>
             {!viewing && (
-              <details className="mt-2 text-xs text-slate-500">
+              <details className="mt-2 text-xs text-slate-400">
                 <summary className="cursor-pointer transition hover:text-slate-300">
                   adjust this check once
                 </summary>
@@ -899,7 +899,7 @@ export default async function Home({
                     set it
                   </button>
                 </form>
-                <p className="mt-1 text-slate-600">
+                <p className="mt-1 text-slate-400">
                   Just this check — your standing plan doesn&apos;t change.
                   Undo anytime in Budget → Move money.
                 </p>
@@ -956,7 +956,7 @@ export default async function Home({
               {setupSteps.map((s) => (
                 <li key={s.label} className="text-sm">
                   {s.done ? (
-                    <span className="text-slate-500 line-through">{`✓ ${s.label}`}</span>
+                    <span className="text-slate-400 line-through">{`✓ ${s.label}`}</span>
                   ) : (
                     <Link
                       href={s.href}
@@ -968,7 +968,7 @@ export default async function Home({
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               The projections get sharper with every step — half-set-up numbers
               are half-honest numbers.
             </p>
@@ -995,7 +995,7 @@ export default async function Home({
             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-5">
               {health.components.map((c) => (
                 <div key={c.key} className="rounded-lg bg-slate-800/60 p-2.5" title={c.detail}>
-                  <p className="text-xs text-slate-500">{c.label}</p>
+                  <p className="text-xs text-slate-400">{c.label}</p>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-700">
                     <div
                       className={`h-full rounded-full ${
@@ -1008,7 +1008,7 @@ export default async function Home({
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               {`Weakest link: ${health.weakest.label.toLowerCase()} — ${health.weakest.detail} Fix the weakest link first; the score follows.`}
             </p>
           </div>
@@ -1038,7 +1038,7 @@ export default async function Home({
                 >
                   {heroCurrency.format(danger.low)}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   {danger.negative
                     ? `${relativeDay(danger.date, todayISO) === "today" ? "Today" : `${relativeDay(danger.date, todayISO).replace(/^in /, "In ")}`}${danger.causes[0] ? `, when ${danger.causes[0].name} lands` : ""}, your total goes ${heroCurrency.format(Math.abs(danger.low))} negative — a bill is spending money you don't have. Move money or pause something before then.`
                     : `Your low point is ${relativeDayWithDate(danger.date, todayISO)}${danger.causes[0] ? `, after ${danger.causes[0].name} clears` : ""} — then the next check lands ${relativeDay(danger.nextPayday, todayISO)}.`}
@@ -1060,7 +1060,7 @@ export default async function Home({
                   {`${keptStreak} in a row`}
                   {streakMilestone && <span className="ml-2 text-2xl">🎉</span>}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   Every completed pay cycle where no bucket ran over its plan.
                   This streak is the single best predictor of everything else
                   on this page going green.
@@ -1081,7 +1081,7 @@ export default async function Home({
                 >
                   {`${aom.days} day${aom.days === 1 ? "" : "s"}`}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   {`How long a dollar sits with you before it leaves (your last ${aom.sampleSize} spends). Paycheck-to-paycheck money is days old. Older money is calmer money.`}
                 </p>
               </div>
@@ -1102,7 +1102,7 @@ export default async function Home({
                 >
                   {`${streak.current} day${streak.current === 1 ? "" : "s"}`}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   {streak.brokeToday
                     ? `Fun money left your pocket today — the streak dies at ${streak.current}. It restarts tomorrow. Best run: ${streak.best} days.`
                     : `No fun-money spending through yesterday. Best run: ${streak.best} days. Spend fun money today and this resets — your call.`}
@@ -1125,7 +1125,7 @@ export default async function Home({
                 >
                   {freedom.neverFree ? "—" : `the ${freedom.day}${[1, 21, 31].includes(freedom.day) ? "st" : [2, 22].includes(freedom.day) ? "nd" : [3, 23].includes(freedom.day) ? "rd" : "th"}`}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   {freedom.neverFree
                     ? `Bills (${heroCurrency.format(freedom.monthBills)}) meet or beat this month's income (${heroCurrency.format(freedom.monthIncome)}) — every day works for the bills. That's the problem to attack first.`
                     : `Bills take ${Math.round(freedom.billShare * 100)}% of this month's income — you work for them through ${freedom.date.slice(5)}. After that, you work for you. Watch this date move earlier.`}
@@ -1148,7 +1148,7 @@ export default async function Home({
                 >
                   {`${runwayInfo.days} day${runwayInfo.days === 1 ? "" : "s"}`}
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-slate-400">
                   {`That's how long ${heroCurrency.format(runwayInfo.liquid)} on hand lasts at your real pace of ${heroCurrency.format(runwayInfo.avgDailySpend)}/day. This number growing is the whole game. `}
                   <Link href="/crisis" className="text-sky-300 hover:text-sky-200">
                     Worst-case plan →
@@ -1227,7 +1227,7 @@ export default async function Home({
                 Send it at the debt →
               </InstantAction>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               Books the payment as an expense from savings and lowers the
               debt&apos;s balance — one undo reverses both. Make the same
               payment at your actual lender, of course.

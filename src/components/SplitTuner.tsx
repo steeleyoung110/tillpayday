@@ -73,7 +73,7 @@ export function SplitTuner({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
       <h2 className="font-semibold text-white">Tune your split 🎛️</h2>
-      <p className="mb-3 mt-1 text-xs text-slate-500">
+      <p className="mb-3 mt-1 text-xs text-slate-400">
         Drag and watch the consequences before committing. Every dollar you
         pull from a bucket lands in savings — the leftovers are the point.
       </p>
@@ -135,7 +135,7 @@ export function SplitTuner({
             onClick={() =>
               setValues(Object.fromEntries(tunable.map((b) => [b.id, b.allocationValue])))
             }
-            className="text-sm text-slate-500 transition hover:text-slate-300"
+            className="text-sm text-slate-400 transition hover:text-slate-300"
           >
             reset
           </button>

@@ -77,7 +77,7 @@ function Field({
   return (
     <label className="text-xs text-slate-400">
       {label}
-      {suffix && <span className="text-slate-500">{` (${suffix})`}</span>}
+      {suffix && <span className="text-slate-400">{` (${suffix})`}</span>}
       <input
         type="number"
         inputMode="decimal"
@@ -420,7 +420,7 @@ function PrefillChips({
   if (prefills.length === 0) return null;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-slate-500">Use one of yours:</span>
+      <span className="text-slate-400">Use one of yours:</span>
       {prefills.map((p) => (
         <button
           key={p.id}

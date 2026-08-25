@@ -20,7 +20,7 @@ export function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
   }, [router, seconds]);
 
   return (
-    <span className="text-xs text-slate-500">
+    <span className="text-xs text-slate-400">
       {`live · refreshes every ${seconds}s${tick > 0 ? ` · updated ${tick}×` : ""}`}
     </span>
   );

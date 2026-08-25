@@ -125,7 +125,7 @@ export function LogIncome({
         <span className="text-sm font-semibold text-slate-200">{label}</span>
         <span className={`text-lg font-bold ${accent}`}>{cents.format(dollars)}</span>
       </div>
-      {sub && <p className="text-xs text-slate-500">{sub}</p>}
+      {sub && <p className="text-xs text-slate-400">{sub}</p>}
       <input
         type="range"
         min="0"
@@ -228,7 +228,7 @@ export function LogIncome({
               type="button"
               disabled={pending}
               onClick={() => setWindfallOpen(false)}
-              className="mt-3 w-full text-sm text-slate-500 transition hover:text-slate-300"
+              className="mt-3 w-full text-sm text-slate-400 transition hover:text-slate-300"
             >
               Not now — back to the dashboard
             </button>

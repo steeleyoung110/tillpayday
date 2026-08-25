@@ -50,7 +50,7 @@ export function RaiseSim({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
       <h2 className="font-semibold text-white">What would a raise do? 📈</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-400">
         Your real split, run on a bigger check — where the extra money goes
         under the plan you have today.
       </p>

@@ -30,7 +30,7 @@ export function CoachRecap() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="font-semibold text-white">Your honest recap 🪞</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             Your real numbers, read back to you straight — kind wording,
             brutal math. Educational reflection, not financial advice.
           </p>

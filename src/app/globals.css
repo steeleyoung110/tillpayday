@@ -50,3 +50,31 @@ body {
     opacity: 0;
   }
 }
+
+/* Visible focus, everywhere, for keyboard users only.
+   :focus-visible means mouse clicks don't draw rings, but Tab always does —
+   so the app is fully navigable without a pointer and nobody ever loses
+   track of where they are. */
+:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Skip link: first thing a keyboard or screen-reader user meets, hidden
+   until focused. Five nav items on every screen is a lot to tab past. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #10b981;
+  color: #020617;
+  font-weight: 700;
+  border-radius: 0.5rem;
+}

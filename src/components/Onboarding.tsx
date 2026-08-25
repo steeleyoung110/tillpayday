@@ -83,7 +83,7 @@ export function Onboarding({
     <button
       type="button"
       onClick={() => setStep(to)}
-      className="mt-6 text-sm text-slate-500 transition hover:text-slate-300"
+      className="mt-6 text-sm text-slate-400 transition hover:text-slate-300"
     >
       ← Back
     </button>
@@ -303,7 +303,7 @@ export function Onboarding({
             >
               Next
             </button>
-            <p className="mt-3 text-xs text-slate-500">
+            <p className="mt-3 text-xs text-slate-400">
               Nothing to log yet? That&apos;s fine — just hit Next.
             </p>
             {backBtn(1)}

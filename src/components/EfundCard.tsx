@@ -60,20 +60,20 @@ export function EfundCard({
           : `You're at ${status.monthsCovered} month${status.monthsCovered === 1 ? "" : "s"} of bills — ${status.pct}% of the ${cents.format(status.target)} that covers ${months}. ${cents.format(status.gap)} to go.`}
       </p>
       {status.gap > 0 && suggestions.length > 0 && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-400">
           {suggestions
             .map((s) => `${cents.format(s.perCheck)}/check → ${s.checks} checks`)
             .join(" · ")}
         </p>
       )}
       {velocity && (
-        <p className="mt-1 text-xs text-slate-500">
+        <p className="mt-1 text-xs text-slate-400">
           {velocity.cyclesToNextThousand !== null
             ? `Your real pace: you keep ~${cents.format(velocity.keptPerCycle)}/cycle — the next $1,000 lands in about ${velocity.cyclesToNextThousand} cycle${velocity.cyclesToNextThousand === 1 ? "" : "s"} at that speed.`
             : `Your real pace: recent cycles spent MORE than they earned — the fund can't grow until a cycle ends in the black.`}
         </p>
       )}
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-400">
         {`Target computed from your actual bills (${cents.format(monthlyLoad)}/month) — not a made-up number. `}
         <Link href="/crisis" className="text-sky-300 transition hover:text-sky-200">
           Worst-case plan →

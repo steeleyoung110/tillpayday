@@ -6,7 +6,7 @@ export default function AboutLegalPage() {
   return (
     <main className="min-h-screen bg-slate-950 pb-8">
       <div className="mx-auto max-w-3xl px-6 pt-10">
-        <Link href="/" className="text-sm text-slate-500 transition hover:text-slate-300">
+        <Link href="/" className="text-sm text-slate-400 transition hover:text-slate-300">
           ← Back to Till Payday
         </Link>
         <h1 className="mt-4 text-3xl font-black text-white">About Till Payday</h1>

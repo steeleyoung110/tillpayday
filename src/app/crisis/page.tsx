@@ -71,11 +71,11 @@ export default async function CrisisPage() {
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <p className="text-xs text-slate-500">Money on hand</p>
+            <p className="text-xs text-slate-400">Money on hand</p>
             <p className="mt-1 text-2xl font-black text-white">{currency.format(plan.liquid)}</p>
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <p className="text-xs text-slate-500">Lasts at your CURRENT pace</p>
+            <p className="text-xs text-slate-400">Lasts at your CURRENT pace</p>
             <p
               className={`mt-1 text-2xl font-black ${
                 currentRunway && currentRunway.days < 30 ? "text-red-300" : "text-amber-300"
@@ -84,17 +84,17 @@ export default async function CrisisPage() {
               {currentRunway ? `${currentRunway.days} days` : "—"}
             </p>
             {currentRunway && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 {`at ${currency.format(currentRunway.avgDailySpend)}/day, your real recent pace`}
               </p>
             )}
           </div>
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-            <p className="text-xs text-slate-500">Lasts on ESSENTIALS only</p>
+            <p className="text-xs text-slate-400">Lasts on ESSENTIALS only</p>
             <p className="mt-1 text-2xl font-black text-emerald-300">
               {plan.essentialRunwayDays !== null ? `${plan.essentialRunwayDays} days` : "—"}
             </p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               {`bills in non-flexible buckets: ${currency.format(plan.essentialMonthly)}/mo`}
             </p>
           </div>
@@ -108,7 +108,7 @@ export default async function CrisisPage() {
                 {`${currency.format(plan.cutMonthly)}/mo still cuttable`}
               </p>
             </div>
-            <p className="mb-3 mt-1 text-xs text-slate-500">
+            <p className="mb-3 mt-1 text-xs text-slate-400">
               Bills living in flexible buckets — the wants, biggest first.
               Pausing here stops them from draining the projection until you
               resume them.
@@ -123,7 +123,7 @@ export default async function CrisisPage() {
                 >
                   <span className="text-slate-200">
                     {c.name}
-                    <span className="ml-2 text-xs text-slate-500">{`${currency.format(c.monthlyCost)}/mo · ${c.bucketName}`}</span>
+                    <span className="ml-2 text-xs text-slate-400">{`${currency.format(c.monthlyCost)}/mo · ${c.bucketName}`}</span>
                     {c.isPaused && (
                       <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">
                         paused ⏸

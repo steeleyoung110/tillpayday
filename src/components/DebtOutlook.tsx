@@ -122,7 +122,7 @@ export function DebtOutlook({
               />
             ))}
           </div>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             {`${progress.paidPct}% of your peak ${currency.format(progress.peak)} debt is gone${
               progress.crossed.filter((c) => c < 100).length > 0
                 ? ` — past the ${progress.crossed.filter((c) => c < 100).join("% and ")}% marker${progress.crossed.filter((c) => c < 100).length > 1 ? "s" : ""}`
@@ -170,7 +170,7 @@ export function DebtOutlook({
           </li>
         ))}
       </ul>
-      <p className="mt-3 text-xs text-slate-500">
+      <p className="mt-3 text-xs text-slate-400">
         {"Same math as the Grow tab. Want to see what an extra $50/month does? "}
         <Link href="/grow" className="text-sky-300 transition hover:text-sky-200">
           Run it in Grow →

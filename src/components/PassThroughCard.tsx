@@ -24,7 +24,7 @@ export function PassThroughCard({ summary }: { summary: PassThroughSummary }) {
           {`${summary.net >= 0 ? "+" : "−"}${cents.format(Math.abs(summary.net))}/mo combined`}
         </p>
       </div>
-      <p className="mb-3 mt-1 text-xs text-slate-500">
+      <p className="mb-3 mt-1 text-xs text-slate-400">
         Income you&apos;ve tied to a specific bill, each pair standing on its
         own. This money never touches your bucket split — it comes in and goes
         straight back out.
@@ -59,11 +59,11 @@ export function PassThroughCard({ summary }: { summary: PassThroughSummary }) {
       </ul>
 
       {summary.underwater.length > 0 ? (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-slate-400">
           {`${summary.underwater.length} of ${summary.pairs.length} don't cover themselves. That's not a reason to panic — it's a number to decide with, and now you have it.`}
         </p>
       ) : (
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-slate-400">
           Every pair covers itself. The rest of your budget is genuinely
           separate from these.
         </p>

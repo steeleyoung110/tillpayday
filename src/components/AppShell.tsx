@@ -34,9 +34,16 @@ export function AppShell({
 }) {
   return (
     <div className="min-h-screen bg-slate-950">
+      {/* Hidden until focused: lets keyboard users jump the five nav items. */}
+      <a href="#main" className="skip-link">
+        Skip to your numbers
+      </a>
       <QuickNav />
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-52 flex-col border-r border-slate-800 bg-slate-900/60 p-4 md:flex">
+      <aside
+        aria-label="Main navigation"
+        className="fixed inset-y-0 left-0 z-40 hidden w-52 flex-col border-r border-slate-800 bg-slate-900/60 p-4 md:flex"
+      >
         <Link href="/" className="px-2 text-xl font-bold text-white">
           Till <span className="text-emerald-400">Payday</span>
         </Link>
@@ -67,7 +74,9 @@ export function AppShell({
       </header>
 
       {/* Content */}
-      <div className="pb-24 md:pb-10 md:pl-52">{children}</div>
+      <main id="main" className="pb-24 md:pb-10 md:pl-52">
+        {children}
+      </main>
 
       {quickAdd && (
         <QuickAdd
@@ -79,6 +88,7 @@ export function AppShell({
 
       {/* Mobile bottom tab bar */}
       <nav
+        aria-label="Main navigation"
         className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-800 bg-slate-900/95 backdrop-blur md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
@@ -88,7 +98,7 @@ export function AppShell({
             href={item.href}
             active={active === item.key}
             className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold transition ${
-              active === item.key ? "text-emerald-300" : "text-slate-500"
+              active === item.key ? "text-emerald-300" : "text-slate-400"
             }`}
           >
             <span className="text-lg" aria-hidden>

@@ -98,14 +98,14 @@ export function EnablePush({ vapidPublicKey }: { vapidPublicKey: string }) {
   if (state === "checking") return null;
   if (state === "unsupported") {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-400">
         This browser doesn&apos;t support web push (or keys aren&apos;t set).
       </p>
     );
   }
   if (state === "no-sw") {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-400">
         Notifications need the installed app — use the production site (or
         &ldquo;Add to Home Screen&rdquo; on your phone), then come back here.
       </p>
@@ -135,7 +135,7 @@ export function EnablePush({ vapidPublicKey }: { vapidPublicKey: string }) {
           <button
             onClick={disable}
             disabled={pending}
-            className="text-xs text-slate-500 transition hover:text-red-400"
+            className="text-xs text-slate-400 transition hover:text-red-400"
           >
             turn off
           </button>

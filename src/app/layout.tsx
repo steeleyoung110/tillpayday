@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthSync } from "@/components/AuthSync";
 import { Toaster } from "@/components/InstantAction";
+import { OfflineBadge } from "@/components/OfflineBadge";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import "./globals.css";
 
@@ -43,6 +44,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <AuthSync />
         <ServiceWorkerRegister />
+        <OfflineBadge />
         {children}
         <Toaster />
       </body>

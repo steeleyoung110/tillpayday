@@ -157,7 +157,7 @@ export function CsvImport({
                   </li>
                 ))}
                 {candidates.length > 5 && (
-                  <li className="text-slate-500">{`…and ${candidates.length - 5} more`}</li>
+                  <li className="text-slate-400">{`…and ${candidates.length - 5} more`}</li>
                 )}
               </ul>
               <button

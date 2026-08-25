@@ -10,7 +10,7 @@ const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "
 
 const startBtn =
   "rounded-lg bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/30";
-const stopBtn = "text-xs text-slate-500 transition hover:text-slate-300";
+const stopBtn = "text-xs text-slate-400 transition hover:text-slate-300";
 
 export function ChallengesCard({
   skippedTotal,
@@ -30,18 +30,18 @@ export function ChallengesCard({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
       <h2 className="font-semibold text-white">Challenges 🏁</h2>
-      <p className="mb-3 mt-1 text-xs text-slate-500">
+      <p className="mb-3 mt-1 text-xs text-slate-400">
         Small games, real dollars. Nothing here is required — but every one of
         them ends with more money still yours.
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {/* Skip-it jar — powered by what-ifs marked "skipped" */}
         <div className="rounded-xl bg-slate-800/60 p-4">
-          <p className="text-xs text-slate-500">Skip-it jar</p>
+          <p className="text-xs text-slate-400">Skip-it jar</p>
           <p className="mt-1 text-2xl font-black text-emerald-300">
             {currency.format(skippedTotal)}
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             {skippedCount > 0
               ? `${skippedCount} thing${skippedCount === 1 ? "" : "s"} you almost bought and didn't. Every "skip" in What-ifs feeds this jar.`
               : `Empty so far — mark a What-if "skipped" and watch this grow. Saying no is the highest-paying habit in this app.`}
@@ -50,7 +50,7 @@ export function ChallengesCard({
 
         {/* No-spend week */}
         <div className="rounded-xl bg-slate-800/60 p-4">
-          <p className="text-xs text-slate-500">No-spend week</p>
+          <p className="text-xs text-slate-400">No-spend week</p>
           {noSpend === null ? (
             <>
               <p className="mt-1 text-sm text-slate-300">
@@ -66,7 +66,7 @@ export function ChallengesCard({
           ) : noSpend.complete ? (
             <>
               <p className="mt-1 text-2xl font-black text-emerald-300">7 / 7 🎉</p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 A full week without fun-money spending. That was real discipline.
               </p>
               <form action={setChallenge} className="mt-2">
@@ -81,7 +81,7 @@ export function ChallengesCard({
               <p className="mt-1 text-2xl font-black text-red-300">
                 {`${noSpend.daysDone} day${noSpend.daysDone === 1 ? "" : "s"}, then ${noSpend.failDate}`}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 Fun money moved on {noSpend.failDate} — the week is dead, no
                 sugarcoating. Restart when you mean it.
               </p>
@@ -100,7 +100,7 @@ export function ChallengesCard({
               <p className="mt-1 text-2xl font-black text-emerald-300">
                 {`${noSpend.daysDone} / 7`}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 {`Clean through today — runs until ${noSpend.endISO}. Fun-money spending resets it.`}
               </p>
               <form action={setChallenge} className="mt-2">
@@ -115,7 +115,7 @@ export function ChallengesCard({
 
         {/* 52-week ladder */}
         <div className="rounded-xl bg-slate-800/60 p-4">
-          <p className="text-xs text-slate-500">52-week ladder</p>
+          <p className="text-xs text-slate-400">52-week ladder</p>
           {week52 === null ? (
             <>
               <p className="mt-1 text-sm text-slate-300">
@@ -133,7 +133,7 @@ export function ChallengesCard({
               <p className="mt-1 text-2xl font-black text-emerald-300">
                 {`${currency.format(1378)} 🎉`}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 52 weeks, the whole ladder. Done.
               </p>
             </>
@@ -142,7 +142,7 @@ export function ChallengesCard({
               <p className="mt-1 text-2xl font-black text-white">
                 {`Week ${week52.week}`}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 {`This week's rung: ${currency.format(week52.dueThisWeek)}. On pace, the ladder holds ${currency.format(week52.targetToDate)} by Sunday.`}
               </p>
               {funBucketId && (

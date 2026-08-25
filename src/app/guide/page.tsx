@@ -93,7 +93,7 @@ export default function GuidePage() {
             </ul>
           </div>
         ))}
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-400">
           Missing something? There&apos;s a suggestion box in{" "}
           <Link href="/settings" className="text-sky-300 hover:text-sky-200">
             Settings

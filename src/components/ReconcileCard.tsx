@@ -94,7 +94,7 @@ export function ReconcileCard({ modelBalance }: { modelBalance: number }) {
         </div>
       )}
       {drift === null && (
-        <p className="mt-2 text-xs text-slate-500">
+        <p className="mt-2 text-xs text-slate-400">
           Do this every week or two. A model that drifts from your bank is a
           model you&apos;ll stop trusting — and the trust is the whole product.
         </p>

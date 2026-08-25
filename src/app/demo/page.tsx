@@ -83,7 +83,7 @@ export default function DemoPage() {
                   sts.daysUntilPayday === 1 ? "1 day" : `${sts.daysUntilPayday} days`
                 } till payday`}
               </p>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-400">
                 {`Based on ${currency.format(sts.flexibleBalance)} left across Sam's flexible buckets. Spend less than this today and tomorrow's number goes up.`}
               </p>
             </div>
@@ -104,7 +104,7 @@ export default function DemoPage() {
             >
               {`${run.days} day${run.days === 1 ? "" : "s"}`}
             </p>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               {`That's how long ${currency.format(run.liquid)} on hand lasts at Sam's real pace of ${currency.format(run.avgDailySpend)}/day. Kind wording, brutal math — that's the whole app.`}
             </p>
           </div>

@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { haptic } from "@/lib/haptics";
+import { isOffline } from "@/components/OfflineBadge";
 
 type ServerAction = (formData: FormData) => Promise<unknown>;
 
@@ -77,7 +78,7 @@ export function Toaster() {
             )}
             <button
               onClick={() => dismiss(t.id)}
-              className="text-slate-500 transition hover:text-slate-300"
+              className="text-slate-400 transition hover:text-slate-300"
               aria-label="Dismiss"
             >
               ×
@@ -123,6 +124,14 @@ export function InstantAction({
       className={className}
       onClick={() =>
         startTransition(async () => {
+          // Offline, this would post into a void and be lost without a trace.
+          // Refusing loudly beats losing quietly.
+          if (isOffline()) {
+            pushToast?.({
+              message: "You're offline — that didn't save. Try again once you're back.",
+            });
+            return;
+          }
           const fd = new FormData();
           for (const [k, v] of Object.entries(values)) fd.append(k, v);
           const recipe = await action(fd);

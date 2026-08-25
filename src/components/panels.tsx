@@ -61,7 +61,7 @@ const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white outline-none focus:border-emerald-400";
 const btnCls =
   "rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400";
-const delCls = "text-xs text-slate-500 transition hover:text-red-400";
+const delCls = "text-xs text-slate-400 transition hover:text-red-400";
 
 /** Pause/resume link + toast, shared by bucket and expense rows. */
 function PauseToggle({
@@ -85,7 +85,7 @@ function PauseToggle({
           ? `${name} is back on.`
           : `Paused ${name} — it sits out until you resume it.`
       }
-      className="text-xs text-slate-500 transition hover:text-amber-300"
+      className="text-xs text-slate-400 transition hover:text-amber-300"
       title={
         isPaused
           ? "Resume — it rejoins your plan right away."
@@ -165,7 +165,7 @@ export function IncomePanel({
           </li>
         ))}
         {data.income.length === 0 && (
-          <li className="text-sm text-slate-500">No income yet — add your paycheck.</li>
+          <li className="text-sm text-slate-400">No income yet — add your paycheck.</li>
         )}
       </ul>
 
@@ -245,7 +245,7 @@ export function GoalsPanel({
                 {`— ${currency.format(Number(g.target_amount))} by ${prettyDate(g.target_date, todayISO)}`}
               </span>
               {g.notes && (
-                <span className="ml-2 text-xs text-slate-500">{g.notes}</span>
+                <span className="ml-2 text-xs text-slate-400">{g.notes}</span>
               )}
             </span>
             <span className="flex items-center gap-3">
@@ -254,7 +254,7 @@ export function GoalsPanel({
                 undoAction={undoRestore}
                 values={{ id: g.id }}
                 message={`🎉 ${g.name} — done! That one's yours forever.`}
-                className="text-xs text-slate-500 transition hover:text-emerald-300"
+                className="text-xs text-slate-400 transition hover:text-emerald-300"
               >
                 I did it! 🎉
               </InstantAction>
@@ -271,7 +271,7 @@ export function GoalsPanel({
           </li>
         ))}
         {active.length === 0 && (
-          <li className="text-sm text-slate-500">
+          <li className="text-sm text-slate-400">
             What are you saving toward? A cushion, a trip, a down payment —
             give it a name, a number, and a date, and the Dashboard will show
             your path to it.
@@ -353,7 +353,7 @@ export function BucketsPanel({
                       ariaLabel={`Goal amount for ${b.name}`}
                       className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                     />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                    <button className="text-xs text-slate-400 transition hover:text-emerald-300">
                       set
                     </button>
                   </form>
@@ -368,7 +368,7 @@ export function BucketsPanel({
                       ariaLabel={`Starting balance for ${b.name}`}
                       className="w-20 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                     />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                    <button className="text-xs text-slate-400 transition hover:text-emerald-300">
                       set
                     </button>
                   </form>
@@ -385,7 +385,7 @@ export function BucketsPanel({
                     title="The interest rate (APY) your bank pays on this money"
                     className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
                   />
-                  <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                  <button className="text-xs text-slate-400 transition hover:text-emerald-300">
                     set
                   </button>
                 </form>
@@ -396,7 +396,7 @@ export function BucketsPanel({
                   >
                     <input type="hidden" name="id" value={b.id} />
                     <input type="hidden" name="rolls_over" value={b.rolls_over ? "false" : "true"} />
-                    <button className="text-xs text-slate-500 transition hover:text-violet-300">
+                    <button className="text-xs text-slate-400 transition hover:text-violet-300">
                       {b.rolls_over ? "sweep each check" : "make it roll over"}
                     </button>
                   </form>
@@ -405,7 +405,7 @@ export function BucketsPanel({
                   <form action={toggleBucketFlexible}>
                     <input type="hidden" name="id" value={b.id} />
                     <input type="hidden" name="flexible" value={b.is_flexible ? "false" : "true"} />
-                    <button className="text-xs text-slate-500 transition hover:text-amber-300">
+                    <button className="text-xs text-slate-400 transition hover:text-amber-300">
                       {b.is_flexible ? "not flexible" : "make flexible"}
                     </button>
                   </form>
@@ -413,7 +413,7 @@ export function BucketsPanel({
                 {!b.is_savings && (
                   <form action={makeSavingsBucket}>
                     <input type="hidden" name="id" value={b.id} />
-                    <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+                    <button className="text-xs text-slate-400 transition hover:text-emerald-300">
                       make savings
                     </button>
                   </form>
@@ -562,7 +562,7 @@ export function BucketsPanel({
               </RowEditSheet>
             </div>
             <details className="mt-2 hidden text-xs sm:block">
-              <summary className="cursor-pointer text-slate-500 transition hover:text-slate-300">
+              <summary className="cursor-pointer text-slate-400 transition hover:text-slate-300">
                 settings
               </summary>
               <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -573,7 +573,7 @@ export function BucketsPanel({
           );
         })}
         {data.buckets.length === 0 && (
-          <li className="text-sm text-slate-500">
+          <li className="text-sm text-slate-400">
             No buckets yet — try Rent, Groceries, Fun money, and a Savings bucket.
           </li>
         )}
@@ -581,10 +581,10 @@ export function BucketsPanel({
 
       {data.buckets.length > 1 && (
         <div className="mb-4 rounded-xl border border-slate-700/60 bg-slate-800/30 p-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
             Move money between buckets
           </p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             Robbing Peter to pay Paul — on purpose, with your eyes open. Taking
             from a spending bucket stops at $0; only savings can go red.
           </p>
@@ -759,7 +759,7 @@ export function ExpensesPanel({
             </option>
           ))}
         </select>
-        <button className="text-xs text-slate-500 transition hover:text-violet-300">
+        <button className="text-xs text-slate-400 transition hover:text-violet-300">
           split
         </button>
       </form>
@@ -783,7 +783,7 @@ export function ExpensesPanel({
               </option>
             ))}
           </select>
-          <button className="text-xs text-slate-500 transition hover:text-teal-300">
+          <button className="text-xs text-slate-400 transition hover:text-teal-300">
             link
           </button>
         </form>
@@ -805,7 +805,7 @@ export function ExpensesPanel({
             <option value="true">autopay 🤖</option>
             <option value="false">manual ✍️</option>
           </select>
-          <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+          <button className="text-xs text-slate-400 transition hover:text-emerald-300">
             set
           </button>
         </form>
@@ -824,7 +824,7 @@ export function ExpensesPanel({
             defaultValue={e.renewal_date ?? ""}
             className="w-32 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
           />
-          <button className="text-xs text-slate-500 transition hover:text-sky-300">
+          <button className="text-xs text-slate-400 transition hover:text-sky-300">
             renews
           </button>
         </form>
@@ -837,7 +837,7 @@ export function ExpensesPanel({
           ariaLabel={`New amount for ${e.name}`}
           className="w-16 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs text-white outline-none focus:border-emerald-400"
         />
-        <button className="text-xs text-slate-500 transition hover:text-emerald-300">
+        <button className="text-xs text-slate-400 transition hover:text-emerald-300">
           set
         </button>
       </form>
@@ -971,13 +971,13 @@ export function ExpensesPanel({
 
       <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
             One-time payments
           </p>
           <ul className="space-y-2">
             {oneTime.map((e) => row(e, false))}
             {oneTime.length === 0 && (
-              <li className="text-sm text-slate-500">
+              <li className="text-sm text-slate-400">
                 Nothing here — one-off things like a repair or concert tickets
                 land in this column.
               </li>
@@ -985,13 +985,13 @@ export function ExpensesPanel({
           </ul>
         </div>
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
             Repeating bills
           </p>
           <ul className="space-y-2">
             {repeating.map((e) => row(e, true))}
             {repeating.length === 0 && (
-              <li className="text-sm text-slate-500">
+              <li className="text-sm text-slate-400">
                 No repeating bills yet — rent, subscriptions, insurance.
               </li>
             )}
@@ -1000,7 +1000,7 @@ export function ExpensesPanel({
       </div>
 
       <details>
-        <summary className="cursor-pointer text-xs text-slate-500 transition hover:text-slate-300">
+        <summary className="cursor-pointer text-xs text-slate-400 transition hover:text-slate-300">
           Add a bill instead (repeating, future-dated, or a big one-off)
         </summary>
         <div className="mt-3">
@@ -1089,7 +1089,7 @@ export function WhatIfPanel({
           );
         })}
         {considering.length === 0 && (
-          <li className="text-sm text-slate-500">
+          <li className="text-sm text-slate-400">
             Nothing under consideration. Add a purchase to see its impact on the chart.
           </li>
         )}

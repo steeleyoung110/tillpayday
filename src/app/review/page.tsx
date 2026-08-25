@@ -199,7 +199,7 @@ export default async function ReviewPage() {
           </form>
         )}
 
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-400">
           <Link href="/" className="text-sky-300 hover:text-sky-200">
             ← Back to Dashboard
           </Link>

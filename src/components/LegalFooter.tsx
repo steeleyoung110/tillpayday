@@ -6,7 +6,7 @@ import Link from "next/link";
  */
 export function LegalFooter({ disclaimer = false }: { disclaimer?: boolean }) {
   return (
-    <footer className="mx-auto mt-10 max-w-screen-2xl px-6 pb-6 text-center text-xs text-slate-600">
+    <footer className="mx-auto mt-10 max-w-screen-2xl px-6 pb-6 text-center text-xs text-slate-400">
       {disclaimer && (
         <p className="mb-2">
           Educational illustrations based on the numbers you enter — not

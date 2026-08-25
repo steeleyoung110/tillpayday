@@ -226,7 +226,7 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
           disabled={busy}
           onChange={(e) => onFile(e.target.files?.[0])}
         />
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-slate-400">
           Card statement or paycheck stub. Nothing saves until you review.
         </span>
       </label>
@@ -299,7 +299,7 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
           <div className="max-h-80 overflow-y-auto rounded-xl border border-slate-800">
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 bg-slate-900">
-                <tr className="text-xs uppercase tracking-wide text-slate-500">
+                <tr className="text-xs uppercase tracking-wide text-slate-400">
                   <th className="p-2" />
                   <th className="p-2 font-semibold">Date</th>
                   <th className="p-2 font-semibold">Merchant</th>
@@ -344,7 +344,7 @@ export function StatementImport({ buckets }: { buckets: MappableBucket[] }) {
             </table>
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               {`${rows.filter((r) => r.include).length} of ${rows.length} selected · ${cents.format(rows.filter((r) => r.include).reduce((s, r) => s + r.amount, 0))} total · buckets guessed by meaning — fix any I got wrong`}
             </p>
             <button

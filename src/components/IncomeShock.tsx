@@ -86,7 +86,7 @@ export function IncomeShock({
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 lg:col-span-2">
       <h2 className="font-semibold text-white">What if my income changed?</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-400">
         The other half of what-if: not a purchase, a paycheck. Same engine,
         same honest math.
       </p>

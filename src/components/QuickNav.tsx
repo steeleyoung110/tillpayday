@@ -139,15 +139,15 @@ export function QuickNav() {
                 }`}
               >
                 {d.label}
-                <span className="ml-2 text-xs text-slate-500">{d.href}</span>
+                <span className="ml-2 text-xs text-slate-400">{d.href}</span>
               </button>
             </li>
           ))}
           {matches.length === 0 && (
-            <li className="px-3 py-2 text-sm text-slate-500">No matches.</li>
+            <li className="px-3 py-2 text-sm text-slate-400">No matches.</li>
           )}
         </ul>
-        <p className="mt-2 px-1 text-xs text-slate-600">
+        <p className="mt-2 px-1 text-xs text-slate-400">
           Ctrl+K toggles · Esc closes · Enter opens the top match
         </p>
       </div>

@@ -41,7 +41,7 @@ export function DebtStrategy({ debts }: { debts: PlanDebt[] }) {
       }`}
     >
       <p className="font-semibold text-white">{title}</p>
-      <p className="text-xs text-slate-500">{subtitle}</p>
+      <p className="text-xs text-slate-400">{subtitle}</p>
       {r.neverPaysOff ? (
         <p className="mt-3 text-sm font-semibold text-red-300">
           Never pays off at this budget — the interest outruns the payments.
@@ -66,7 +66,7 @@ export function DebtStrategy({ debts }: { debts: PlanDebt[] }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
       <h2 className="font-semibold text-white">Snowball vs avalanche</h2>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-slate-400">
         Same money every month — minimums plus your extra, rolling into the
         next debt as each one dies. The only difference is the order.
       </p>

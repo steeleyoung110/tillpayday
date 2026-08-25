@@ -50,7 +50,7 @@ export function CashflowCalendar({
         </span>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-500">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs text-slate-400">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
           <div key={d} className="pb-1">{d}</div>
         ))}
@@ -77,7 +77,7 @@ export function CashflowCalendar({
                 }
               >
                 <div className="flex items-center justify-between text-xs">
-                  <span className={day.isToday ? "font-bold text-emerald-300" : "text-slate-500"}>
+                  <span className={day.isToday ? "font-bold text-emerald-300" : "text-slate-400"}>
                     {day.dayOfMonth}
                   </span>
                   {day.isDanger && <span title="Danger day — lowest point before payday">⚠️</span>}
@@ -101,19 +101,19 @@ export function CashflowCalendar({
                   </p>
                 )}
                 {day.bills.slice(0, 2).map((b) => (
-                  <p key={b.name} className="truncate text-[10px] leading-tight text-slate-500">
+                  <p key={b.name} className="truncate text-[10px] leading-tight text-slate-400">
                     {b.name}
                   </p>
                 ))}
                 {day.bills.length > 2 && (
-                  <p className="text-[10px] text-slate-600">{`+${day.bills.length - 2} more`}</p>
+                  <p className="text-[10px] text-slate-400">{`+${day.bills.length - 2} more`}</p>
                 )}
               </div>
             ))}
           </div>
         ))}
       </div>
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-xs text-slate-400">
         Green is a paycheck landing, teal is side income (rent, gigs — real
         money, but it goes to savings rather than splitting into buckets), red
         is money leaving. ⚠️ marks the day your total bottoms out before the

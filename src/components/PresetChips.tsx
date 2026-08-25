@@ -75,7 +75,7 @@ export function PresetChips({
         ))}
         <button
           onClick={() => setEditing((v) => !v)}
-          className="text-xs text-slate-500 transition hover:text-slate-300"
+          className="text-xs text-slate-400 transition hover:text-slate-300"
         >
           {editing ? "done" : presets.length > 0 ? "edit presets" : "add one-tap presets →"}
         </button>

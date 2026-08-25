@@ -14,6 +14,7 @@ import { MoneyInput } from "@/components/MoneyInput";
 import { showToast } from "@/components/InstantAction";
 import { addExpense, addWhatIf, logIncome } from "@/app/actions";
 import { haptic } from "@/lib/haptics";
+import { isOffline } from "@/components/OfflineBadge";
 import { lastBucket, rememberBucket } from "@/lib/lastBucket";
 
 type Mode = "menu" | "expense" | "whatif" | "income";
@@ -55,8 +56,12 @@ export function QuickAdd({
     setMode("menu");
   };
 
-  const submit = (fd: FormData, kind: Mode) =>
-    startTransition(async () => {
+  const submit = (fd: FormData, kind: Mode) => {
+    if (isOffline()) {
+      showToast("You're offline — that didn't save. Try again once you're back.");
+      return;
+    }
+    return startTransition(async () => {
       if (kind === "expense") {
         const bucketId = String(fd.get("bucket_id") ?? "");
         rememberBucket(bucketId);
@@ -72,6 +77,7 @@ export function QuickAdd({
       haptic(kind === "whatif" ? "skip" : "save");
       close();
     });
+  };
 
   const title =
     mode === "expense"
@@ -178,7 +184,7 @@ export function QuickAdd({
             <button disabled={pending} className={submitCls}>
               {pending ? "Adding…" : "Add it"}
             </button>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400">
               Nothing is spent yet — this parks it so you can see what it
               would cost you before you decide.
             </p>
@@ -205,7 +211,7 @@ export function QuickAdd({
         {mode !== "menu" && (
           <button
             onClick={() => setMode("menu")}
-            className="mt-3 w-full text-center text-xs text-slate-500 transition hover:text-slate-300"
+            className="mt-3 w-full text-center text-xs text-slate-400 transition hover:text-slate-300"
           >
             ← something else
           </button>

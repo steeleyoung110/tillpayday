@@ -472,7 +472,7 @@ export function ProjectionSection({
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="font-semibold text-white">This paycheck 🔍</h2>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-400">
               {`${prettyDate(snapshot.since)} → ${prettyDate(snapshot.next)} · every transaction, day by day`}
             </span>
           </div>
@@ -513,7 +513,7 @@ export function ProjectionSection({
               height="h-64 2xl:h-[26rem]"
             />
           </InViewport>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-400">
             Dots mark bills leaving their buckets. This view rolls forward on
             its own when your next paycheck lands.
           </p>
@@ -529,7 +529,7 @@ export function ProjectionSection({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-white">
             Where your money&apos;s headed
-            <span className="ml-2 text-xs font-normal text-slate-500">
+            <span className="ml-2 text-xs font-normal text-slate-400">
               {`since you joined · ${prettyDate(anchorISO)}`}
             </span>
           </h2>
@@ -609,7 +609,7 @@ export function ProjectionSection({
                 height="h-72 2xl:h-[26rem]"
               />
             </InViewport>
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               {baseline.irregularWeekly !== null &&
                 `Based on your typical income — about ${currency.format(baseline.irregularWeekly)}/week from what you've logged, counted at a careful 85%. `}
               {liquid > 0
@@ -656,7 +656,7 @@ export function ProjectionSection({
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Your goals 🎯</h3>
           {goalOutlooks.length > 1 && (
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               One savings pot, honestly divided: money is earmarked to the
               soonest goal first, then flows down the ladder.
             </p>

@@ -100,7 +100,7 @@ export default async function AdminPage() {
 
   const tile = (label: string, value: string | number, tone = "text-white") => (
     <div key={label} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-xs text-slate-400">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${tone}`}>{value}</p>
     </div>
   );
@@ -128,7 +128,7 @@ export default async function AdminPage() {
           {tile("Logins", stats.logins_total)}
           {tile("Logins (7 days)", stats.logins_7d)}
         </div>
-        <p className="-mt-3 text-xs text-slate-600">
+        <p className="-mt-3 text-xs text-slate-400">
           &ldquo;In the app now&rdquo; = sessions refreshed within the last
           hour. Login counting started Jul 27, 2026 — earlier logins
           weren&apos;t recorded anywhere, so they aren&apos;t counted.
@@ -138,7 +138,7 @@ export default async function AdminPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Signups — last 30 days</h3>
           {stats.signups_by_day.length === 0 ? (
-            <p className="mt-3 text-sm text-slate-500">No signups in the last 30 days.</p>
+            <p className="mt-3 text-sm text-slate-400">No signups in the last 30 days.</p>
           ) : (
             <div className="mt-3 flex h-24 items-end gap-1">
               {stats.signups_by_day.map((d) => (
@@ -164,7 +164,7 @@ export default async function AdminPage() {
                 <li key={s.id} className="rounded-lg bg-slate-800/60 px-3 py-2 text-sm">
                   <p className="text-slate-200">{s.message}</p>
                   <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="text-slate-500">
+                    <span className="text-slate-400">
                       {`${s.email ?? "unknown"} · ${s.created_at.slice(0, 10)}`}
                       {s.status === "new" && (
                         <span className="ml-2 rounded bg-emerald-500/20 px-1.5 py-0.5 text-emerald-300">new</span>
@@ -175,24 +175,24 @@ export default async function AdminPage() {
                         <form action={setSuggestionStatus}>
                           <input type="hidden" name="id" value={s.id} />
                           <input type="hidden" name="status" value="seen" />
-                          <button className="text-slate-500 transition hover:text-sky-300">mark seen</button>
+                          <button className="text-slate-400 transition hover:text-sky-300">mark seen</button>
                         </form>
                       )}
                       <form action={setSuggestionStatus}>
                         <input type="hidden" name="id" value={s.id} />
                         <input type="hidden" name="status" value="done" />
-                        <button className="text-slate-500 transition hover:text-emerald-300">done ✓</button>
+                        <button className="text-slate-400 transition hover:text-emerald-300">done ✓</button>
                       </form>
                       <form action={deleteSuggestion}>
                         <input type="hidden" name="id" value={s.id} />
-                        <button className="text-slate-500 transition hover:text-red-400">delete</button>
+                        <button className="text-slate-400 transition hover:text-red-400">delete</button>
                       </form>
                     </span>
                   </div>
                 </li>
               ))}
               {openSuggestions.length === 0 && (
-                <li className="text-sm text-slate-500">
+                <li className="text-sm text-slate-400">
                   Inbox zero — suggestions land here when members file them
                   from Settings.
                 </li>
@@ -205,11 +205,11 @@ export default async function AdminPage() {
                 </summary>
                 <ul className="mt-2 space-y-1">
                   {doneSuggestions.map((s) => (
-                    <li key={s.id} className="flex items-center justify-between text-slate-500">
+                    <li key={s.id} className="flex items-center justify-between text-slate-400">
                       <span className="truncate">{`✓ ${s.message}`}</span>
                       <form action={deleteSuggestion}>
                         <input type="hidden" name="id" value={s.id} />
-                        <button className="ml-2 text-slate-600 transition hover:text-red-400">×</button>
+                        <button className="ml-2 text-slate-400 transition hover:text-red-400">×</button>
                       </form>
                     </li>
                   ))}
@@ -250,7 +250,7 @@ export default async function AdminPage() {
         {/* Broadcast */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Broadcast an announcement 📣</h3>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-slate-400">
             Shows as a banner on every member&apos;s Dashboard until they
             dismiss it. Deactivate to pull it back for everyone at once.
           </p>
@@ -278,7 +278,7 @@ export default async function AdminPage() {
                 >
                   <span className="text-slate-200">
                     {a.message}
-                    <span className="ml-2 text-xs text-slate-500">{a.created_at.slice(0, 10)}</span>
+                    <span className="ml-2 text-xs text-slate-400">{a.created_at.slice(0, 10)}</span>
                     {!a.active && (
                       <span className="ml-2 rounded bg-slate-500/30 px-1.5 py-0.5 text-xs text-slate-300">off</span>
                     )}
@@ -287,13 +287,13 @@ export default async function AdminPage() {
                     <form action={toggleAnnouncement}>
                       <input type="hidden" name="id" value={a.id} />
                       <input type="hidden" name="active" value={a.active ? "false" : "true"} />
-                      <button className="text-slate-500 transition hover:text-amber-300">
+                      <button className="text-slate-400 transition hover:text-amber-300">
                         {a.active ? "deactivate" : "reactivate"}
                       </button>
                     </form>
                     <form action={deleteAnnouncement}>
                       <input type="hidden" name="id" value={a.id} />
-                      <button className="text-slate-500 transition hover:text-red-400">delete</button>
+                      <button className="text-slate-400 transition hover:text-red-400">delete</button>
                     </form>
                   </span>
                 </li>
@@ -308,7 +308,7 @@ export default async function AdminPage() {
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="text-xs uppercase tracking-wide text-slate-500">
+                <tr className="text-xs uppercase tracking-wide text-slate-400">
                   <th className="pb-2 pr-4 font-semibold">Email</th>
                   <th className="pb-2 pr-4 font-semibold">Joined</th>
                   <th className="pb-2 font-semibold">Last sign-in</th>

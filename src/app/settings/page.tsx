@@ -226,7 +226,7 @@ export default async function SettingsPage() {
                       className={`text-xs transition ${
                         s.can_edit
                           ? "text-emerald-300 hover:text-amber-300"
-                          : "text-slate-500 hover:text-emerald-300"
+                          : "text-slate-400 hover:text-emerald-300"
                       }`}
                     >
                       {s.can_edit ? "make read-only" : "allow logging spends"}
@@ -236,7 +236,7 @@ export default async function SettingsPage() {
                       undoAction={undoRestore}
                       values={{ id: s.id }}
                       message={`Stopped sharing with ${s.viewer_email}.`}
-                      className="text-xs text-slate-500 transition hover:text-red-400"
+                      className="text-xs text-slate-400 transition hover:text-red-400"
                     >
                       stop sharing
                     </InstantAction>
@@ -247,7 +247,7 @@ export default async function SettingsPage() {
           )}
           {sharedWithMe.length > 0 && (
             <div className="mt-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Shared with you
               </p>
               <ul className="space-y-1 text-sm">
@@ -275,7 +275,7 @@ export default async function SettingsPage() {
           </p>
           {process.env.ANTHROPIC_API_KEY && (
             <div className="mt-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Statement Drop — PDF statements &amp; paycheck stubs
               </p>
               <StatementImport
@@ -287,7 +287,7 @@ export default async function SettingsPage() {
                   is_paused: b.is_paused,
                 }))}
               />
-              <p className="mt-2 text-xs text-slate-500">
+              <p className="mt-2 text-xs text-slate-400">
                 The PDF is read by Claude on the server (Anthropic API, 30-day
                 retention) — merchant names and amounts come back, account
                 numbers are never extracted. Charges get pre-sorted into your
@@ -296,7 +296,7 @@ export default async function SettingsPage() {
             </div>
           )}
           <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
               Import spending from a CSV
             </p>
             <CsvImport
@@ -305,7 +305,7 @@ export default async function SettingsPage() {
             />
           </div>
           <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
               Export as CSV
             </p>
             <div className="flex flex-wrap gap-2 text-xs">
@@ -331,7 +331,7 @@ export default async function SettingsPage() {
           </div>
 
           <div className="mt-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
               Full backup
             </p>
             <a
@@ -340,7 +340,7 @@ export default async function SettingsPage() {
             >
               Download everything as JSON ↓
             </a>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-slate-400">
               Every table, one file — the whole account in a format you can
               keep, read, or hand to another tool. No lock-in.
             </p>
@@ -402,7 +402,7 @@ export default async function SettingsPage() {
               {`✓ Lens is ON at $${meta.hourly_wage}/hr — your Budget page now prices every bill in hours of work, and the Dashboard shows this cycle's spending in hours. Clear the field and save to turn it off.`}
             </p>
           ) : (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-slate-400">
               The lens is off. Stored on your account only.
             </p>
           )}
@@ -434,7 +434,7 @@ export default async function SettingsPage() {
               </button>
             ))}
           </form>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-2 text-xs text-slate-400">
             Each round-up shows as its own move in Budget → Move money, so
             nothing is hidden and every one is undoable.
           </p>
@@ -549,7 +549,7 @@ export default async function SettingsPage() {
               <p className="break-all rounded-lg bg-slate-800/60 px-3 py-2 font-mono text-xs text-emerald-300">
                 {feedUrl}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 Google Calendar: Settings → Add calendar → From URL. Apple:
                 File → New Calendar Subscription.
               </p>
@@ -560,7 +560,7 @@ export default async function SettingsPage() {
                   </button>
                 </form>
                 <form action={deleteCalendarToken}>
-                  <button className="text-xs text-slate-500 transition hover:text-red-400">
+                  <button className="text-xs text-slate-400 transition hover:text-red-400">
                     turn off
                   </button>
                 </form>

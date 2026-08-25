@@ -118,20 +118,20 @@ export default async function YearWrappedPage({
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">Money in</p>
+              <p className="text-xs text-slate-400">Money in</p>
               <p className="mt-1 text-xl font-bold text-emerald-300">
                 {currency.format(summary.moneyIn)}
               </p>
-              <p className="text-xs text-slate-500">{`${summary.paydayCount} payday${summary.paydayCount === 1 ? "" : "s"}`}</p>
+              <p className="text-xs text-slate-400">{`${summary.paydayCount} payday${summary.paydayCount === 1 ? "" : "s"}`}</p>
             </div>
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">Money out</p>
+              <p className="text-xs text-slate-400">Money out</p>
               <p className="mt-1 text-xl font-bold text-red-300">
                 {`−${currency.format(summary.moneyOut)}`}
               </p>
             </div>
             <div className="rounded-xl bg-slate-800/60 p-4">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 {summary.kept >= 0 ? "Kept" : "Overspent by"}
               </p>
               <p
@@ -139,7 +139,7 @@ export default async function YearWrappedPage({
               >
                 {currency.format(Math.abs(summary.kept))}
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-400">
                 {summary.keptPct !== null ? `${summary.keptPct}% savings rate` : ""}
               </p>
             </div>
@@ -158,14 +158,14 @@ export default async function YearWrappedPage({
                       }}
                       title={`${MONTHS[m.monthIdx]}: ${m.kept >= 0 ? "kept" : "overspent"} ${currency.format(Math.abs(m.kept))}`}
                     />
-                    <span className="text-[10px] text-slate-500">{MONTHS[m.monthIdx]}</span>
+                    <span className="text-[10px] text-slate-400">{MONTHS[m.monthIdx]}</span>
                   </div>
                 ))}
               </div>
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {summary.best && (
                   <div className="rounded-xl bg-slate-800/60 p-4">
-                    <p className="text-xs text-slate-500">Best month</p>
+                    <p className="text-xs text-slate-400">Best month</p>
                     <p className="mt-1 font-semibold text-emerald-300">
                       {`${MONTHS[summary.best.monthIdx]} — kept ${currency.format(summary.best.kept)}`}
                     </p>
@@ -173,7 +173,7 @@ export default async function YearWrappedPage({
                 )}
                 {summary.worst && (
                   <div className="rounded-xl bg-slate-800/60 p-4">
-                    <p className="text-xs text-slate-500">Roughest month</p>
+                    <p className="text-xs text-slate-400">Roughest month</p>
                     <p
                       className={`mt-1 font-semibold ${summary.worst.kept < 0 ? "text-red-300" : "text-amber-300"}`}
                     >
@@ -188,7 +188,7 @@ export default async function YearWrappedPage({
           {(summary.interestPaidYearly > 0 || summary.interestEarnedYearly > 0) && (
             <div className="mt-6">
               <h2 className="font-semibold text-white">The interest ledger</h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-400">
                 At today&apos;s balances and rates — what a year of your debt
                 costs, next to what a year of your savings earns.
               </p>
@@ -220,13 +220,13 @@ export default async function YearWrappedPage({
           )}
 
           {!summary.months.some((m) => m.active) && (
-            <p className="mt-6 text-sm text-slate-500">
+            <p className="mt-6 text-sm text-slate-400">
               Nothing recorded in {year} — pick another year above.
             </p>
           )}
         </div>
 
-        <p className="no-print text-xs text-slate-600">
+        <p className="no-print text-xs text-slate-400">
           Educational reflection based on what you logged — not financial or
           tax advice, and only as honest as your logging.
         </p>
