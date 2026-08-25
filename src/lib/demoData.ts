@@ -69,7 +69,27 @@ export function buildDemoData(todayISO: string): DashboardData {
       { id: "demo-e5", name: "Bar night", amount: 47, bucket_id: "demo-fun", due_date: d(-2), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, funded_by_income_id: null, created_at: ts },
       { id: "demo-e7", name: "Concert tickets", amount: 150, bucket_id: "demo-concert", due_date: d(20), cadence: "one_time", is_paused: false, renewal_date: null, created_by: null, split_ways: 1, autopay: null, funded_by_income_id: null, created_at: ts },
     ],
-    whatIf: [],
+    whatIf: [
+      /**
+       * One purchase mid-cooling-off, because the 48-hour pause is the most
+       * distinctive thing this app does and a demo that doesn't show it
+       * undersells the whole idea. Started 20 hours ago, so a visitor sees a
+       * live countdown rather than a finished timer.
+       */
+      {
+        id: "demo-w1",
+        name: "Noise-cancelling headphones",
+        amount: 249,
+        target_date: toISO(addDays(parseISO(todayISO), 6)),
+        bucket_id: "demo-fun",
+        status: "considering",
+        decided_at: null,
+        cooling_off_started_at: new Date(
+          Date.parse(`${todayISO}T00:00:00Z`) - 20 * 3600_000,
+        ).toISOString(),
+        created_at: ts,
+      },
+    ],
     netWorth: [],
     celebrated: [],
     incomeEntries: [],

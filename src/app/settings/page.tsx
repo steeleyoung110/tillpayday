@@ -20,6 +20,7 @@ import { CsvImport } from "@/components/CsvImport";
 import { StatementImport } from "@/components/StatementImport";
 import { EnablePush } from "@/components/EnablePush";
 import { InstantAction } from "@/components/InstantAction";
+import { RouteField } from "@/components/RouteField";
 import { LegalFooter } from "@/components/LegalFooter";
 import { getDashboardData } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -477,17 +478,40 @@ export default async function SettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <h3 className="font-semibold text-white">Suggest something 💡</h3>
+          <h3 className="font-semibold text-white">Send feedback 💡</h3>
           <p className="mt-2 text-sm text-slate-400">
-            Ideas, bugs, and app news all live in one place now — the Updates
-            tab. Anything you send there comes back with a reply.
+            Something broken, something missing, something confusing. Goes
+            straight to the person building this, and comes back with a reply
+            in your Updates tab.
           </p>
-          <Link
-            href="/updates"
-            className="mt-3 inline-block rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
-          >
-            Open Updates &amp; feedback →
-          </Link>
+          <form action={submitSuggestion} className="mt-3 space-y-2">
+            <textarea
+              name="message"
+              required
+              rows={3}
+              maxLength={2000}
+              aria-label="Your feedback"
+              placeholder="What should Till Payday do better?"
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
+            />
+            <input type="hidden" name="kind" value="idea" />
+            <RouteField />
+            <div className="flex flex-wrap items-center gap-3">
+              <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
+                Send feedback
+              </button>
+              <Link
+                href="/updates"
+                className="text-sm text-sky-300 transition hover:text-sky-200"
+              >
+                See replies &amp; app news →
+              </Link>
+            </div>
+          </form>
+          <p className="mt-2 text-xs text-slate-400">
+            Sends the screen you&apos;re on and the app version — never your
+            numbers.
+          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

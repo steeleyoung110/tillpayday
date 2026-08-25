@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CoachMark } from "@/components/CoachMark";
+import { COACH_MARKS, coachSeen } from "@/lib/coachMarks";
 import { LegalFooter } from "@/components/LegalFooter";
 import { InstantAction } from "@/components/InstantAction";
 import {
@@ -11,6 +13,7 @@ import {
   submitSuggestion,
   toggleAnnouncement,
 } from "@/app/actions";
+import { RouteField } from "@/components/RouteField";
 import { relativeDay } from "@/lib/relativeDate";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -26,6 +29,8 @@ interface SuggestionRow {
   kind: string;
   reply: string | null;
   replied_at: string | null;
+  route: string | null;
+  app_version: string | null;
   created_at: string;
 }
 
@@ -83,6 +88,12 @@ export default async function UpdatesPage() {
   return (
     <AppShell active="updates">
       <div className="mx-auto max-w-3xl space-y-6 px-6 pt-6">
+        <CoachMark
+          markKey="updates"
+          title={COACH_MARKS.updates.title}
+          body={COACH_MARKS.updates.body}
+          seen={coachSeen(user.user_metadata as Record<string, unknown>, "updates")}
+        />
         <div>
           <h1 className="text-2xl font-black text-white">Updates &amp; feedback 📣</h1>
           <p className="mt-1 text-sm text-slate-400">
@@ -150,10 +161,15 @@ export default async function UpdatesPage() {
                 className={`${inputCls} mt-1`}
               />
             </label>
+            <RouteField />
             <button className="rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-slate-950 transition hover:bg-emerald-400">
               Send it
             </button>
           </form>
+          <p className="mt-2 text-xs text-slate-400">
+            Sends the screen you&apos;re on and the app version with it, so I
+            can reproduce what you saw. Nothing about your actual numbers.
+          </p>
         </section>
 
         {/* ---------------------------------------------------------------
@@ -280,6 +296,16 @@ export default async function UpdatesPage() {
                       <div className="flex flex-wrap items-baseline justify-between gap-2">
                         <span className="text-xs text-slate-400">
                           {`${KIND_LABEL[s.kind] ?? s.kind} · ${s.email ?? "unknown"}`}
+                          {s.route && (
+                            <span className="ml-2 rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-slate-300">
+                              {s.route}
+                            </span>
+                          )}
+                          {s.app_version && (
+                            <span className="ml-1 rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-slate-300">
+                              {s.app_version}
+                            </span>
+                          )}
                         </span>
                         <span className="text-xs text-slate-400">
                           {relativeDay(s.created_at.slice(0, 10), todayISO)}

@@ -126,6 +126,7 @@ export function AddExpenseForm({
       {quick ? (
         <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
           <input
+            id="quick-spend-name"
             placeholder="What was it? (e.g. McDonald's)"
             required
             value={name}
@@ -166,6 +167,7 @@ export function AddExpenseForm({
       ) : (
       <form onSubmit={onSubmit} className="grid grid-cols-2 gap-2 sm:max-w-md">
         <input
+          id="add-expense-name"
           placeholder="Expense (e.g. Rent)"
           required
           value={name}

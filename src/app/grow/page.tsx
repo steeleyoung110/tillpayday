@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CoachMark } from "@/components/CoachMark";
+import { COACH_MARKS, coachSeen } from "@/lib/coachMarks";
 import { LazyGrowTab as GrowTab } from "@/components/lazy/LazyCharts";
 import type { LoanPrefill } from "@/components/GrowTab";
 import { LegalFooter } from "@/components/LegalFooter";
@@ -56,6 +58,7 @@ export default async function GrowPage() {
       }}
     >
       <div className="mx-auto max-w-screen-2xl space-y-4 px-6 pt-6 2xl:px-10">
+        <CoachMark markKey="grow" title={COACH_MARKS.grow.title} body={COACH_MARKS.grow.body} seen={coachSeen(user.user_metadata as Record<string, unknown>, "grow")} />
         <div>
           <h2 className="text-lg font-semibold text-white">
             See what compounding does

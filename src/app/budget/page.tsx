@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CoachMark } from "@/components/CoachMark";
+import { COACH_MARKS, coachSeen } from "@/lib/coachMarks";
 import { LegalFooter } from "@/components/LegalFooter";
 import { InViewport } from "@/components/InViewport";
 import { LazyPaycheckPie as PaycheckPie } from "@/components/lazy/LazyCharts";
@@ -557,6 +559,7 @@ export default async function BudgetPage({
       }}
     >
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
+        <CoachMark markKey="budget" title={COACH_MARKS.budget.title} body={COACH_MARKS.budget.body} seen={coachSeen(user.user_metadata as Record<string, unknown>, "budget")} />
         <div>
           <h2 className="text-lg font-semibold text-white">Your budget</h2>
           <p className="text-sm text-slate-400">

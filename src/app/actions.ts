@@ -10,6 +10,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { APP_VERSION } from "@/lib/version";
 import { coolingState } from "@/lib/coolingOff";
 import { getDashboardData } from "@/lib/data";
 import { buildPaydayRecapEmail } from "@/lib/email/paydayRecap";
@@ -328,10 +329,15 @@ export async function submitSuggestion(formData: FormData) {
   const message = str(formData, "message").trim().slice(0, 2000);
   if (!message) return;
   const kind = str(formData, "kind");
+  // Context, not content: which screen and which build. Enough to reproduce,
+  // nothing about the numbers on it.
+  const route = str(formData, "route").slice(0, 120) || null;
   await supabase.from("suggestions").insert({
     message,
     email: user.email ?? null,
     kind: ["idea", "bug", "question"].includes(kind) ? kind : "idea",
+    route,
+    app_version: APP_VERSION,
   });
   revalidatePath("/settings");
   revalidatePath("/updates");
@@ -1051,6 +1057,27 @@ export async function completeReview(formData: FormData) {
     .upsert({ week_start: weekStart }, { onConflict: "user_id,week_start", ignoreDuplicates: true });
   revalidatePath("/");
   revalidatePath("/review");
+}
+
+/**
+ * First-run coach marks: remember which tabs someone has already been shown
+ * a tip on. Stored on the auth user rather than in localStorage so the tour
+ * doesn't start over on their phone after they've seen it on a laptop.
+ */
+export async function dismissCoachMark(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  const key = str(formData, "key").slice(0, 40);
+  if (!key) return;
+  const seen = Array.isArray(user.user_metadata?.coach_seen)
+    ? (user.user_metadata.coach_seen as string[])
+    : [];
+  if (seen.includes(key)) return;
+  await supabase.auth.updateUser({ data: { coach_seen: [...seen, key] } });
+  revalidatePath("/", "layout");
 }
 
 /** Challenges: start/stop lives in user metadata (no tables, no ceremony). */

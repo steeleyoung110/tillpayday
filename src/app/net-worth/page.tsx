@@ -8,7 +8,10 @@ import {
   undoRestore,
 } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
+import { CoachMark } from "@/components/CoachMark";
+import { COACH_MARKS, coachSeen } from "@/lib/coachMarks";
 import { DebtStrategy } from "@/components/DebtStrategy";
+import { EmptyState } from "@/components/EmptyState";
 import { InlineValue } from "@/components/InlineValue";
 import { InstantAction } from "@/components/InstantAction";
 import { LegalFooter } from "@/components/LegalFooter";
@@ -231,6 +234,7 @@ export default async function NetWorthPage() {
       }}
     >
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
+        <CoachMark markKey="networth" title={COACH_MARKS.networth.title} body={COACH_MARKS.networth.body} seen={coachSeen(user.user_metadata as Record<string, unknown>, "networth")} />
         {/* Hero */}
         <div className="rounded-2xl border border-slate-800 bg-slate-900 px-6 py-6">
           <p className="text-sm text-slate-400">Your net worth today</p>
@@ -408,12 +412,15 @@ export default async function NetWorthPage() {
               </div>
             ))}
             {activeAssets.length === 0 && !bridgeOn && (
-              <p className="mb-4 text-sm text-slate-400">
-                Start with whatever's easy — your checking balance counts.
-              </p>
+              <EmptyState
+                as="div"
+                line="Nothing listed yet. Start with whatever's easy — your checking balance counts."
+                action="Add what you own"
+                targetId="add-asset-name"
+              />
             )}
             <form action={addAsset} className="grid grid-cols-2 gap-2">
-              <input name="name" placeholder="e.g. Ally savings" required className={`${inputCls} col-span-2`} />
+              <input id="add-asset-name" name="name" placeholder="e.g. Ally savings" required className={`${inputCls} col-span-2`} />
               <input name="current_value" type="number" step="0.01" min="0" placeholder="What it's worth" required className={inputCls} />
               <select name="category" className={inputCls} defaultValue="cash">
                 {(Object.keys(ASSET_LABELS) as AssetCategory[]).map((c) => (
@@ -439,13 +446,15 @@ export default async function NetWorthPage() {
               </div>
             ))}
             {activeLiabilities.length === 0 && (
-              <p className="mb-4 text-sm text-slate-400">
-                Cards, loans, anything you&apos;re paying down. No judgment —
-                just a starting point.
-              </p>
+              <EmptyState
+                as="div"
+                line="Nothing listed yet. Cards, loans, anything you're paying down — no judgment, but leaving them off doesn't make them smaller."
+                action="Add what you owe"
+                targetId="add-liability-name"
+              />
             )}
             <form action={addLiability} className="grid grid-cols-2 gap-2">
-              <input name="name" placeholder="e.g. Visa card" required className={`${inputCls} col-span-2`} />
+              <input id="add-liability-name" name="name" placeholder="e.g. Visa card" required className={`${inputCls} col-span-2`} />
               <input name="current_balance" type="number" step="0.01" min="0" placeholder="What's left on it" required className={inputCls} />
               <select name="category" className={inputCls} defaultValue="credit_card">
                 {(Object.keys(LIABILITY_LABELS) as LiabilityCategory[]).map((c) => (

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { CoachMark } from "@/components/CoachMark";
+import { COACH_MARKS, coachSeen } from "@/lib/coachMarks";
 import { CelebrationOverlay } from "@/components/CelebrationOverlay";
 import { LegalFooter } from "@/components/LegalFooter";
 import { Onboarding } from "@/components/Onboarding";
@@ -539,6 +541,7 @@ export default async function Home({
       )}
 
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
+        <CoachMark markKey="dashboard" title={COACH_MARKS.dashboard.title} body={COACH_MARKS.dashboard.body} seen={coachSeen(user.user_metadata as Record<string, unknown>, "dashboard")} />
         {viewing && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
             <p className="text-sm font-semibold text-violet-200">

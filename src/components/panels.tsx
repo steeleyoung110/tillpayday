@@ -4,6 +4,7 @@
  */
 import { AddExpenseForm, type BucketOption } from "@/components/AddExpenseForm";
 import { CoolingCountdown } from "@/components/CoolingCountdown";
+import { EmptyState } from "@/components/EmptyState";
 import { ExpenseBucketSelect } from "@/components/ExpenseBucketSelect";
 import { IncomeAmountField } from "@/components/IncomeAmountField";
 import { InstantAction } from "@/components/InstantAction";
@@ -165,12 +166,12 @@ export function IncomePanel({
           </li>
         ))}
         {data.income.length === 0 && (
-          <li className="text-sm text-slate-400">No income yet — add your paycheck.</li>
+          <EmptyState line="No income yet. Everything else is built on this number." action="Add your paycheck" targetId="add-income-name" />
         )}
       </ul>
 
       <form action={addIncome} className="grid grid-cols-2 gap-2">
-        <input name="name" placeholder="Name (e.g. Day job)" required className={`${inputCls} col-span-2`} />
+        <input id="add-income-name" name="name" placeholder="Name (e.g. Day job)" required className={`${inputCls} col-span-2`} />
         <IncomeAmountField />
         <label className="col-span-2 text-xs text-slate-400">
           Next (or any recent) pay date
@@ -271,16 +272,16 @@ export function GoalsPanel({
           </li>
         ))}
         {active.length === 0 && (
-          <li className="text-sm text-slate-400">
-            What are you saving toward? A cushion, a trip, a down payment —
-            give it a name, a number, and a date, and the Dashboard will show
-            your path to it.
-          </li>
+          <EmptyState
+            line="No goals yet. Give one a name, a number, and a date, and the Dashboard will show whether you're actually on pace."
+            action="Set a goal"
+            targetId="add-goal-name"
+          />
         )}
       </ul>
 
       <form action={addGoal} className="grid grid-cols-2 gap-2 sm:max-w-md">
-        <input name="name" placeholder="Goal (e.g. House down payment)" required className={`${inputCls} col-span-2`} />
+        <input id="add-goal-name" name="name" placeholder="Goal (e.g. House down payment)" required className={`${inputCls} col-span-2`} />
         <MoneyInput name="target_amount" placeholder="Amount to reach" required className={inputCls} ariaLabel="Amount to reach" />
         <label className="text-xs text-slate-400">
           By when
@@ -573,9 +574,7 @@ export function BucketsPanel({
           );
         })}
         {data.buckets.length === 0 && (
-          <li className="text-sm text-slate-400">
-            No buckets yet — try Rent, Groceries, Fun money, and a Savings bucket.
-          </li>
+          <EmptyState line="No buckets yet. Buckets are how a paycheck stops being one big number." action="Add your first bucket" targetId="add-bucket-name" />
         )}
       </ul>
 
@@ -661,7 +660,7 @@ export function BucketsPanel({
       )}
 
       <form action={addBucket} className="grid grid-cols-2 gap-2">
-        <input name="name" placeholder="Bucket name (e.g. Rent)" required className={`${inputCls} col-span-2`} />
+        <input id="add-bucket-name" name="name" placeholder="Bucket name (e.g. Rent)" required className={`${inputCls} col-span-2`} />
         <select name="allocation_type" className={inputCls} defaultValue="fixed">
           <option value="fixed">Fixed $ per check</option>
           <option value="percent">% of each check</option>
@@ -977,10 +976,11 @@ export function ExpensesPanel({
           <ul className="space-y-2">
             {oneTime.map((e) => row(e, false))}
             {oneTime.length === 0 && (
-              <li className="text-sm text-slate-400">
-                Nothing here — one-off things like a repair or concert tickets
-                land in this column.
-              </li>
+              <EmptyState
+                line="Nothing here. One-off things — a repair, concert tickets — land in this column."
+                action="Log a spend"
+                targetId="quick-spend-name"
+              />
             )}
           </ul>
         </div>
@@ -991,9 +991,11 @@ export function ExpensesPanel({
           <ul className="space-y-2">
             {repeating.map((e) => row(e, true))}
             {repeating.length === 0 && (
-              <li className="text-sm text-slate-400">
-                No repeating bills yet — rent, subscriptions, insurance.
-              </li>
+              <EmptyState
+                line="No repeating bills yet — rent, subscriptions, insurance. Until they're here, your safe-to-spend is flattering you."
+                action="Add a bill"
+                targetId="add-expense-name"
+              />
             )}
           </ul>
         </div>
@@ -1089,14 +1091,16 @@ export function WhatIfPanel({
           );
         })}
         {considering.length === 0 && (
-          <li className="text-sm text-slate-400">
-            Nothing under consideration. Add a purchase to see its impact on the chart.
-          </li>
+          <EmptyState
+            line="Nothing under consideration. Park a purchase here and see what it does to your money before you buy it."
+            action="Add something you want"
+            targetId="add-whatif-name"
+          />
         )}
       </ul>
 
       <form action={addWhatIf} className="mb-4 grid grid-cols-2 gap-2">
-        <input name="name" placeholder="Thing (e.g. New phone)" required className={`${inputCls} col-span-2`} />
+        <input id="add-whatif-name" name="name" placeholder="Thing (e.g. New phone)" required className={`${inputCls} col-span-2`} />
         <MoneyInput name="amount" placeholder="Cost" required className={inputCls} ariaLabel="Cost" />
         <label className="text-xs text-slate-400">
           When you&apos;d buy it

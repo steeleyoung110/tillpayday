@@ -12,6 +12,7 @@ import {
   toISO,
 } from "@/lib/engine";
 import { computeTodayBalances } from "@/lib/balances";
+import { coolingState } from "@/lib/coolingOff";
 import {
   bucketToEngine,
   expenseToEngine,
@@ -50,15 +51,21 @@ export default function DemoPage() {
   return (
     <main className="min-h-screen bg-slate-950 pb-10">
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-500/40 bg-violet-500/10 px-6 py-4">
+        {/* Sticky: the label and the way out stay visible however far you
+            scroll, so nobody forgets these numbers are fictional. */}
+        <div className="sticky top-0 z-30 -mx-6 flex flex-wrap items-center justify-between gap-3 border-b border-violet-500/40 bg-violet-950/95 px-6 py-4 backdrop-blur 2xl:-mx-10 2xl:px-10">
           <p className="text-sm font-semibold text-violet-200">
-            {`👀 This is Sam — a sample budget, not yours. Click around; nothing here can be changed or saved.`}
+            Demo — example numbers.{" "}
+            <span className="font-normal text-violet-100/80">
+              This is Sam&apos;s budget, not yours. Look around; nothing here
+              can be changed or saved.
+            </span>
           </p>
           <Link
             href="/login"
             className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
           >
-            Make it your numbers →
+            Start fresh with your own numbers →
           </Link>
         </div>
 
@@ -109,6 +116,30 @@ export default function DemoPage() {
             </p>
           </div>
         )}
+
+        {/* The 48-hour pause: the most distinctive thing the app does, so the
+            demo shows it mid-countdown rather than describing it. */}
+        {data.whatIf.map((w) => {
+          const cooling = coolingState(w.cooling_off_started_at, Date.now());
+          return (
+            <div
+              key={w.id}
+              className="rounded-2xl border border-sky-500/30 bg-sky-500/10 px-6 py-5"
+            >
+              <p className="text-sm font-semibold text-sky-200">
+                {`Sam is thinking about: ${w.name} — ${currency.format(Number(w.amount))}`}
+              </p>
+              <p className="mt-1 text-sm text-sky-100/80">
+                {cooling.phase === "cooling"
+                  ? "It's in the 48-hour cooling-off window. Sam can't confirm it yet — that pause is the feature. Most things you want at 11pm you don't want on Thursday."
+                  : "The cooling-off window is up — now Sam decides, having slept on it."}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                {`On your own budget this shows a live countdown, and skipping it adds ${currency.format(Number(w.amount))} to your skip-it jar.`}
+              </p>
+            </div>
+          );
+        })}
 
         <ProjectionSection
           data={data}
