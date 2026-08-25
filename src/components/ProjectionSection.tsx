@@ -533,13 +533,16 @@ export function ProjectionSection({
               {`since you joined · ${prettyDate(anchorISO)}`}
             </span>
           </h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex rounded-lg border border-slate-700 p-0.5 text-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex flex-wrap rounded-lg border border-slate-700 p-0.5 text-sm">
               {PRESET_MONTHS.map((m) => (
                 <button
                   key={m}
                   onClick={() => updateWin({ ...presetWin(m), preset: m })}
-                  className={`rounded-md px-2.5 py-1 transition ${
+                  // 44px tall on a phone, back to compact once there's a
+                  // mouse. A range pill is a bare button — nothing bigger
+                  // wraps it, so this height is the whole target.
+                  className={`min-h-11 rounded-md px-2.5 py-1 transition sm:min-h-0 ${
                     win.preset === m
                       ? "bg-emerald-500 font-semibold text-slate-950"
                       : "text-slate-300 hover:text-white"
@@ -549,7 +552,7 @@ export function ProjectionSection({
                 </button>
               ))}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex min-w-0 items-center gap-1.5 text-xs text-slate-400">
               <input
                 type="date"
                 value={win.from}
@@ -560,7 +563,7 @@ export function ProjectionSection({
                     preset: null,
                   })
                 }
-                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white"
+                className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white sm:min-h-0 sm:flex-none"
                 aria-label="Chart start date"
               />
               →
@@ -574,17 +577,20 @@ export function ProjectionSection({
                     preset: null,
                   })
                 }
-                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white"
+                className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white sm:min-h-0 sm:flex-none"
                 aria-label="Chart end date"
               />
             </div>
+            {/* min-w-0 on both: a <select> is as wide as its longest option
+                unless you let it shrink, and one long what-if name would
+                otherwise push the whole page sideways on a phone. */}
             {considering.length > 0 && (
-              <label className="flex items-center gap-2 text-sm text-slate-300">
+              <label className="flex w-full min-w-0 items-center gap-2 text-sm text-slate-300 sm:w-auto">
                 Previewing:
                 <select
                   value={selected?.id ?? ""}
                   onChange={(e) => setSelectedId(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white"
+                  className="min-h-11 min-w-0 flex-1 truncate rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-white sm:min-h-0 sm:flex-none"
                 >
                   {considering.map((w) => (
                     <option key={w.id} value={w.id}>
@@ -753,7 +759,7 @@ export function ProjectionSection({
                         <form action={applyShortfallFix}>
                           <input type="hidden" name="bucket_id" value={w.bucketId} />
                           <input type="hidden" name="extra" value={w.fixPerPaycheck} />
-                          <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">
+                          <button className="min-h-11 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 sm:min-h-0">
                             {`Set aside ${currency.format(w.fixPerPaycheck)}/paycheck`}
                           </button>
                         </form>
@@ -771,7 +777,7 @@ export function ProjectionSection({
                         <form action={rightSizeBucket}>
                           <input type="hidden" name="bucket_id" value={w.bucketId} />
                           <input type="hidden" name="value" value={w.funded} />
-                          <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400">
+                          <button className="min-h-11 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-bold text-slate-950 transition hover:bg-emerald-400 sm:min-h-0">
                             {`Right-size to ${currency.format(w.funded)}`}
                           </button>
                         </form>

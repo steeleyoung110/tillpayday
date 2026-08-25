@@ -63,7 +63,7 @@ export default function DemoPage() {
           </p>
           <Link
             href="/login"
-            className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+            className="inline-flex min-h-11 items-center rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 sm:min-h-0"
           >
             Start fresh with your own numbers →
           </Link>
