@@ -48,7 +48,13 @@ gracefully without it.
   pre-sorted into buckets, with a review step before anything saves.
   Statements pass through Anthropic's API under its 30-day retention terms.
 
-## 4b. Google sign-in
+## 4b. Google sign-in — CURRENTLY HIDDEN
+
+The button is switched off in `src/lib/features.ts`
+(`GOOGLE_SIGN_IN_ENABLED = false`), because without the steps below it led
+testers into a flow that couldn't complete. Everything behind it — the server
+action, the `/auth/callback` route, the `/legal-accept` step — is still in
+place. **Do these steps first, then flip that constant to `true`.**
 
 - Google Cloud Console → create OAuth 2.0 Client ID (web application).
   - Authorized redirect URI: `https://wjmqerdbojuudlxggtwm.supabase.co/auth/v1/callback`

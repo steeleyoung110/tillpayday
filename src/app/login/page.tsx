@@ -1,4 +1,5 @@
 import { signIn, signInWithGoogle, signUp } from "@/app/actions";
+import { GOOGLE_SIGN_IN_ENABLED } from "@/lib/features";
 import { LegalFooter } from "@/components/LegalFooter";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { SetupNotice } from "@/components/SetupNotice";
@@ -119,6 +120,11 @@ export default async function LoginPage({
           </div>
         </form>
 
+        {/* Hidden while the OAuth client isn't configured — see
+            src/lib/features.ts. The divider goes with it, so the form
+            doesn't end with a dangling "or". */}
+        {GOOGLE_SIGN_IN_ENABLED && (
+          <>
         <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
           <div className="h-px flex-1 bg-slate-800" />
           or
@@ -148,6 +154,8 @@ export default async function LoginPage({
             Continue with Google
           </button>
         </form>
+          </>
+        )}
       </div>
       <LegalFooter />
     </main>
