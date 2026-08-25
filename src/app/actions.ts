@@ -327,11 +327,33 @@ export async function submitSuggestion(formData: FormData) {
   if (!user) return;
   const message = str(formData, "message").trim().slice(0, 2000);
   if (!message) return;
+  const kind = str(formData, "kind");
   await supabase.from("suggestions").insert({
     message,
     email: user.email ?? null,
+    kind: ["idea", "bug", "question"].includes(kind) ? kind : "idea",
   });
   revalidatePath("/settings");
+  revalidatePath("/updates");
+  revalidatePath("/admin");
+}
+
+/**
+ * The other half of the loop: an admin answers a suggestion, and the person
+ * who sent it sees the answer next time they open Updates. Existing RLS does
+ * the enforcing — only admins may update a suggestion row, and everyone may
+ * read their own.
+ */
+export async function replyToSuggestion(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const reply = str(formData, "reply").trim().slice(0, 2000);
+  if (!id || !reply) return;
+  await supabase
+    .from("suggestions")
+    .update({ reply, replied_at: new Date().toISOString(), status: "seen" })
+    .eq("id", id);
+  revalidatePath("/updates");
   revalidatePath("/admin");
 }
 
@@ -344,6 +366,7 @@ export async function setSuggestionStatus(formData: FormData) {
     .update({ status })
     .eq("id", str(formData, "id"));
   revalidatePath("/admin");
+  revalidatePath("/updates");
 }
 
 export async function deleteSuggestion(formData: FormData) {

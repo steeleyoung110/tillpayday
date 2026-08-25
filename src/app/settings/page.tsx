@@ -479,47 +479,15 @@ export default async function SettingsPage() {
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
           <h3 className="font-semibold text-white">Suggest something 💡</h3>
           <p className="mt-2 text-sm text-slate-400">
-            An idea, a bug, a &ldquo;why doesn&apos;t it…&rdquo; — drop it
-            here and it lands straight in front of the person building this.
+            Ideas, bugs, and app news all live in one place now — the Updates
+            tab. Anything you send there comes back with a reply.
           </p>
-          <form action={submitSuggestion} className="mt-3 space-y-2">
-            <textarea
-              name="message"
-              required
-              maxLength={2000}
-              rows={3}
-              placeholder="What should Till Payday do better?"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-emerald-400"
-            />
-            <button className="rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400">
-              Send it
-            </button>
-          </form>
-          {mySuggestions.length > 0 && (
-            <details className="mt-3 text-sm">
-              <summary className="cursor-pointer text-slate-400">
-                {`Your suggestions (${mySuggestions.length})`}
-              </summary>
-              <ul className="mt-2 space-y-1">
-                {mySuggestions.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-2 text-slate-400">
-                    <span className="truncate">{s.message}</span>
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${
-                        s.status === "done"
-                          ? "bg-emerald-500/20 text-emerald-300"
-                          : s.status === "seen"
-                            ? "bg-sky-500/20 text-sky-300"
-                            : "bg-slate-500/30 text-slate-300"
-                      }`}
-                    >
-                      {s.status === "done" ? "done ✓" : s.status === "seen" ? "seen 👀" : "sent"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+          <Link
+            href="/updates"
+            className="mt-3 inline-block rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+          >
+            Open Updates &amp; feedback →
+          </Link>
         </div>
 
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

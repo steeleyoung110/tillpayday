@@ -8,13 +8,20 @@ import { QuickNav } from "@/components/QuickNav";
  * Net worth, Grow, Settings. Sidebar on desktop, bottom tab bar on mobile.
  */
 
-export type NavKey = "dashboard" | "budget" | "networth" | "grow" | "settings";
+export type NavKey =
+  | "dashboard"
+  | "budget"
+  | "networth"
+  | "grow"
+  | "updates"
+  | "settings";
 
 const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: "🏠" },
   { key: "budget", href: "/budget", label: "Budget", icon: "🪣" },
   { key: "networth", href: "/net-worth", label: "Net worth", icon: "📊" },
   { key: "grow", href: "/grow", label: "Grow", icon: "🌱" },
+  { key: "updates", href: "/updates", label: "Updates", icon: "📣" },
   { key: "settings", href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
