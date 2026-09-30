@@ -4,12 +4,17 @@ import { QuickAdd } from "@/components/QuickAdd";
 import { QuickNav } from "@/components/QuickNav";
 
 /**
- * App navigation frame: five sections — Dashboard (glance), Budget (manage),
- * Net worth, Grow, Settings. Sidebar on desktop, bottom tab bar on mobile.
+ * App navigation frame — property-management era: Dashboard (all properties
+ * combined), Properties (one at a time), Settings. Sidebar on desktop,
+ * bottom tab bar on mobile.
+ *
+ * The old budget-era keys stay in the NavKey union so retired pages still
+ * compile until they're deleted; they just aren't in the nav anymore.
  */
 
 export type NavKey =
   | "dashboard"
+  | "properties"
   | "budget"
   | "networth"
   | "grow"
@@ -17,11 +22,8 @@ export type NavKey =
   | "settings";
 
 const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
-  { key: "dashboard", href: "/", label: "Dashboard", icon: "🏠" },
-  { key: "budget", href: "/budget", label: "Budget", icon: "🪣" },
-  { key: "networth", href: "/net-worth", label: "Net worth", icon: "📊" },
-  { key: "grow", href: "/grow", label: "Grow", icon: "🌱" },
-  { key: "updates", href: "/updates", label: "Updates", icon: "📣" },
+  { key: "dashboard", href: "/", label: "Dashboard", icon: "📊" },
+  { key: "properties", href: "/properties", label: "Properties", icon: "🏠" },
   { key: "settings", href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 
@@ -52,7 +54,7 @@ export function AppShell({
         className="fixed inset-y-0 left-0 z-40 hidden w-52 flex-col border-r border-slate-800 bg-slate-900/60 p-4 md:flex"
       >
         <Link href="/" className="px-2 text-xl font-bold text-white">
-          Till <span className="text-emerald-400">Payday</span>
+          Property <span className="text-emerald-400">Log</span>
         </Link>
         <nav className="mt-8 flex flex-col gap-1">
           {ITEMS.map((item) => (
@@ -76,7 +78,7 @@ export function AppShell({
       {/* Mobile top brand strip */}
       <header className="border-b border-slate-800 py-3 text-center md:hidden">
         <Link href="/" className="text-lg font-bold text-white">
-          Till <span className="text-emerald-400">Payday</span>
+          Property <span className="text-emerald-400">Log</span>
         </Link>
       </header>
 

@@ -32,6 +32,14 @@ export const LazyNetWorthChart = dynamic(
   { ssr: false, loading: () => <ChartFallback className="h-72" /> },
 ) as (props: { snapshots: SnapshotRow[]; todayISO: string }) => React.ReactElement;
 
+export const LazyPropertyCashFlowChart = dynamic(
+  () =>
+    import("@/components/PropertyCashFlowChart").then((m) => m.PropertyCashFlowChart),
+  { ssr: false, loading: () => <ChartFallback className="h-72" /> },
+) as (props: {
+  months: import("@/lib/property/finance").MonthFinance[];
+}) => React.ReactElement;
+
 export const LazyGrowTab = dynamic(
   () => import("@/components/GrowTab").then((m) => m.GrowTab),
   { ssr: false, loading: () => <ChartFallback className="h-96" /> },

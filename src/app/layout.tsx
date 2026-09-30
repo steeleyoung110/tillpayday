@@ -17,13 +17,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Till Payday",
+  title: "Property Log",
   description:
-    "Plan your paychecks, split them into buckets, and see your 12-month savings future.",
+    "Your properties, rents, and expenses — one at a time or all together, with honest yearly numbers.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Till Payday",
+    title: "Property Log",
   },
 };
 
