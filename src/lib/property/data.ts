@@ -5,6 +5,7 @@
  */
 import { createClient } from "@/lib/supabase/server";
 import type {
+  BookingRow,
   LeaseRow,
   MortgagePaymentRow,
   MortgageRow,
@@ -20,7 +21,7 @@ import type {
 export async function getPortfolioData(): Promise<PortfolioData> {
   const supabase = await createClient();
 
-  const [properties, units, tenants, leases, rents, expenses, mortgages, mortgagePayments] =
+  const [properties, units, tenants, leases, rents, expenses, mortgages, mortgagePayments, bookings] =
     await Promise.all([
       supabase.from("properties").select("*").order("created_at"),
       supabase.from("units").select("*").order("sort_order").order("created_at"),
@@ -30,6 +31,7 @@ export async function getPortfolioData(): Promise<PortfolioData> {
       supabase.from("property_expenses").select("*").order("expense_date", { ascending: false }),
       supabase.from("mortgages").select("*").order("created_at"),
       supabase.from("mortgage_payments").select("*").order("paid_date", { ascending: false }),
+      supabase.from("bookings").select("*").order("check_in", { ascending: false }),
     ]);
 
   return {
@@ -41,5 +43,6 @@ export async function getPortfolioData(): Promise<PortfolioData> {
     expenses: (expenses.data as PropertyExpenseRow[]) ?? [],
     mortgages: (mortgages.data as MortgageRow[]) ?? [],
     mortgagePayments: (mortgagePayments.data as MortgagePaymentRow[]) ?? [],
+    bookings: (bookings.data as BookingRow[]) ?? [],
   };
 }

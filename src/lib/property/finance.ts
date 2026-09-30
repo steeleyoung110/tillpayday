@@ -12,6 +12,7 @@
  *   and the unsplit total is surfaced so the UI can say so.
  */
 import type {
+  BookingRow,
   ExpenseCategory,
   LeaseRow,
   MortgagePaymentRow,
@@ -41,7 +42,10 @@ export function rentAttribution(p: Pick<RentPaymentRow, "paid_date" | "period_mo
 export interface MonthFinance {
   /** 1–12 */
   month: number;
+  /** All income that landed: lease rent + short-term stay payouts. */
   rentCollected: number;
+  /** Short-term nights of stays falling inside this month. */
+  bookedNights: number;
   /** All property expenses (operating + capex). */
   expenses: number;
   /** Full mortgage payments logged in the month. */
@@ -56,7 +60,15 @@ export interface YearFinance {
   year: number;
   /** null = all properties combined. */
   propertyId: string | null;
+  /** Everything that came in: ltrIncome + strIncome. */
   rentCollected: number;
+  /** Lease rent payments only. */
+  ltrIncome: number;
+  /** Short-term booking payouts only (counted in their check-in month). */
+  strIncome: number;
+  /** Short-term nights that fall inside this year. */
+  bookedNights: number;
+  /** What active leases said should arrive (long-term only). */
   expectedRent: number;
   /** rentCollected / expectedRent, 0–1+; null when nothing was expected. */
   collectionRate: number | null;
@@ -106,7 +118,10 @@ export function leaseMonthsInYear(lease: LeaseRow, year: number): number[] {
 
 /** Compute one property's (or the whole portfolio's) finances for one year. */
 export function yearFinance(
-  data: Pick<PortfolioData, "rentPayments" | "expenses" | "mortgagePayments" | "leases" | "units">,
+  data: Pick<
+    PortfolioData,
+    "rentPayments" | "expenses" | "mortgagePayments" | "leases" | "units" | "bookings"
+  >,
   year: number,
   propertyId: string | null = null,
 ): YearFinance {
@@ -123,6 +138,7 @@ export function yearFinance(
   const months: MonthFinance[] = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     rentCollected: 0,
+    bookedNights: 0,
     expenses: 0,
     debtService: 0,
     cashFlow: 0,
@@ -136,6 +152,34 @@ export function yearFinance(
     const amt = Number(p.amount);
     rentCollected = round2(rentCollected + amt);
     months[at.month - 1].rentCollected = round2(months[at.month - 1].rentCollected + amt);
+  }
+  const ltrIncome = rentCollected;
+
+  // Short-term stays: the payout counts in the check-in month; nights are
+  // clipped to the year so a New Year's stay splits honestly across years.
+  let strIncome = 0;
+  let bookedNights = 0;
+  const bookings = matchProperty(data.bookings, propertyId).filter(
+    (b) => b.status !== "canceled",
+  ) as BookingRow[];
+  for (const b of bookings) {
+    const at = ym(b.check_in);
+    if (at.year === year) {
+      const amt = Number(b.payout);
+      strIncome = round2(strIncome + amt);
+      rentCollected = round2(rentCollected + amt);
+      months[at.month - 1].rentCollected = round2(
+        months[at.month - 1].rentCollected + amt,
+      );
+    }
+    // Count each night (a night belongs to the day it starts on).
+    const start = new Date(`${b.check_in}T00:00:00Z`);
+    const end = new Date(`${b.check_out}T00:00:00Z`);
+    for (let d = new Date(start); d < end; d.setUTCDate(d.getUTCDate() + 1)) {
+      if (d.getUTCFullYear() !== year) continue;
+      bookedNights += 1;
+      months[d.getUTCMonth()].bookedNights += 1;
+    }
   }
 
   const expensesByCategory: Partial<Record<ExpenseCategory, number>> = {};
@@ -190,6 +234,9 @@ export function yearFinance(
     year,
     propertyId,
     rentCollected,
+    ltrIncome,
+    strIncome,
+    bookedNights,
     expectedRent,
     collectionRate: expectedRent > 0 ? round2(rentCollected / expectedRent * 100) / 100 : null,
     expensesByCategory,
@@ -246,12 +293,13 @@ export function equitySummary(
  * `currentYear`, sorted descending.
  */
 export function yearsWithActivity(
-  data: Pick<PortfolioData, "rentPayments" | "expenses" | "mortgagePayments">,
+  data: Pick<PortfolioData, "rentPayments" | "expenses" | "mortgagePayments" | "bookings">,
   currentYear: number,
 ): number[] {
   const years = new Set<number>([currentYear]);
   for (const p of data.rentPayments) years.add(rentAttribution(p).year);
   for (const e of data.expenses) years.add(ym(e.expense_date).year);
   for (const p of data.mortgagePayments) years.add(ym(p.paid_date).year);
+  for (const b of data.bookings) years.add(ym(b.check_in).year);
   return [...years].sort((a, b) => b - a);
 }

@@ -86,19 +86,23 @@ export function FinanceCards({ f, throughMonth = 12 }: { f: YearFinance; through
     Math.round(
       f.months.slice(0, throughMonth).reduce((s, m) => s + m.expectedRent, 0) * 100,
     ) / 100;
-  const missedRent = Math.round((expectedSoFar - f.rentCollected) * 100) / 100;
+  // Lease shortfall compares LEASE income to lease expectations — stay
+  // payouts don't paper over uncollected rent.
+  const missedRent = Math.round((expectedSoFar - f.ltrIncome) * 100) / 100;
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Card
-        label="Rent collected"
+        label={f.strIncome > 0 ? "Rent + stays" : "Rent collected"}
         sub={
-          f.expectedRent > 0
-            ? missedRent > 0
-              ? `${currency.format(expectedSoFar)} expected so far — ${currency.format(missedRent)} not collected`
-              : throughMonth < 12 && f.expectedRent > expectedSoFar
-                ? `caught up · ${currency.format(f.expectedRent)} expected by year-end`
-                : `all of the ${currency.format(f.expectedRent)} expected`
-            : "no active leases this year"
+          f.strIncome > 0
+            ? `${currency.format(f.ltrIncome)} lease rent + ${currency.format(f.strIncome)} from ${f.bookedNights} nights${missedRent > 0 ? ` · ${currency.format(missedRent)} lease rent not collected` : ""}`
+            : f.expectedRent > 0
+              ? missedRent > 0
+                ? `${currency.format(expectedSoFar)} expected so far — ${currency.format(missedRent)} not collected`
+                : throughMonth < 12 && f.expectedRent > expectedSoFar
+                  ? `caught up · ${currency.format(f.expectedRent)} expected by year-end`
+                  : `all of the ${currency.format(f.expectedRent)} expected`
+              : "no leases or stays this year"
         }
       >
         <span className="text-emerald-300">{currency.format(f.rentCollected)}</span>

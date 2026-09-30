@@ -13,10 +13,12 @@ import {
   currencyCents,
 } from "@/components/propertyPanels";
 import {
+  addBooking,
   addLease,
   addMortgage,
   addPropertyExpense,
   addUnit,
+  deleteBooking,
   deleteLease,
   deleteMortgagePayment,
   deletePropertyExpense,
@@ -26,9 +28,12 @@ import {
   logMortgagePayment,
   logRentPayment,
   setPropertyArchived,
+  setUnitRentalType,
   updateMortgageBalance,
   updatePropertyValue,
 } from "@/app/propertyActions";
+import { BookingCsvImport } from "@/components/BookingCsvImport";
+import { nightsBetween } from "@/lib/property/bookingCsv";
 import { getPortfolioData } from "@/lib/property/data";
 import {
   equitySummary,
@@ -37,6 +42,7 @@ import {
 } from "@/lib/property/finance";
 import {
   EXPENSE_CATEGORY_LABELS,
+  PLATFORM_LABELS,
   PROPERTY_TYPE_LABELS,
   type ExpenseCategory,
 } from "@/lib/property/rows";
@@ -91,6 +97,7 @@ export default async function PropertyPage({
       rentPayments: data.rentPayments.filter((r) => r.property_id === id),
       expenses: data.expenses.filter((e) => e.property_id === id),
       mortgagePayments: data.mortgagePayments.filter((m) => m.property_id === id),
+      bookings: data.bookings.filter((b) => b.property_id === id),
     },
     currentYear,
   );
@@ -118,6 +125,23 @@ export default async function PropertyPage({
   const expenses = data.expenses.filter((e) => e.property_id === id);
   const mortgages = data.mortgages.filter((m) => m.property_id === id);
   const mortgagePays = data.mortgagePayments.filter((m) => m.property_id === id);
+
+  const strUnits = units.filter((u) => u.rental_type === "short_term");
+  const bookings = data.bookings.filter(
+    (b) => b.property_id === id && b.status !== "canceled",
+  );
+  const upcomingStays = bookings
+    .filter((b) => b.check_out >= todayISO)
+    .sort((a, b) => a.check_in.localeCompare(b.check_in));
+  const pastStays = bookings
+    .filter((b) => b.check_out < todayISO)
+    .sort((a, b) => b.check_in.localeCompare(a.check_in));
+  const showStays = strUnits.length > 0 || bookings.length > 0;
+  const defaultCheckOut = (() => {
+    const d = new Date(`${todayISO}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 2);
+    return d.toISOString().slice(0, 10);
+  })();
 
   const leaseLabel = (leaseId: string | null) => {
     const l = leases.find((x) => x.id === leaseId);
@@ -202,7 +226,11 @@ export default async function PropertyPage({
                 <li key={u.id} className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold text-white">{u.label}</p>
-                    {lease ? (
+                    {u.rental_type === "short_term" ? (
+                      <span className="rounded-full bg-sky-500/15 px-2.5 py-0.5 text-xs font-semibold text-sky-300">
+                        short-term · nightly stays
+                      </span>
+                    ) : lease ? (
                       <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
                         {`rented · ${currencyCents.format(Number(lease.rent_amount))}/mo`}
                       </span>
@@ -213,7 +241,19 @@ export default async function PropertyPage({
                     )}
                   </div>
 
-                  {lease ? (
+                  {u.rental_type === "short_term" ? (
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-300">
+                      <span>Stays and income for this unit live in the Stays panel below.</span>
+                      <InstantAction
+                        action={setUnitRentalType}
+                        values={{ id: u.id, property_id: id, rental_type: "long_term" }}
+                        message={`${u.label} is a long-term rental again.`}
+                        className="text-xs text-slate-400 transition hover:text-sky-300"
+                      >
+                        switch to long-term
+                      </InstantAction>
+                    </div>
+                  ) : lease ? (
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-300">
                       <span>
                         {`${lease.tenant_id ? tenantName.get(lease.tenant_id) ?? "Tenant" : "Tenant"} · since ${fmtDate(lease.start_date)} · due day ${lease.due_day}${Number(lease.deposit_amount) > 0 ? ` · ${currency.format(Number(lease.deposit_amount))} deposit held` : ""}`}
@@ -278,6 +318,19 @@ export default async function PropertyPage({
                     </form>
                   )}
 
+                  {u.rental_type === "long_term" && !lease && (
+                    <div className="mt-2 text-right">
+                      <InstantAction
+                        action={setUnitRentalType}
+                        values={{ id: u.id, property_id: id, rental_type: "short_term" }}
+                        message={`${u.label} is now a short-term rental — log stays or import a CSV below.`}
+                        className="text-xs text-slate-500 transition hover:text-sky-300"
+                      >
+                        {`rent ${u.label} nightly (short-term) instead`}
+                      </InstantAction>
+                    </div>
+                  )}
+
                   {pastLeases.length > 0 && (
                     <ul className="mt-2 space-y-1 border-t border-slate-800 pt-2">
                       {pastLeases.map((l) => (
@@ -337,6 +390,96 @@ export default async function PropertyPage({
               </div>
             ))}
         </Panel>
+
+        {/* Short-term stays: schedule, manual log, CSV import */}
+        {showStays && (
+          <Panel
+            title={`Stays${f.bookedNights > 0 ? ` — ${f.bookedNights} nights booked in ${year}` : ""}`}
+          >
+            {upcomingStays.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Schedule
+                </h3>
+                <ul className="mt-2 space-y-1.5">
+                  {upcomingStays.map((b) => (
+                    <li key={b.id} className="flex items-center justify-between text-sm">
+                      <span className="text-slate-200">
+                        {`${fmtDate(b.check_in)} → ${fmtDate(b.check_out)} · ${nightsBetween(b.check_in, b.check_out)} nights`}
+                        <span className="text-slate-400">
+                          {` · ${currencyCents.format(Number(b.payout))}${b.guest_name ? ` · ${b.guest_name}` : ""} · ${PLATFORM_LABELS[b.platform]}`}
+                        </span>
+                      </span>
+                      <InstantAction
+                        action={deleteBooking}
+                        values={{ id: b.id, property_id: id }}
+                        message="Stay deleted."
+                        className={delCls}
+                      >
+                        delete
+                      </InstantAction>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {/* Log one stay by hand */}
+            <form action={addBooking} className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-6">
+              <input type="hidden" name="property_id" value={id} />
+              {strUnits.length === 1 && (
+                <input type="hidden" name="unit_id" value={strUnits[0].id} />
+              )}
+              <input name="guest_name" placeholder="guest (optional)" className={inputCls} aria-label="Guest name" />
+              <input type="date" name="check_in" defaultValue={todayISO} required className={inputCls} aria-label="Check-in" />
+              <input type="date" name="check_out" defaultValue={defaultCheckOut} required className={inputCls} aria-label="Check-out" />
+              <MoneyInput name="payout" placeholder="payout" required className={inputCls} ariaLabel="Payout" />
+              <select name="platform" className={inputCls} defaultValue="direct" aria-label="Platform">
+                {Object.entries(PLATFORM_LABELS).map(([v, label]) => (
+                  <option key={v} value={v}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className={`${btnCls} self-end`}>
+                Log stay
+              </button>
+            </form>
+
+            <div className="mt-4">
+              <BookingCsvImport
+                propertyId={id}
+                units={(strUnits.length > 0 ? strUnits : units).map((u) => ({
+                  id: u.id,
+                  label: u.label,
+                }))}
+              />
+            </div>
+
+            {pastStays.length > 0 && (
+              <ul className="mt-4 space-y-1.5 border-t border-slate-800 pt-3">
+                {pastStays.slice(0, 10).map((b) => (
+                  <li key={b.id} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-300">
+                      {`${fmtDate(b.check_in)} · ${nightsBetween(b.check_in, b.check_out)} nights · ${currencyCents.format(Number(b.payout))}${b.guest_name ? ` · ${b.guest_name}` : ""} · ${PLATFORM_LABELS[b.platform]}`}
+                    </span>
+                    <InstantAction
+                      action={deleteBooking}
+                      values={{ id: b.id, property_id: id }}
+                      message="Stay deleted."
+                      className={delCls}
+                    >
+                      delete
+                    </InstantAction>
+                  </li>
+                ))}
+                {pastStays.length > 10 && (
+                  <li className="text-xs text-slate-500">{`${pastStays.length - 10} older stays not shown — they still count in the yearly numbers`}</li>
+                )}
+              </ul>
+            )}
+          </Panel>
+        )}
 
         {/* Rent ledger */}
         <Panel title="Rent received">

@@ -66,12 +66,46 @@ export interface PropertyRow {
   created_at: string;
 }
 
+export type RentalType = "long_term" | "short_term";
+
 export interface UnitRow {
   id: string;
   property_id: string;
   label: string;
   notes: string | null;
   sort_order: number;
+  /** How this unit rents: leases (long_term) or nightly stays (short_term). */
+  rental_type: RentalType;
+  created_at: string;
+}
+
+export type BookingPlatform = "airbnb" | "vrbo" | "booking" | "direct" | "other";
+
+export const PLATFORM_LABELS: Record<BookingPlatform, string> = {
+  airbnb: "Airbnb",
+  vrbo: "VRBO",
+  booking: "Booking.com",
+  direct: "Direct",
+  other: "Other",
+};
+
+/** One short-term stay; payout is what actually lands after platform fees. */
+export interface BookingRow {
+  id: string;
+  property_id: string;
+  unit_id: string | null;
+  guest_name: string | null;
+  platform: BookingPlatform;
+  check_in: string;
+  check_out: string;
+  payout: number;
+  gross_amount: number | null;
+  cleaning_fee: number | null;
+  platform_fee: number | null;
+  status: "confirmed" | "completed" | "canceled";
+  external_id: string | null;
+  source: "manual" | "csv";
+  note: string | null;
   created_at: string;
 }
 
@@ -160,4 +194,5 @@ export interface PortfolioData {
   expenses: PropertyExpenseRow[];
   mortgages: MortgageRow[];
   mortgagePayments: MortgagePaymentRow[];
+  bookings: BookingRow[];
 }

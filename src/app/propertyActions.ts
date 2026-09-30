@@ -186,6 +186,134 @@ export async function deleteLease(formData: FormData) {
 }
 
 // ---------------------------------------------------------------------------
+// Short-term rentals: unit mode, stays, and CSV import
+// ---------------------------------------------------------------------------
+
+export async function setUnitRentalType(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const type = str(formData, "rental_type");
+  if (!id || (type !== "long_term" && type !== "short_term")) return;
+  await supabase.from("units").update({ rental_type: type }).eq("id", id);
+  revalidateProperty(str(formData, "property_id"));
+}
+
+export async function addBooking(formData: FormData) {
+  const supabase = await createClient();
+  const propertyId = str(formData, "property_id");
+  const checkIn = str(formData, "check_in");
+  const checkOut = str(formData, "check_out");
+  const payout = num(formData, "payout");
+  if (!propertyId || !checkIn || !checkOut || checkOut <= checkIn || payout <= 0) return;
+  await supabase.from("bookings").insert({
+    property_id: propertyId,
+    unit_id: optStr(formData, "unit_id"),
+    guest_name: optStr(formData, "guest_name"),
+    platform: str(formData, "platform") || "direct",
+    check_in: checkIn,
+    check_out: checkOut,
+    payout,
+    source: "manual",
+  });
+  revalidateProperty(propertyId);
+}
+
+export async function deleteBooking(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  if (!id) return;
+  await supabase.from("bookings").delete().eq("id", id);
+  revalidateProperty(str(formData, "property_id"));
+}
+
+export interface ImportBookingsResult {
+  imported: number;
+  duplicates: number;
+  rejected: number;
+  error?: string;
+}
+
+/**
+ * Bulk-insert CSV-parsed stays for one property. Rows whose external_id the
+ * property has already seen are dropped (re-importing an export is a no-op);
+ * malformed rows are rejected, never silently mangled.
+ */
+export async function importBookings(formData: FormData): Promise<ImportBookingsResult> {
+  const supabase = await createClient();
+  const propertyId = str(formData, "property_id");
+  const unitId = optStr(formData, "unit_id");
+  const platform = str(formData, "platform") || "other";
+
+  let rows: unknown;
+  try {
+    rows = JSON.parse(str(formData, "payload"));
+  } catch {
+    return { imported: 0, duplicates: 0, rejected: 0, error: "unreadable payload" };
+  }
+  if (!propertyId || !Array.isArray(rows) || rows.length === 0) {
+    return { imported: 0, duplicates: 0, rejected: 0, error: "nothing to import" };
+  }
+  if (rows.length > 2000) {
+    return { imported: 0, duplicates: 0, rejected: 0, error: "that file has more than 2,000 stays — split it up" };
+  }
+
+  const DATE = /^\d{4}-\d{2}-\d{2}$/;
+  const optMoney = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0
+      ? Math.round(v * 100) / 100
+      : null;
+
+  let rejected = 0;
+  const clean: Record<string, unknown>[] = [];
+  for (const r of rows as Record<string, unknown>[]) {
+    const checkIn = typeof r.check_in === "string" && DATE.test(r.check_in) ? r.check_in : null;
+    const checkOut = typeof r.check_out === "string" && DATE.test(r.check_out) ? r.check_out : null;
+    const payout = optMoney(r.payout);
+    const externalId = typeof r.external_id === "string" && r.external_id ? r.external_id.slice(0, 120) : null;
+    if (!checkIn || !checkOut || checkOut <= checkIn || payout == null || !externalId) {
+      rejected += 1;
+      continue;
+    }
+    const allowed = ["airbnb", "vrbo", "booking", "direct", "other"];
+    // A row's own platform column (e.g. "Booking Site") beats the form default.
+    const rowPlatform =
+      typeof r.platform === "string" && allowed.includes(r.platform) ? r.platform : null;
+    clean.push({
+      property_id: propertyId,
+      unit_id: unitId,
+      guest_name: typeof r.guest_name === "string" && r.guest_name ? r.guest_name.slice(0, 200) : null,
+      platform: rowPlatform ?? (allowed.includes(platform) ? platform : "other"),
+      check_in: checkIn,
+      check_out: checkOut,
+      payout,
+      gross_amount: optMoney(r.gross_amount),
+      cleaning_fee: optMoney(r.cleaning_fee),
+      platform_fee: optMoney(r.platform_fee),
+      external_id: externalId,
+      source: "csv",
+    });
+  }
+
+  // Drop rows this property has already imported (same confirmation code).
+  const { data: existing } = await supabase
+    .from("bookings")
+    .select("external_id")
+    .eq("property_id", propertyId)
+    .in("external_id", clean.map((c) => c.external_id as string));
+  const seen = new Set((existing ?? []).map((e) => e.external_id));
+  const fresh = clean.filter((c) => !seen.has(c.external_id));
+
+  if (fresh.length > 0) {
+    const { error } = await supabase.from("bookings").insert(fresh);
+    if (error) {
+      return { imported: 0, duplicates: clean.length - fresh.length, rejected, error: "the database said no — try again" };
+    }
+  }
+  revalidateProperty(propertyId);
+  return { imported: fresh.length, duplicates: clean.length - fresh.length, rejected };
+}
+
+// ---------------------------------------------------------------------------
 // Rent payments
 // ---------------------------------------------------------------------------
 
