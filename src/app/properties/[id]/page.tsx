@@ -628,7 +628,7 @@ export default async function PropertyPage({
                       ) : (
                         `${currency.format(Number(m.current_balance))} balance`
                       )}
-                      {`${m.interest_rate != null ? ` · ${Number(m.interest_rate)}%` : ""}${Number(m.monthly_payment) > 0 ? ` · ${currencyCents.format(Number(m.monthly_payment))}/mo` : ""}${m.start_date ? ` · since ${fmtDate(m.start_date)}` : ""}`}
+                      {`${m.interest_rate != null ? ` · ${Number(m.interest_rate)}%` : ""}${Number(m.monthly_payment) > 0 ? ` · ${currencyCents.format(Number(m.monthly_payment))}/mo` : ""}${m.start_date ? ` · since ${fmtDate(m.start_date)}` : ""}${m.payoff_date ? ` · paid off ${fmtDate(m.payoff_date)}` : ""}`}
                     </p>
                   </div>
 
@@ -669,7 +669,7 @@ export default async function PropertyPage({
                         ? "Add the balance, rate, and other details"
                         : "Update loan details"}
                     </summary>
-                    <form action={updateMortgage} className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                    <form action={updateMortgage} className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-6">
                       <input type="hidden" name="id" value={m.id} />
                       <input type="hidden" name="property_id" value={id} />
                       <MoneyInput name="current_balance" placeholder="balance today" className={inputCls} ariaLabel="Current balance" />
@@ -679,10 +679,14 @@ export default async function PropertyPage({
                       </label>
                       <MoneyInput name="monthly_payment" placeholder="payment / mo" className={inputCls} ariaLabel="Monthly payment" />
                       <MoneyInput name="original_amount" placeholder="original loan" className={inputCls} ariaLabel="Original loan amount" />
+                      <label className="block text-xs text-slate-400">
+                        payoff date
+                        <input type="date" name="payoff_date" className={`mt-0.5 ${inputCls}`} />
+                      </label>
                       <button type="submit" className={`${btnCls} self-end`}>
                         Save details
                       </button>
-                      <p className="col-span-2 text-xs text-slate-500 sm:col-span-5">
+                      <p className="col-span-2 text-xs text-slate-500 sm:col-span-6">
                         Fill in only what you know — blank fields keep their current value.
                       </p>
                     </form>

@@ -414,11 +414,13 @@ export async function updateMortgage(formData: FormData) {
   const payment = optNum(formData, "monthly_payment");
   const original = optNum(formData, "original_amount");
   const startDate = optStr(formData, "start_date");
+  const payoffDate = optStr(formData, "payoff_date");
   if (balance != null) patch.current_balance = balance;
   if (rate != null) patch.interest_rate = rate;
   if (payment != null) patch.monthly_payment = payment;
   if (original != null) patch.original_amount = original;
   if (startDate) patch.start_date = startDate;
+  if (payoffDate) patch.payoff_date = payoffDate;
   if (Object.keys(patch).length === 0) return;
 
   await supabase.from("mortgages").update(patch).eq("id", id);

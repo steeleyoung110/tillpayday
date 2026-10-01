@@ -168,6 +168,8 @@ export interface MortgageRow {
   interest_rate: number | null;
   monthly_payment: number;
   start_date: string | null;
+  /** Scheduled end of the loan (start + term), e.g. 30 years out. */
+  payoff_date: string | null;
   notes: string | null;
   created_at: string;
 }
