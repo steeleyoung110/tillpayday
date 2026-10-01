@@ -356,16 +356,30 @@ export async function addPropertyExpense(formData: FormData) {
   const date = str(formData, "expense_date");
   const amount = num(formData, "amount");
   if (!propertyId || !date || amount <= 0) return;
+  const cadence = str(formData, "cadence");
   await supabase.from("property_expenses").insert({
     property_id: propertyId,
     unit_id: optStr(formData, "unit_id"),
     amount,
     expense_date: date,
     category: str(formData, "category") || "other",
+    cadence: ["one_time", "monthly", "quarterly", "yearly"].includes(cadence)
+      ? cadence
+      : "one_time",
     vendor: optStr(formData, "vendor"),
     note: optStr(formData, "note"),
   });
   revalidateProperty(propertyId);
+}
+
+/** House-hack: what share of this property is actually a rental (1–100%). */
+export async function setRentalShare(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  const share = Number(formData.get("rental_share"));
+  if (!id || !Number.isFinite(share) || share <= 0 || share > 100) return;
+  await supabase.from("properties").update({ rental_share: share }).eq("id", id);
+  revalidateProperty(id);
 }
 
 export async function deletePropertyExpense(formData: FormData) {

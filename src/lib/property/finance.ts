@@ -31,6 +31,18 @@ function ym(dateISO: string): { year: number; month: number } {
   return { year: Number(dateISO.slice(0, 4)), month: Number(dateISO.slice(5, 7)) };
 }
 
+/** ISO date + n months, day clamped to the target month's length. */
+function addMonthsISO(iso: string, n: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const ty = Math.floor(total / 12);
+  const tm = total % 12;
+  const dim = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  return `${ty}-${String(tm + 1).padStart(2, "0")}-${String(Math.min(d, dim)).padStart(2, "0")}`;
+}
+
+const CADENCE_MONTHS = { monthly: 1, quarterly: 3, yearly: 12 } as const;
+
 /** The month a rent payment counts toward. */
 export function rentAttribution(p: Pick<RentPaymentRow, "paid_date" | "period_month">): {
   year: number;
@@ -133,6 +145,7 @@ export function yearFinance(
     | "units"
     | "bookings"
     | "mortgages"
+    | "properties"
   >,
   year: number,
   propertyId: string | null = null,
@@ -146,6 +159,11 @@ export function yearFinance(
   const rents = matchProperty(data.rentPayments, propertyId);
   const expenses = matchProperty(data.expenses, propertyId);
   const debtPays = matchProperty(data.mortgagePayments, propertyId);
+
+  // House-hack share: costs count at each property's rental share (rent
+  // income is the rental's by definition and stays whole).
+  const shareMap = new Map(data.properties.map((p) => [p.id, Number(p.rental_share ?? 100)]));
+  const shareOf = (pid: string) => (shareMap.get(pid) ?? 100) / 100;
 
   // Leases attach to units; scope them through the unit's property.
   const unitToProperty = new Map(data.units.map((u) => [u.id, u.property_id]));
@@ -204,13 +222,31 @@ export function yearFinance(
   let totalExpenses = 0;
   let capex = 0;
   for (const e of expenses as PropertyExpenseRow[]) {
-    const at = ym(e.expense_date);
-    if (at.year !== year) continue;
-    const amt = Number(e.amount);
-    totalExpenses = round2(totalExpenses + amt);
-    if (e.category === "capex") capex = round2(capex + amt);
-    expensesByCategory[e.category] = round2((expensesByCategory[e.category] ?? 0) + amt);
-    months[at.month - 1].expenses = round2(months[at.month - 1].expenses + amt);
+    // Which months of `year` does this expense hit? A one-time expense hits
+    // its own date; a recurring one repeats from that date through today
+    // (never the future), exactly like the mortgage schedule.
+    const hitMonths: number[] = [];
+    if (e.cadence === "one_time" || !(e.cadence in CADENCE_MONTHS) || !scheduleThrough) {
+      const at = ym(e.expense_date);
+      if (at.year === year) hitMonths.push(at.month);
+    } else {
+      const step = CADENCE_MONTHS[e.cadence as keyof typeof CADENCE_MONTHS];
+      for (let k = 0, dIso = e.expense_date; dIso <= scheduleThrough; k += 1) {
+        const at = ym(dIso);
+        if (at.year === year) hitMonths.push(at.month);
+        if (at.year > year) break;
+        dIso = addMonthsISO(e.expense_date, (k + 1) * step);
+      }
+    }
+    if (hitMonths.length === 0) continue;
+
+    const amt = round2(Number(e.amount) * shareOf(e.property_id));
+    for (const m of hitMonths) {
+      totalExpenses = round2(totalExpenses + amt);
+      if (e.category === "capex") capex = round2(capex + amt);
+      expensesByCategory[e.category] = round2((expensesByCategory[e.category] ?? 0) + amt);
+      months[m - 1].expenses = round2(months[m - 1].expenses + amt);
+    }
   }
   const operatingExpenses = round2(totalExpenses - capex);
 
@@ -222,14 +258,15 @@ export function yearFinance(
   for (const p of debtPays as MortgagePaymentRow[]) {
     const at = ym(p.paid_date);
     if (at.year !== year) continue;
-    const amt = Number(p.amount);
+    const s = shareOf(p.property_id);
+    const amt = round2(Number(p.amount) * s);
     debtService = round2(debtService + amt);
     months[at.month - 1].debtService = round2(months[at.month - 1].debtService + amt);
     const hasSplit = p.principal != null || p.interest != null || p.escrow != null;
     if (hasSplit) {
-      principalPaid = round2(principalPaid + Number(p.principal ?? 0));
-      interestPaid = round2(interestPaid + Number(p.interest ?? 0));
-      escrowPaid = round2(escrowPaid + Number(p.escrow ?? 0));
+      principalPaid = round2(principalPaid + Number(p.principal ?? 0) * s);
+      interestPaid = round2(interestPaid + Number(p.interest ?? 0) * s);
+      escrowPaid = round2(escrowPaid + Number(p.escrow ?? 0) * s);
     } else {
       unsplitDebtService = round2(unsplitDebtService + amt);
     }
@@ -246,8 +283,8 @@ export function yearFinance(
       loggedMonths.add(`${p.mortgage_id}:${at.year}-${at.month}`);
     }
     for (const loan of matchProperty(data.mortgages, propertyId) as MortgageRow[]) {
-      const pay = Number(loan.monthly_payment);
-      if (!(pay > 0) || !loan.start_date) continue;
+      if (!(Number(loan.monthly_payment) > 0) || !loan.start_date) continue;
+      const pay = round2(Number(loan.monthly_payment) * shareOf(loan.property_id));
       for (let m = 1; m <= 12; m += 1) {
         const monthStart = `${year}-${String(m).padStart(2, "0")}-01`;
         const monthEnd = `${year}-${String(m).padStart(2, "0")}-31`;
@@ -346,6 +383,23 @@ export function equitySummary(
  * Which years have any logged activity (for the year picker). Always includes
  * `currentYear`, sorted descending.
  */
+/**
+ * With balance, rate, and payment known, estimate how this month's payment
+ * splits: interest = balance × rate/12, principal = payment − interest.
+ * Returns null when any ingredient is missing or the payment can't cover
+ * the interest (negative amortization — worth saying, not hiding).
+ */
+export function loanSplitEstimate(
+  balance: number | null,
+  ratePct: number | null,
+  payment: number,
+): { interest: number; principal: number; underwater: boolean } | null {
+  if (balance == null || ratePct == null || !(payment > 0)) return null;
+  const interest = round2((Number(balance) * Number(ratePct)) / 100 / 12);
+  const principal = round2(payment - interest);
+  return { interest, principal: Math.max(0, principal), underwater: principal < 0 };
+}
+
 export function yearsWithActivity(
   data: Pick<
     PortfolioData,
@@ -358,6 +412,12 @@ export function yearsWithActivity(
   for (const e of data.expenses) years.add(ym(e.expense_date).year);
   for (const p of data.mortgagePayments) years.add(ym(p.paid_date).year);
   for (const b of data.bookings) years.add(ym(b.check_in).year);
+  // Recurring expenses are activity in every year from their start.
+  for (const e of data.expenses) {
+    if (e.cadence === "one_time" || !(e.cadence in CADENCE_MONTHS)) continue;
+    const from = Number(e.expense_date.slice(0, 4));
+    for (let y = from; y <= currentYear; y += 1) years.add(y);
+  }
   // A loan on a schedule is activity in every year it runs.
   for (const m of data.mortgages) {
     if (!(Number(m.monthly_payment) > 0) || !m.start_date) continue;

@@ -9,9 +9,9 @@ const root = (p: string) =>
 describe("PWA manifest", () => {
   const m = manifest();
 
-  it("carries the Till Payday identity and brand colors", () => {
-    expect(m.name).toBe("Till Payday");
-    expect(m.short_name).toBe("Till Payday");
+  it("carries the Property Log identity and brand colors", () => {
+    expect(m.name).toBe("Property Log");
+    expect(m.short_name).toBe("Property Log");
     expect(m.theme_color).toBe("#123F3C"); // deep teal
     expect(m.background_color).toBe("#123F3C");
   });

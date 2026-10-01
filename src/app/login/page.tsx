@@ -20,22 +20,10 @@ export default async function LoginPage({
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-white">
-            Till <span className="text-emerald-400">Payday</span>
+            Property <span className="text-emerald-400">Log</span>
           </h1>
           <p className="mt-2 text-sm text-slate-400">
-            Plan your paychecks. See your future savings.
-          </p>
-          {/* A real button, not a footnote: seeing the thing working beats
-              any description, and it costs a first-time visitor nothing. */}
-          <a
-            href="/demo"
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-violet-500/50 bg-violet-500/10 px-4 py-2.5 font-semibold text-violet-200 transition hover:border-violet-400 hover:bg-violet-500/20"
-          >
-            <span aria-hidden>👀</span>
-            Try it with example data
-          </a>
-          <p className="mt-1.5 text-xs text-slate-400">
-            No signup — a sample budget you can look around.
+            Your properties, rents, and expenses — honest yearly numbers.
           </p>
         </div>
 
@@ -91,23 +79,6 @@ export default async function LoginPage({
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white outline-none focus:border-emerald-400"
             />
           </div>
-          <label className="flex items-start gap-2 pt-2 text-xs text-slate-400">
-            <input
-              type="checkbox"
-              name="legal_ack"
-              className="mt-0.5 accent-emerald-500"
-            />
-            <span>
-              For sign-up: I understand Till Payday is an educational tool that
-              shows math on numbers I enter — not financial advice.{" "}
-              <a
-                href="/legal"
-                className="text-emerald-300 underline-offset-2 hover:underline"
-              >
-                Learn more
-              </a>
-            </span>
-          </label>
           <div className="flex gap-3 pt-2">
             <button
               formAction={signIn}

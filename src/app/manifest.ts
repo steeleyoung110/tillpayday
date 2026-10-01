@@ -1,16 +1,16 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Web app manifest — makes Till Payday installable ("Add to Home Screen")
+ * Web app manifest — makes Property Log installable ("Add to Home Screen")
  * with a full-screen, branded app feel. Served at /manifest.webmanifest and
  * linked automatically by Next.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Till Payday",
-    short_name: "Till Payday",
+    name: "Property Log",
+    short_name: "Property Log",
     description:
-      "Plan your paychecks, see your safe-to-spend number, and watch your savings grow.",
+      "Your properties, rents, and expenses — one at a time or all together, with honest yearly numbers.",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -27,23 +27,16 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: "maskable",
       },
     ],
-    // Share TO Till Payday from any app (installed PWA): shared text lands
-    // in the Budget quick-spend form, prefilled.
-    share_target: {
-      action: "/budget",
-      method: "GET",
-      params: { title: "shared_title", text: "shared_text", url: "shared_url" },
-    },
-    // Long-press the home-screen icon → jump straight to the habit.
+    // Long-press the home-screen icon → straight to the portfolio or the list.
     shortcuts: [
       {
-        name: "Log a spend",
-        url: "/budget#bills",
+        name: "Portfolio",
+        url: "/",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
       {
-        name: "Safe to spend today?",
-        url: "/",
+        name: "Properties",
+        url: "/properties",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },
     ],

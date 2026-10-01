@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   equitySummary,
   leaseMonthsInYear,
+  loanSplitEstimate,
   rentAttribution,
   yearFinance,
   yearsWithActivity,
@@ -65,7 +66,7 @@ const exp = (
   category: PropertyExpenseRow["category"],
 ): PropertyExpenseRow => ({
   id, property_id, unit_id: null, amount, expense_date: date, category,
-  vendor: null, note: null, created_at: "",
+  cadence: "one_time", vendor: null, note: null, created_at: "",
 });
 
 const expenses: PropertyExpenseRow[] = [
@@ -102,6 +103,7 @@ const mortgagePayments: MortgagePaymentRow[] = [
 const data = {
   units, leases, rentPayments, expenses, mortgagePayments,
   bookings: [], mortgages: [] as MortgageRow[],
+  properties: [] as { id: string; rental_share: number }[],
 };
 
 describe("rentAttribution", () => {
@@ -185,6 +187,72 @@ describe("yearFinance — combined equals the sum of the parts", () => {
   it("monthly cash flow sums to the year", () => {
     const monthSum = all.months.reduce((s, m) => s + m.cashFlow, 0);
     expect(Math.abs(monthSum - all.cashFlow)).toBeLessThan(0.01);
+  });
+});
+
+describe("yearFinance — recurring expenses", () => {
+  const coa = {
+    id: "coa", property_id: "A", unit_id: null, amount: 439, expense_date: "2026-03-10",
+    category: "hoa" as const, cadence: "monthly" as const, vendor: null, note: null, created_at: "",
+  };
+
+  it("a monthly bill counts every month from its start through today", () => {
+    const f = yearFinance({ ...data, expenses: [coa] }, 2026, "A", "2026-10-01");
+    // Mar–Oct = 8 occurrences (Oct 10 > Oct 1? occurrence date 2026-10-10 > today → excluded → Mar–Sep = 7).
+    expect(f.expensesByCategory.hoa).toBe(439 * 7);
+    expect(f.months[2].expenses).toBe(439);
+    expect(f.months[9].expenses).toBe(0); // Oct 10 hasn't arrived
+  });
+
+  it("yearly and one-time cadences behave", () => {
+    const ins = { ...coa, id: "ins", cadence: "yearly" as const, expense_date: "2025-06-01", amount: 1242, category: "insurance" as const };
+    const f26 = yearFinance({ ...data, expenses: [ins] }, 2026, "A", "2026-10-01");
+    expect(f26.expensesByCategory.insurance).toBe(1242); // June 2026 renewal
+    const f25 = yearFinance({ ...data, expenses: [ins] }, 2025, "A", "2026-10-01");
+    expect(f25.expensesByCategory.insurance).toBe(1242);
+  });
+
+  it("without a schedule date only the original entry counts", () => {
+    const f = yearFinance({ ...data, expenses: [coa] }, 2026, "A");
+    expect(f.expensesByCategory.hoa).toBe(439);
+  });
+});
+
+describe("yearFinance — rental share (house-hack)", () => {
+  const shared = {
+    ...data,
+    properties: [{ id: "A", rental_share: 50 }],
+    mortgages: [{ ...mortgages[0], start_date: "2026-01-01" }],
+  };
+
+  it("halves costs but never rent", () => {
+    const f = yearFinance(shared, 2026, "A", "2026-10-01");
+    expect(f.rentCollected).toBe(1500 * 12); // income untouched
+    // Logged Jan–Mar at 50% + scheduled Apr–Oct at 50%.
+    expect(f.debtService).toBe((1264 / 2) * 10);
+    expect(f.principalPaid).toBe((300 + 302) / 2);
+    // Expenses fixture: 800 + 2400 + 5000 → halved.
+    expect(f.totalExpenses).toBe(8200 / 2);
+    expect(f.capex).toBe(2500);
+  });
+});
+
+describe("loanSplitEstimate", () => {
+  it("splits a payment into interest and principal", () => {
+    const s = loanSplitEstimate(175000, 6.5, 1264)!;
+    expect(s.interest).toBe(947.92);
+    expect(s.principal).toBe(316.08);
+    expect(s.underwater).toBe(false);
+  });
+  it("flags negative amortization instead of hiding it", () => {
+    const s = loanSplitEstimate(500000, 9, 1000)!;
+    expect(s.underwater).toBe(true);
+    expect(s.principal).toBe(0);
+  });
+  it("needs all three ingredients", () => {
+    expect(loanSplitEstimate(null, 6.5, 1264)).toBeNull();
+    expect(loanSplitEstimate(175000, null, 1264)).toBeNull();
+    expect(loanSplitEstimate(175000, 6.5, 0)).toBeNull();
   });
 });
 

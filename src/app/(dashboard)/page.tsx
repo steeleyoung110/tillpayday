@@ -17,6 +17,7 @@ import {
   yearsWithActivity,
 } from "@/lib/property/finance";
 import { PROPERTY_TYPE_LABELS } from "@/lib/property/rows";
+import { balanceLabel, leaseBalance } from "@/lib/property/tenancy";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -63,6 +64,28 @@ export default async function PortfolioPage({
   const units = data.units.filter((u) => propertyIds.has(u.property_id));
   const filled = units.filter((u) => occupiedUnits.has(u.id)).length;
 
+  // Who's behind: every active, started lease measured against its payments.
+  const unitToProperty = new Map(data.units.map((u) => [u.id, u.property_id]));
+  const propertyName = new Map(data.properties.map((p) => [p.id, p.name]));
+  const tenantNames = new Map(data.tenants.map((t) => [t.id, t.full_name]));
+  const arrears = data.leases
+    .filter(
+      (l) =>
+        l.status === "active" &&
+        l.start_date <= todayISO &&
+        propertyIds.has(unitToProperty.get(l.unit_id) ?? ""),
+    )
+    .map((l) => ({
+      lease: l,
+      bal: leaseBalance(
+        l,
+        data.rentPayments.filter((r) => r.lease_id === l.id),
+        todayISO,
+      ),
+    }))
+    .filter((x) => x.bal.owed > 0.005)
+    .sort((a, b) => b.bal.owed - a.bal.owed);
+
   return (
     <AppShell active="dashboard">
       <div className="mx-auto max-w-screen-2xl space-y-6 px-6 pt-6 2xl:px-10">
@@ -75,8 +98,40 @@ export default async function PortfolioPage({
                 : `${properties.length} ${properties.length === 1 ? "property" : "properties"} · ${filled} of ${units.length} ${units.length === 1 ? "unit" : "units"} filled today`}
             </p>
           </div>
-          <YearPicker years={years} active={year} basePath="/" />
+          <div className="flex flex-wrap items-center gap-3">
+            <YearPicker years={years} active={year} basePath="/" />
+            <Link
+              href={`/report?year=${year}`}
+              className="rounded-lg border border-slate-700 px-3 py-1 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
+            >
+              {`${year} report`}
+            </Link>
+          </div>
         </div>
+
+        {/* Rent that's owed, biggest problem first. */}
+        {arrears.length > 0 && (
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-rose-300">
+              Rent owed
+            </p>
+            <ul className="mt-2 space-y-1">
+              {arrears.map(({ lease, bal }) => {
+                const pid = unitToProperty.get(lease.unit_id) ?? "";
+                return (
+                  <li key={lease.id} className="text-sm text-slate-200">
+                    <Link href={`/properties/${pid}`} className="font-semibold hover:underline">
+                      {propertyName.get(pid) ?? "Property"}
+                    </Link>
+                    {` — ${lease.tenant_id ? tenantNames.get(lease.tenant_id) ?? "tenant" : "tenant"}: `}
+                    <span className="font-bold text-rose-300">{currency.format(bal.owed)}</span>
+                    {` owed · ${balanceLabel(bal)}`}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {properties.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 px-6 py-16 text-center">

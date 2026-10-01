@@ -63,6 +63,12 @@ export interface PropertyRow {
   current_value: number | null;
   notes: string | null;
   is_archived: boolean;
+  /**
+   * Percent of the property that is actually a rental (house-hack: owner in
+   * one half of a duplex → 50). Costs count at this share in cash-flow math;
+   * equity and debt stay at 100%.
+   */
+  rental_share: number;
   created_at: string;
 }
 
@@ -151,8 +157,11 @@ export interface PropertyExpenseRow {
   property_id: string;
   unit_id: string | null;
   amount: number;
+  /** First (or only) occurrence; recurring expenses repeat from here. */
   expense_date: string;
   category: ExpenseCategory;
+  /** one_time, or a schedule — scheduled months count automatically. */
+  cadence: "one_time" | "monthly" | "quarterly" | "yearly";
   vendor: string | null;
   note: string | null;
   created_at: string;

@@ -28,15 +28,19 @@ import {
   logMortgagePayment,
   logRentPayment,
   setPropertyArchived,
+  setRentalShare,
   setUnitRentalType,
   updateMortgage,
   updatePropertyValue,
 } from "@/app/propertyActions";
 import { BookingCsvImport } from "@/components/BookingCsvImport";
+import { PropertyDocs, type PropertyDoc } from "@/components/PropertyDocs";
 import { nightsBetween } from "@/lib/property/bookingCsv";
+import { balanceLabel, leaseBalance } from "@/lib/property/tenancy";
 import { getPortfolioData } from "@/lib/property/data";
 import {
   equitySummary,
+  loanSplitEstimate,
   yearFinance,
   yearsWithActivity,
 } from "@/lib/property/finance";
@@ -127,6 +131,28 @@ export default async function PropertyPage({
   const mortgages = data.mortgages.filter((m) => m.property_id === id);
   const mortgagePays = data.mortgagePayments.filter((m) => m.property_id === id);
 
+  // Document vault: list this property's files with short-lived signed links.
+  const { data: fileList } = await supabase.storage
+    .from("property-docs")
+    .list(`${user.id}/${id}`, { sortBy: { column: "created_at", order: "desc" } });
+  const docs: PropertyDoc[] = await Promise.all(
+    (fileList ?? [])
+      .filter((f) => f.name)
+      .map(async (f) => {
+        const { data: signed } = await supabase.storage
+          .from("property-docs")
+          .createSignedUrl(`${user.id}/${id}/${f.name}`, 3600);
+        return {
+          name: f.name,
+          url: signed?.signedUrl ?? "#",
+          sizeKB: f.metadata?.size ? Math.max(1, Math.round(f.metadata.size / 1024)) : null,
+        };
+      }),
+  );
+
+  const depositsHeld = activeLeases.reduce((s, l) => s + Number(l.deposit_amount), 0);
+  const rentalShare = Number(property.rental_share ?? 100);
+
   const strUnits = units.filter((u) => u.rental_type === "short_term");
   const bookings = data.bookings.filter(
     (b) => b.property_id === id && b.status !== "canceled",
@@ -212,6 +238,33 @@ export default async function PropertyPage({
           </div>
         </div>
 
+        {/* House-hack share */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3">
+          <p className="text-xs text-slate-400">
+            {rentalShare < 100
+              ? `Counting ${rentalShare}% of this property's costs — the rest is the home you live in. Equity and the loan balance stay at 100%: you owe all of it.`
+              : "Live in part of this one? Set the rental share and only that slice of the costs counts."}
+          </p>
+          <form action={setRentalShare} className="flex items-center gap-2">
+            <input type="hidden" name="id" value={id} />
+            <label className="text-xs text-slate-400">
+              {"rental share % "}
+              <input
+                type="number"
+                name="rental_share"
+                min={1}
+                max={100}
+                step={1}
+                defaultValue={rentalShare}
+                className="ml-1 w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white outline-none focus:border-emerald-400"
+              />
+            </label>
+            <button type="submit" className="rounded-lg bg-slate-700 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-slate-600">
+              save
+            </button>
+          </form>
+        </div>
+
         {/* This year's numbers */}
         <FinanceCards
           f={f}
@@ -223,7 +276,9 @@ export default async function PropertyPage({
         </Panel>
 
         {/* Units & leases */}
-        <Panel title="Units & leases">
+        <Panel
+          title={`Units & leases${depositsHeld > 0 ? ` — ${currency.format(depositsHeld)} in deposits held` : ""}`}
+        >
           <ul className="space-y-3">
             {units.map((u) => {
               const lease = leaseByUnit.get(u.id);
@@ -263,6 +318,22 @@ export default async function PropertyPage({
                     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-300">
                       <span>
                         {`${lease.tenant_id ? tenantName.get(lease.tenant_id) ?? "Tenant" : "Tenant"} · since ${fmtDate(lease.start_date)} · due day ${lease.due_day}${Number(lease.deposit_amount) > 0 ? ` · ${currency.format(Number(lease.deposit_amount))} deposit held` : ""}`}
+                        {(() => {
+                          const bal = leaseBalance(
+                            lease,
+                            data.rentPayments.filter((r) => r.lease_id === lease.id),
+                            todayISO,
+                          );
+                          return bal.owed > 0.005 ? (
+                            <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-300">
+                              {`${currency.format(bal.owed)} owed · ${balanceLabel(bal)}`}
+                            </span>
+                          ) : (
+                            <span className="ml-2 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-300">
+                              {balanceLabel(bal)}
+                            </span>
+                          );
+                        })()}
                       </span>
                       <InstantAction
                         action={endLease}
@@ -402,6 +473,56 @@ export default async function PropertyPage({
           <Panel
             title={`Stays${f.bookedNights > 0 ? ` — ${f.bookedNights} nights booked in ${year}` : ""}`}
           >
+            {f.bookedNights > 0 && (
+              <div className="mb-4 grid grid-cols-3 gap-3">
+                {(() => {
+                  const daysInYear = Number(todayISO.slice(0, 4)) === year
+                    ? Math.max(
+                        1,
+                        Math.round(
+                          (Date.parse(`${todayISO}T00:00:00Z`) -
+                            Date.parse(`${year}-01-01T00:00:00Z`)) /
+                            86400000,
+                        ) + 1,
+                      )
+                    : Math.round(
+                        (Date.parse(`${year + 1}-01-01T00:00:00Z`) -
+                          Date.parse(`${year}-01-01T00:00:00Z`)) /
+                          86400000,
+                      );
+                  const occupancy = Math.round((f.bookedNights / daysInYear) * 100);
+                  const busiest = f.months.reduce((a, b) =>
+                    b.bookedNights > a.bookedNights ? b : a,
+                  );
+                  const stats = [
+                    {
+                      label: "Occupancy",
+                      value: `${Math.min(100, occupancy)}%`,
+                      foot: `${f.bookedNights} of ${daysInYear} nights${year === Number(todayISO.slice(0, 4)) ? " so far" : ""}`,
+                    },
+                    {
+                      label: "Avg per night",
+                      value: currencyCents.format(
+                        f.bookedNights > 0 ? f.strIncome / f.bookedNights : 0,
+                      ),
+                      foot: `${currency.format(f.strIncome)} from stays`,
+                    },
+                    {
+                      label: "Busiest month",
+                      value: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][busiest.month - 1],
+                      foot: `${busiest.bookedNights} nights`,
+                    },
+                  ];
+                  return stats.map((s) => (
+                    <div key={s.label} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{s.label}</p>
+                      <p className="mt-0.5 text-xl font-bold text-white">{s.value}</p>
+                      <p className="text-xs text-slate-500">{s.foot}</p>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
             {upcomingStays.length > 0 && (
               <>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -550,7 +671,7 @@ export default async function PropertyPage({
 
         {/* Expense ledger */}
         <Panel title="Expenses">
-          <form action={addPropertyExpense} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <form action={addPropertyExpense} className="grid grid-cols-2 gap-2 sm:grid-cols-6">
             <input type="hidden" name="property_id" value={id} />
             <MoneyInput
               name="amount"
@@ -574,10 +695,20 @@ export default async function PropertyPage({
                 </option>
               ))}
             </select>
+            <select name="cadence" className={inputCls} defaultValue="one_time" aria-label="Repeats">
+              <option value="one_time">one-time</option>
+              <option value="monthly">repeats monthly</option>
+              <option value="quarterly">repeats quarterly</option>
+              <option value="yearly">repeats yearly</option>
+            </select>
             <input name="note" placeholder="note (optional)" className={inputCls} aria-label="Note" />
             <button type="submit" className={`${btnCls} self-end`}>
               Log expense
             </button>
+            <p className="col-span-2 text-xs text-slate-500 sm:col-span-6">
+              A repeating bill (COA dues, insurance) is one entry — it counts every
+              scheduled month through today automatically, never the future.
+            </p>
           </form>
 
           <ul className="mt-4 space-y-1.5">
@@ -587,7 +718,7 @@ export default async function PropertyPage({
             {expenses.slice(0, 15).map((e) => (
               <li key={e.id} className="flex items-center justify-between text-sm">
                 <span className="text-slate-300">
-                  {`${currencyCents.format(Number(e.amount))} · ${EXPENSE_CATEGORY_LABELS[e.category]} · ${fmtDate(e.expense_date)}${e.note ? ` — ${e.note}` : ""}`}
+                  {`${currencyCents.format(Number(e.amount))} · ${EXPENSE_CATEGORY_LABELS[e.category]} · ${fmtDate(e.expense_date)}${e.cadence !== "one_time" ? ` · repeats ${e.cadence}` : ""}${e.note ? ` — ${e.note}` : ""}`}
                 </span>
                 <InstantAction
                   action={deletePropertyExpense}
@@ -632,6 +763,21 @@ export default async function PropertyPage({
                       {`${m.interest_rate != null ? ` · ${Number(m.interest_rate)}%` : ""}${Number(m.monthly_payment) > 0 ? ` · ${currencyCents.format(Number(m.monthly_payment))}/mo` : ""}${m.start_date ? ` · since ${fmtDate(m.start_date)}` : ""}${m.payoff_date ? ` · paid off ${fmtDate(m.payoff_date)}` : ""}`}
                     </p>
                   </div>
+                  {(() => {
+                    const est = loanSplitEstimate(
+                      m.current_balance == null ? null : Number(m.current_balance),
+                      m.interest_rate == null ? null : Number(m.interest_rate),
+                      Number(m.monthly_payment),
+                    );
+                    if (!est) return null;
+                    return (
+                      <p className="mt-1 text-xs text-slate-400">
+                        {est.underwater
+                          ? `⚠ At ${Number(m.interest_rate)}%, interest alone is ${currencyCents.format(est.interest)}/mo — the payment doesn't cover it.`
+                          : `Right now ≈ ${currencyCents.format(est.interest)} of each payment is interest, ${currencyCents.format(est.principal)} builds equity.`}
+                      </p>
+                    );
+                  })()}
 
                   <form action={logMortgagePayment} className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
                     <input type="hidden" name="mortgage_id" value={m.id} />
@@ -746,6 +892,11 @@ export default async function PropertyPage({
               )}
             </ul>
           )}
+        </Panel>
+
+        {/* Documents */}
+        <Panel title="Documents">
+          <PropertyDocs userId={user.id} propertyId={id} docs={docs} />
         </Panel>
 
         {/* Archive */}
