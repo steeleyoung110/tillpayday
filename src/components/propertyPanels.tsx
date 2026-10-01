@@ -122,9 +122,19 @@ export function FinanceCards({ f, throughMonth = 12 }: { f: YearFinance; through
         sub={
           f.debtService === 0
             ? "no payments logged"
-            : f.unsplitDebtService > 0
-              ? `${currency.format(f.unsplitDebtService)} logged without a principal/interest split`
-              : `${currency.format(f.principalPaid)} of it built equity (principal)`
+            : [
+                f.scheduledDebtService > 0
+                  ? `${currency.format(f.scheduledDebtService)} assumed from the monthly schedule`
+                  : null,
+                f.unsplitDebtService > 0
+                  ? `${currency.format(f.unsplitDebtService)} logged without a split`
+                  : null,
+                f.principalPaid > 0
+                  ? `${currency.format(f.principalPaid)} built equity (principal)`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "logged payments"
         }
       >
         <span className="text-amber-300">{currency.format(f.debtService)}</span>

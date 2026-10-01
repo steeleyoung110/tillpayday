@@ -44,7 +44,7 @@ export default async function PortfolioPage({
   const requested = Number(sp.year);
   const year = years.includes(requested) ? requested : currentYear;
 
-  const combined = yearFinance(data, year, null);
+  const combined = yearFinance(data, year, null, todayISO);
   const equity = equitySummary(data.properties, data.mortgages, null);
   const properties = data.properties.filter((p) => !p.is_archived);
 
@@ -159,7 +159,7 @@ export default async function PortfolioPage({
               {/* One card per property, with its own year numbers. */}
               <div className="space-y-3">
                 {properties.map((p) => {
-                  const f = yearFinance(data, year, p.id);
+                  const f = yearFinance(data, year, p.id, todayISO);
                   return (
                     <Link
                       key={p.id}

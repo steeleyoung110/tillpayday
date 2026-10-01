@@ -98,13 +98,14 @@ export default async function PropertyPage({
       expenses: data.expenses.filter((e) => e.property_id === id),
       mortgagePayments: data.mortgagePayments.filter((m) => m.property_id === id),
       bookings: data.bookings.filter((b) => b.property_id === id),
+      mortgages: data.mortgages.filter((m) => m.property_id === id),
     },
     currentYear,
   );
   const requested = Number(sp.year);
   const year = years.includes(requested) ? requested : currentYear;
 
-  const f = yearFinance(data, year, id);
+  const f = yearFinance(data, year, id, todayISO);
   const eq = equitySummary(data.properties, data.mortgages, id);
 
   const units = data.units.filter((u) => u.property_id === id);

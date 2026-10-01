@@ -80,7 +80,7 @@ const mortgages: MortgageRow[] = [
   {
     id: "mA", property_id: "A", lender: "Big Bank", original_amount: 200000,
     current_balance: 175000, interest_rate: 6.5, monthly_payment: 1264,
-    start_date: "2023-01-01", notes: null, created_at: "",
+    start_date: "2023-01-01", payoff_date: null, notes: null, created_at: "",
   },
 ];
 
@@ -99,7 +99,10 @@ const mortgagePayments: MortgagePaymentRow[] = [
   mpay("m3", 1264, "2026-03-01"), // logged without a split
 ];
 
-const data = { units, leases, rentPayments, expenses, mortgagePayments, bookings: [] };
+const data = {
+  units, leases, rentPayments, expenses, mortgagePayments,
+  bookings: [], mortgages: [] as MortgageRow[],
+};
 
 describe("rentAttribution", () => {
   it("uses the covered month when set, else the paid month", () => {
@@ -182,6 +185,47 @@ describe("yearFinance — combined equals the sum of the parts", () => {
   it("monthly cash flow sums to the year", () => {
     const monthSum = all.months.reduce((s, m) => s + m.cashFlow, 0);
     expect(Math.abs(monthSum - all.cashFlow)).toBeLessThan(0.01);
+  });
+});
+
+describe("yearFinance — scheduled debt service", () => {
+  // Property A already has logged payments for Jan, Feb, Mar 2026.
+  const withLoan = { ...data, mortgages };
+
+  it("assumes the monthly payment for schedule months with nothing logged", () => {
+    const f = yearFinance(withLoan, 2026, "A", "2026-10-01");
+    // Jan–Mar are logged; Apr–Oct (7 months) are assumed; Nov–Dec are future.
+    expect(f.scheduledDebtService).toBe(1264 * 7);
+    expect(f.debtService).toBe(1264 * 3 + 1264 * 7);
+    expect(f.months[0].debtService).toBe(1264); // logged, not doubled
+    expect(f.months[3].debtService).toBe(1264); // assumed
+    expect(f.months[10].debtService).toBe(0); // November hasn't happened
+  });
+
+  it("starts at the loan's start month and stops at payoff", () => {
+    const bounded = {
+      ...data,
+      mortgagePayments: [],
+      mortgages: [{ ...mortgages[0], start_date: "2026-03-15", payoff_date: "2026-06-30" }],
+    };
+    const f = yearFinance(bounded, 2026, "A", "2026-12-31");
+    // Mar, Apr, May, Jun only.
+    expect(f.scheduledDebtService).toBe(1264 * 4);
+    expect(f.months[1].debtService).toBe(0);
+    expect(f.months[6].debtService).toBe(0);
+  });
+
+  it("assumes nothing without a schedule date (pure history mode)", () => {
+    const f = yearFinance(withLoan, 2026, "A");
+    expect(f.scheduledDebtService).toBe(0);
+    expect(f.debtService).toBe(1264 * 3);
+  });
+
+  it("cash flow includes the assumed payments", () => {
+    const f = yearFinance(withLoan, 2026, "A", "2026-10-01");
+    expect(f.cashFlow).toBe(
+      f.rentCollected - f.totalExpenses - (1264 * 3 + 1264 * 7),
+    );
   });
 });
 

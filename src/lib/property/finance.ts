@@ -85,6 +85,12 @@ export interface YearFinance {
   escrowPaid: number;
   /** Dollars of mortgage payments logged without a principal/interest split. */
   unsplitDebtService: number;
+  /**
+   * Debt service assumed from each loan's monthly payment schedule for months
+   * with no logged payment. Included in debtService; surfaced so the UI can
+   * say which part is assumption rather than record.
+   */
+  scheduledDebtService: number;
   /** rent − all expenses − all mortgage payments. The number you lived. */
   cashFlow: number;
   months: MonthFinance[];
@@ -120,10 +126,22 @@ export function leaseMonthsInYear(lease: LeaseRow, year: number): number[] {
 export function yearFinance(
   data: Pick<
     PortfolioData,
-    "rentPayments" | "expenses" | "mortgagePayments" | "leases" | "units" | "bookings"
+    | "rentPayments"
+    | "expenses"
+    | "mortgagePayments"
+    | "leases"
+    | "units"
+    | "bookings"
+    | "mortgages"
   >,
   year: number,
   propertyId: string | null = null,
+  /**
+   * Today (YYYY-MM-DD). When given, loans with a monthly payment count as
+   * paid in every schedule month up to this date unless a real payment was
+   * logged that month. Omitted = only logged payments count.
+   */
+  scheduleThrough?: string,
 ): YearFinance {
   const rents = matchProperty(data.rentPayments, propertyId);
   const expenses = matchProperty(data.expenses, propertyId);
@@ -217,6 +235,33 @@ export function yearFinance(
     }
   }
 
+  // Scheduled debt service: "I pay $X a month since <date>" counts as paid in
+  // every schedule month that has started, without logging each one. A month
+  // with a real logged payment uses the logged truth instead, never both.
+  let scheduledDebtService = 0;
+  if (scheduleThrough) {
+    const loggedMonths = new Set<string>();
+    for (const p of debtPays as MortgagePaymentRow[]) {
+      const at = ym(p.paid_date);
+      loggedMonths.add(`${p.mortgage_id}:${at.year}-${at.month}`);
+    }
+    for (const loan of matchProperty(data.mortgages, propertyId) as MortgageRow[]) {
+      const pay = Number(loan.monthly_payment);
+      if (!(pay > 0) || !loan.start_date) continue;
+      for (let m = 1; m <= 12; m += 1) {
+        const monthStart = `${year}-${String(m).padStart(2, "0")}-01`;
+        const monthEnd = `${year}-${String(m).padStart(2, "0")}-31`;
+        if (monthStart > scheduleThrough) continue; // the future isn't paid yet
+        if (loan.start_date > monthEnd) continue; // before the loan began
+        if (loan.payoff_date && loan.payoff_date < monthStart) continue; // done
+        if (loggedMonths.has(`${loan.id}:${year}-${m}`)) continue;
+        scheduledDebtService = round2(scheduledDebtService + pay);
+        debtService = round2(debtService + pay);
+        months[m - 1].debtService = round2(months[m - 1].debtService + pay);
+      }
+    }
+  }
+
   let expectedRent = 0;
   for (const lease of leases) {
     const rent = Number(lease.rent_amount);
@@ -249,6 +294,7 @@ export function yearFinance(
     principalPaid,
     escrowPaid,
     unsplitDebtService,
+    scheduledDebtService,
     cashFlow: round2(rentCollected - totalExpenses - debtService),
     months,
   };
@@ -301,7 +347,10 @@ export function equitySummary(
  * `currentYear`, sorted descending.
  */
 export function yearsWithActivity(
-  data: Pick<PortfolioData, "rentPayments" | "expenses" | "mortgagePayments" | "bookings">,
+  data: Pick<
+    PortfolioData,
+    "rentPayments" | "expenses" | "mortgagePayments" | "bookings" | "mortgages"
+  >,
   currentYear: number,
 ): number[] {
   const years = new Set<number>([currentYear]);
@@ -309,5 +358,15 @@ export function yearsWithActivity(
   for (const e of data.expenses) years.add(ym(e.expense_date).year);
   for (const p of data.mortgagePayments) years.add(ym(p.paid_date).year);
   for (const b of data.bookings) years.add(ym(b.check_in).year);
+  // A loan on a schedule is activity in every year it runs.
+  for (const m of data.mortgages) {
+    if (!(Number(m.monthly_payment) > 0) || !m.start_date) continue;
+    const from = Number(m.start_date.slice(0, 4));
+    const to = Math.min(
+      currentYear,
+      m.payoff_date ? Number(m.payoff_date.slice(0, 4)) : currentYear,
+    );
+    for (let y = from; y <= to; y += 1) years.add(y);
+  }
   return [...years].sort((a, b) => b - a);
 }

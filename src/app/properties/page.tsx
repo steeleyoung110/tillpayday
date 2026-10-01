@@ -28,7 +28,8 @@ export default async function PropertiesPage() {
   if (!user) redirect("/login");
 
   const data = await getPortfolioData();
-  const year = new Date().getFullYear();
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const year = Number(todayISO.slice(0, 4));
   const active = data.properties.filter((p) => !p.is_archived);
   const archived = data.properties.filter((p) => p.is_archived);
 
@@ -47,7 +48,7 @@ export default async function PropertiesPage() {
           )}
           {active.map((p) => {
             const units = data.units.filter((u) => u.property_id === p.id);
-            const f = yearFinance(data, year, p.id);
+            const f = yearFinance(data, year, p.id, todayISO);
             const eq = equitySummary(data.properties, data.mortgages, p.id);
             return (
               <li key={p.id}>
