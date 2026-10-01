@@ -118,6 +118,11 @@ export default async function PortfolioPage({
                 <p className="mt-1 text-2xl font-bold text-rose-400">
                   {currency.format(equity.debt)}
                 </p>
+                {equity.debtIncomplete && (
+                  <p className="mt-1 text-xs text-amber-300">
+                    A loan is missing its balance — this number is low.
+                  </p>
+                )}
               </div>
               <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">

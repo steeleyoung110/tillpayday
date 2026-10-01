@@ -29,7 +29,7 @@ import {
   logRentPayment,
   setPropertyArchived,
   setUnitRentalType,
-  updateMortgageBalance,
+  updateMortgage,
   updatePropertyValue,
 } from "@/app/propertyActions";
 import { BookingCsvImport } from "@/components/BookingCsvImport";
@@ -192,6 +192,11 @@ export default async function PropertyPage({
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Owed</p>
             <p className="mt-1 text-2xl font-bold text-rose-400">{currency.format(eq.debt)}</p>
+            {eq.debtIncomplete && (
+              <p className="mt-1 text-xs text-amber-300">
+                A loan has no balance entered yet — Owed and Equity are missing it.
+              </p>
+            )}
             {property.purchase_price != null && (
               <p className="mt-1 text-xs text-slate-400">
                 {`bought for ${currency.format(Number(property.purchase_price))}${property.purchase_date ? ` on ${fmtDate(property.purchase_date)}` : ""}`}
@@ -618,7 +623,12 @@ export default async function PropertyPage({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold text-white">{m.lender}</p>
                     <p className="text-sm text-slate-300">
-                      {`${currency.format(Number(m.current_balance))} balance${m.interest_rate != null ? ` · ${Number(m.interest_rate)}%` : ""}${Number(m.monthly_payment) > 0 ? ` · ${currencyCents.format(Number(m.monthly_payment))}/mo` : ""}`}
+                      {m.current_balance == null ? (
+                        <span className="text-amber-300">balance not set yet</span>
+                      ) : (
+                        `${currency.format(Number(m.current_balance))} balance`
+                      )}
+                      {`${m.interest_rate != null ? ` · ${Number(m.interest_rate)}%` : ""}${Number(m.monthly_payment) > 0 ? ` · ${currencyCents.format(Number(m.monthly_payment))}/mo` : ""}${m.start_date ? ` · since ${fmtDate(m.start_date)}` : ""}`}
                     </p>
                   </div>
 
@@ -653,19 +663,30 @@ export default async function PropertyPage({
                     </p>
                   </form>
 
-                  <form action={updateMortgageBalance} className="mt-1 flex items-center gap-2">
-                    <input type="hidden" name="id" value={m.id} />
-                    <input type="hidden" name="property_id" value={id} />
-                    <MoneyInput
-                      name="current_balance"
-                      placeholder="correct the balance"
-                      className={inputCls}
-                      ariaLabel="Set current balance"
-                    />
-                    <button type="submit" className="shrink-0 rounded-lg bg-slate-700 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-slate-600">
-                      set balance
-                    </button>
-                  </form>
+                  <details className="mt-1">
+                    <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200">
+                      {m.current_balance == null
+                        ? "Add the balance, rate, and other details"
+                        : "Update loan details"}
+                    </summary>
+                    <form action={updateMortgage} className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      <input type="hidden" name="id" value={m.id} />
+                      <input type="hidden" name="property_id" value={id} />
+                      <MoneyInput name="current_balance" placeholder="balance today" className={inputCls} ariaLabel="Current balance" />
+                      <label className="block text-xs text-slate-400">
+                        rate %
+                        <input type="number" step="0.001" min="0" name="interest_rate" className={`mt-0.5 ${inputCls}`} />
+                      </label>
+                      <MoneyInput name="monthly_payment" placeholder="payment / mo" className={inputCls} ariaLabel="Monthly payment" />
+                      <MoneyInput name="original_amount" placeholder="original loan" className={inputCls} ariaLabel="Original loan amount" />
+                      <button type="submit" className={`${btnCls} self-end`}>
+                        Save details
+                      </button>
+                      <p className="col-span-2 text-xs text-slate-500 sm:col-span-5">
+                        Fill in only what you know — blank fields keep their current value.
+                      </p>
+                    </form>
+                  </details>
                 </li>
               ))}
             </ul>
@@ -675,18 +696,26 @@ export default async function PropertyPage({
             <summary className="cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200">
               Add a loan
             </summary>
-            <form action={addMortgage} className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+            <form action={addMortgage} className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-6">
               <input type="hidden" name="property_id" value={id} />
               <input name="lender" placeholder="lender" required className={inputCls} aria-label="Lender" />
-              <MoneyInput name="current_balance" placeholder="balance today" required className={inputCls} ariaLabel="Current balance" />
+              <MoneyInput name="monthly_payment" placeholder="payment / mo" required className={inputCls} ariaLabel="Monthly payment" />
               <label className="block text-xs text-slate-400">
-                rate %
+                first payment
+                <input type="date" name="start_date" className={`mt-0.5 ${inputCls}`} aria-label="First payment date" />
+              </label>
+              <MoneyInput name="current_balance" placeholder="balance (optional)" className={inputCls} ariaLabel="Current balance, optional" />
+              <label className="block text-xs text-slate-400">
+                rate % (optional)
                 <input type="number" step="0.001" min="0" name="interest_rate" className={`mt-0.5 ${inputCls}`} />
               </label>
-              <MoneyInput name="monthly_payment" placeholder="payment / mo" className={inputCls} ariaLabel="Monthly payment" />
               <button type="submit" className={`${btnCls} self-end`}>
                 Add loan
               </button>
+              <p className="col-span-2 text-xs text-slate-500 sm:col-span-6">
+                Lender and monthly payment are enough to start — add the balance and
+                rate whenever you get them.
+              </p>
             </form>
           </details>
 

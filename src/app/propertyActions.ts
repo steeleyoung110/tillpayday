@@ -380,6 +380,11 @@ export async function deletePropertyExpense(formData: FormData) {
 // Mortgages
 // ---------------------------------------------------------------------------
 
+/**
+ * "Mortgage of $X a month starting <date>" is enough to create the loan.
+ * Balance, rate and the rest can be filled in later with updateMortgage,
+ * once the statement is in hand.
+ */
 export async function addMortgage(formData: FormData) {
   const supabase = await createClient();
   const propertyId = str(formData, "property_id");
@@ -389,7 +394,7 @@ export async function addMortgage(formData: FormData) {
     property_id: propertyId,
     lender,
     original_amount: optNum(formData, "original_amount"),
-    current_balance: num(formData, "current_balance"),
+    current_balance: optNum(formData, "current_balance"),
     interest_rate: optNum(formData, "interest_rate"),
     monthly_payment: num(formData, "monthly_payment"),
     start_date: optStr(formData, "start_date"),
@@ -397,12 +402,26 @@ export async function addMortgage(formData: FormData) {
   revalidateProperty(propertyId);
 }
 
-export async function updateMortgageBalance(formData: FormData) {
+/** Fill in or correct loan details — only the fields that were typed change. */
+export async function updateMortgage(formData: FormData) {
   const supabase = await createClient();
   const id = str(formData, "id");
+  if (!id) return;
+
+  const patch: Record<string, number | string> = {};
   const balance = optNum(formData, "current_balance");
-  if (!id || balance == null) return;
-  await supabase.from("mortgages").update({ current_balance: balance }).eq("id", id);
+  const rate = optNum(formData, "interest_rate");
+  const payment = optNum(formData, "monthly_payment");
+  const original = optNum(formData, "original_amount");
+  const startDate = optStr(formData, "start_date");
+  if (balance != null) patch.current_balance = balance;
+  if (rate != null) patch.interest_rate = rate;
+  if (payment != null) patch.monthly_payment = payment;
+  if (original != null) patch.original_amount = original;
+  if (startDate) patch.start_date = startDate;
+  if (Object.keys(patch).length === 0) return;
+
+  await supabase.from("mortgages").update(patch).eq("id", id);
   revalidateProperty(str(formData, "property_id"));
 }
 
@@ -445,7 +464,8 @@ export async function logMortgagePayment(formData: FormData) {
       .select("current_balance")
       .eq("id", mortgageId)
       .single();
-    if (m) {
+    // No known balance means nothing to step down — the payment still logs.
+    if (m && m.current_balance != null) {
       const next = Math.max(0, Number(m.current_balance) - principal);
       await supabase.from("mortgages").update({ current_balance: next }).eq("id", mortgageId);
     }

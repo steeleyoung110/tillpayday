@@ -257,11 +257,13 @@ export function yearFinance(
 export interface EquitySummary {
   /** Sum of current values (falling back to purchase price when unset). */
   value: number;
-  /** Sum of mortgage balances. */
+  /** Sum of known mortgage balances. */
   debt: number;
   equity: number;
   /** True when at least one property has neither value nor purchase price. */
   valueIncomplete: boolean;
+  /** True when a mortgage in view has no balance entered yet. */
+  debtIncomplete: boolean;
 }
 
 /** Portfolio (or one property's) value, debt and equity as of today’s records. */
@@ -281,11 +283,17 @@ export function equitySummary(
     else value = round2(value + Number(v));
   }
   // Debt counts only against the properties in view (archived ones are out).
+  // A loan with no balance entered can't be summed — it flags the result as
+  // incomplete instead of silently counting as zero debt.
   const inView = new Set(props.map((p) => p.id));
-  const debt = mortgages
-    .filter((m) => inView.has(m.property_id))
-    .reduce((s, m) => round2(s + Number(m.current_balance)), 0);
-  return { value, debt, equity: round2(value - debt), valueIncomplete };
+  let debt = 0;
+  let debtIncomplete = false;
+  for (const m of mortgages) {
+    if (!inView.has(m.property_id)) continue;
+    if (m.current_balance == null) debtIncomplete = true;
+    else debt = round2(debt + Number(m.current_balance));
+  }
+  return { value, debt, equity: round2(value - debt), valueIncomplete, debtIncomplete };
 }
 
 /**

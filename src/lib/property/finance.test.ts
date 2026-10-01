@@ -261,6 +261,16 @@ describe("equitySummary", () => {
     expect(s.equity).toBe(310000);
   });
 
+  it("a balance-less loan flags the math as incomplete instead of counting as $0", () => {
+    const s = equitySummary(
+      properties,
+      [...mortgages, { ...mortgages[0], id: "mB", property_id: "B", current_balance: null }],
+      null,
+    );
+    expect(s.debt).toBe(175000); // only the known balance
+    expect(s.debtIncomplete).toBe(true);
+  });
+
   it("flags properties with no value at all", () => {
     const s = equitySummary(
       [{ id: "C", current_value: null, purchase_price: null, is_archived: false }],

@@ -163,7 +163,8 @@ export interface MortgageRow {
   property_id: string;
   lender: string;
   original_amount: number | null;
-  current_balance: number;
+  /** null = not entered yet (equity math reports itself incomplete). */
+  current_balance: number | null;
   interest_rate: number | null;
   monthly_payment: number;
   start_date: string | null;
