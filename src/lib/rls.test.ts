@@ -1,14 +1,14 @@
 /**
  * Row-level-security integration test — proves one user can never read,
- * modify, or forge another user's rows, on every table in the app.
+ * modify, or forge another user's rows, on every property table in the app.
  *
  * Runs against the real Supabase project using the public anon key (the same
  * credentials the browser gets), signed in as two pre-seeded, pre-confirmed
  * test users. If .env.local is missing the suite skips instead of failing, so
  * unit tests still run anywhere.
  *
- * Test users are seeded by supabase/migrations (see repo docs): they exist only
- * for this suite and own no real data.
+ * Test users are seeded once (see repo docs): they exist only for this suite
+ * and own no real data.
  */
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -23,7 +23,7 @@ function loadEnvLocal(): Record<string, string> {
       if (m && !(m[1] in process.env)) env[m[1]] = m[2];
     }
   } catch {
-    // no .env.local — fall back to process.env only
+    // no .env.local — suite will skip
   }
   return env;
 }
@@ -38,68 +38,95 @@ const USER_B = "rls-test-b@tillpayday.local";
 const PASSWORD = "RLS-probe-9f2e7c41!"; // throwaway test-only credentials
 
 /**
- * One minimal valid row per table; user_id is filled in by `default auth.uid()`.
- * `mutate` is a valid column change used to prove cross-user updates bounce.
+ * One minimal valid row per table, built in dependency order so foreign keys
+ * can reference the rows created before them. `mutate` is a valid column
+ * change used to prove cross-user updates bounce; `original` is the value the
+ * mutated column must still hold afterwards.
  */
 const FIXTURES: {
   table: string;
-  row: Record<string, unknown>;
+  row: (ids: Map<string, string>) => Record<string, unknown>;
   mutate: Record<string, unknown>;
+  original: unknown;
 }[] = [
   {
-    table: "income_sources",
-    row: { name: "RLS probe", amount: 1, frequency: "monthly", kind: "paycheck", anchor_date: "2026-01-01" },
+    table: "properties",
+    row: () => ({ name: "RLS probe", address: "nowhere" }),
     mutate: { name: "hijacked" },
+    original: "RLS probe",
   },
   {
-    table: "buckets",
-    row: { name: "RLS probe", allocation_type: "fixed", allocation_value: 1 },
-    mutate: { name: "hijacked" },
+    table: "units",
+    row: (ids) => ({ property_id: ids.get("properties"), label: "RLS probe" }),
+    mutate: { label: "hijacked" },
+    original: "RLS probe",
   },
   {
-    table: "expenses",
-    row: { name: "RLS probe", amount: 1, due_date: "2026-01-01", cadence: "one_time" },
-    mutate: { name: "hijacked" },
+    table: "tenants",
+    row: () => ({ full_name: "RLS probe" }),
+    mutate: { full_name: "hijacked" },
+    original: "RLS probe",
   },
   {
-    table: "whatif_items",
-    row: { name: "RLS probe", amount: 1, target_date: "2026-01-01" },
-    mutate: { name: "hijacked" },
+    table: "leases",
+    row: (ids) => ({
+      unit_id: ids.get("units"),
+      tenant_id: ids.get("tenants"),
+      rent_amount: 1,
+      start_date: "2020-01-01",
+    }),
+    mutate: { start_date: "2021-02-02" },
+    original: "2020-01-01",
   },
   {
-    table: "net_worth_items",
-    row: { name: "RLS probe", kind: "asset", category: "cash", amount: 1 },
-    mutate: { name: "hijacked" },
+    table: "rent_payments",
+    row: (ids) => ({
+      property_id: ids.get("properties"),
+      lease_id: ids.get("leases"),
+      amount: 1,
+      paid_date: "2020-01-01",
+    }),
+    mutate: { paid_date: "2021-02-02" },
+    original: "2020-01-01",
   },
   {
-    table: "celebrated_paydays",
-    row: { payday: "2020-01-02" },
-    mutate: { payday: "2021-12-31" },
+    table: "property_expenses",
+    row: (ids) => ({
+      property_id: ids.get("properties"),
+      amount: 1,
+      expense_date: "2020-01-01",
+      category: "other",
+    }),
+    mutate: { expense_date: "2021-02-02" },
+    original: "2020-01-01",
   },
   {
-    table: "income_entries",
-    row: { amount: 1, received_date: "2020-01-03" },
-    mutate: { received_date: "2021-06-06" },
+    table: "mortgages",
+    row: (ids) => ({ property_id: ids.get("properties"), lender: "RLS probe" }),
+    mutate: { lender: "hijacked" },
+    original: "RLS probe",
   },
   {
-    table: "assets",
-    row: { name: "RLS probe", category: "cash", current_value: 1 },
-    mutate: { name: "hijacked" },
+    table: "mortgage_payments",
+    row: (ids) => ({
+      mortgage_id: ids.get("mortgages"),
+      property_id: ids.get("properties"),
+      amount: 1,
+      paid_date: "2020-01-01",
+    }),
+    mutate: { paid_date: "2021-02-02" },
+    original: "2020-01-01",
   },
   {
-    table: "liabilities",
-    row: { name: "RLS probe", category: "credit_card", current_balance: 1 },
-    mutate: { name: "hijacked" },
-  },
-  {
-    table: "net_worth_snapshots",
-    row: { snapshot_date: "2020-01-06", total_assets: 1, total_liabilities: 0, net_worth: 1 },
-    mutate: { snapshot_date: "2020-01-07" },
-  },
-  {
-    table: "goals",
-    row: { name: "RLS probe", target_amount: 1, target_date: "2020-01-08" },
-    mutate: { name: "hijacked" },
+    table: "bookings",
+    row: (ids) => ({
+      property_id: ids.get("properties"),
+      check_in: "2020-01-01",
+      check_out: "2020-01-03",
+      payout: 1,
+    }),
+    mutate: { check_in: "2021-01-01" },
+    original: "2020-01-01",
   },
 ];
 
@@ -135,16 +162,21 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
     }
     aUserId = ra.data.user!.id;
 
-    // User A creates one probe row per table.
+    // User A creates one probe row per table, in dependency order.
     for (const f of FIXTURES) {
-      const { data, error } = await a.from(f.table).insert(f.row).select("id").single();
+      const { data, error } = await a
+        .from(f.table)
+        .insert(f.row(createdIds))
+        .select("id")
+        .single();
       if (error) throw new Error(`insert into ${f.table} failed: ${error.message}`);
       createdIds.set(f.table, (data as { id: string }).id);
     }
   }, TIMEOUT);
 
   afterAll(async () => {
-    for (const f of FIXTURES) {
+    // Deleting the property cascades everything else; the rest are no-ops.
+    for (const f of [...FIXTURES].reverse()) {
       const id = createdIds.get(f.table);
       if (id) await a.from(f.table).delete().eq("id", id);
     }
@@ -179,7 +211,7 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
           .select(field)
           .eq("id", createdIds.get(f.table)!)
           .single();
-        expect((still as Record<string, unknown>)[field]).toBe(f.row[field]);
+        expect((still as Record<string, unknown>)[field]).toBe(f.original);
       });
 
       it("another user cannot delete the row", { timeout: TIMEOUT }, async () => {
@@ -194,7 +226,7 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
       it("a user cannot forge a row under someone else's user_id", { timeout: TIMEOUT }, async () => {
         const { error } = await b
           .from(f.table)
-          .insert({ ...f.row, user_id: aUserId });
+          .insert({ ...f.row(createdIds), user_id: aUserId });
         expect(error).not.toBeNull(); // violates the with-check policy
       });
 
@@ -204,136 +236,4 @@ describe.runIf(configured)("row-level security — cross-user isolation", () => 
       });
     });
   }
-
-  describe("net_worth_snapshots — at most one per user per day", () => {
-    const day = "2020-02-02";
-
-    afterAll(async () => {
-      await a.from("net_worth_snapshots").delete().eq("snapshot_date", day);
-    }, TIMEOUT);
-
-    it("a second write on the same day updates in place", { timeout: TIMEOUT }, async () => {
-      await a.from("net_worth_snapshots").upsert(
-        { snapshot_date: day, total_assets: 100, total_liabilities: 40, net_worth: 60 },
-        { onConflict: "user_id,snapshot_date" },
-      );
-      await a.from("net_worth_snapshots").upsert(
-        { snapshot_date: day, total_assets: 250, total_liabilities: 50, net_worth: 200 },
-        { onConflict: "user_id,snapshot_date" },
-      );
-      const { data } = await a
-        .from("net_worth_snapshots")
-        .select("net_worth")
-        .eq("snapshot_date", day);
-      expect(data).toHaveLength(1); // one row per day, updated in place
-      expect(Number(data![0].net_worth)).toBe(200);
-    });
-  });
-});
-
-describe.runIf(configured)("household sharing — grants are read-only", () => {
-  let a: SupabaseClient;
-  let b: SupabaseClient;
-  let aUserId: string;
-  let shareId: string;
-  let bucketId: string;
-
-  const mkClient = () =>
-    createClient(URL_!, ANON!, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-  beforeAll(async () => {
-    a = mkClient();
-    b = mkClient();
-    const [ra, rb] = await Promise.all([
-      a.auth.signInWithPassword({ email: USER_A, password: PASSWORD }),
-      b.auth.signInWithPassword({ email: USER_B, password: PASSWORD }),
-    ]);
-    if (ra.error || rb.error) throw new Error("share suite sign-in failed");
-    aUserId = ra.data.user!.id;
-
-    const { data: bucket, error: be } = await a
-      .from("buckets")
-      .insert({ name: "RLS share probe", allocation_type: "fixed", allocation_value: 1 })
-      .select("id")
-      .single();
-    if (be) throw new Error(be.message);
-    bucketId = bucket.id;
-
-    const { data: share, error: se } = await a
-      .from("shared_access")
-      .insert({ owner_email: USER_A, viewer_email: USER_B })
-      .select("id")
-      .single();
-    if (se) throw new Error(se.message);
-    shareId = share.id;
-  }, TIMEOUT);
-
-  afterAll(async () => {
-    await a.from("shared_access").delete().eq("id", shareId);
-    await a.from("buckets").delete().eq("id", bucketId);
-    await Promise.all([a.auth.signOut(), b.auth.signOut()]);
-  }, TIMEOUT);
-
-  it("the viewer can READ the owner's rows", { timeout: TIMEOUT }, async () => {
-    const { data, error } = await b.from("buckets").select("id");
-    expect(error).toBeNull();
-    expect(data!.map((r) => r.id)).toContain(bucketId);
-  });
-
-  it("the viewer can discover the grant aimed at them", { timeout: TIMEOUT }, async () => {
-    const { data } = await b.from("shared_access").select("id, owner_id");
-    expect(data!.map((r) => r.id)).toContain(shareId);
-  });
-
-  it("the viewer still cannot UPDATE the owner's rows", { timeout: TIMEOUT }, async () => {
-    const { data } = await b
-      .from("buckets")
-      .update({ name: "hijacked" })
-      .eq("id", bucketId)
-      .select();
-    expect(data ?? []).toHaveLength(0);
-    const { data: still } = await a.from("buckets").select("name").eq("id", bucketId).single();
-    expect(still!.name).toBe("RLS share probe");
-  });
-
-  it("the viewer still cannot DELETE the owner's rows", { timeout: TIMEOUT }, async () => {
-    await b.from("buckets").delete().eq("id", bucketId);
-    const { data: still } = await a.from("buckets").select("id").eq("id", bucketId);
-    expect(still).toHaveLength(1);
-  });
-
-  it("the viewer still cannot forge rows under the owner's id", { timeout: TIMEOUT }, async () => {
-    const { error } = await b
-      .from("buckets")
-      .insert({ name: "forged", allocation_type: "fixed", allocation_value: 1, user_id: aUserId });
-    expect(error).not.toBeNull();
-  });
-
-  it("the viewer cannot grant themselves shares of the owner's budget", { timeout: TIMEOUT }, async () => {
-    const { error } = await b
-      .from("shared_access")
-      .insert({ owner_id: aUserId, owner_email: USER_A, viewer_email: USER_B });
-    expect(error).not.toBeNull();
-  });
-
-  it("revoking the grant removes visibility immediately", { timeout: TIMEOUT }, async () => {
-    await a.from("shared_access").delete().eq("id", shareId);
-    const { data } = await b.from("buckets").select("id");
-    expect(data!.map((r) => r.id)).not.toContain(bucketId);
-    // Re-create so afterAll's cleanup delete is a no-op-safe operation.
-    const { data: share } = await a
-      .from("shared_access")
-      .insert({ owner_email: USER_A, viewer_email: USER_B })
-      .select("id")
-      .single();
-    shareId = share!.id;
-  });
-});
-
-describe.runIf(!configured)("row-level security (skipped)", () => {
-  it("skipped — NEXT_PUBLIC_SUPABASE_URL / ANON_KEY not configured", () => {
-    expect(configured).toBe(false);
-  });
 });

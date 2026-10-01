@@ -1,25 +1,12 @@
 import Link from "next/link";
 import { NavLink } from "@/components/NavLink";
-import { QuickAdd } from "@/components/QuickAdd";
-import { QuickNav } from "@/components/QuickNav";
 
 /**
- * App navigation frame — property-management era: Dashboard (all properties
- * combined), Properties (one at a time), Settings. Sidebar on desktop,
- * bottom tab bar on mobile.
- *
- * The old budget-era keys stay in the NavKey union so retired pages still
- * compile until they're deleted; they just aren't in the nav anymore.
+ * App navigation frame: Dashboard (all properties combined), Properties
+ * (one at a time), Settings. Sidebar on desktop, bottom tab bar on mobile.
  */
 
-export type NavKey =
-  | "dashboard"
-  | "properties"
-  | "budget"
-  | "networth"
-  | "grow"
-  | "updates"
-  | "settings";
+export type NavKey = "dashboard" | "properties" | "settings";
 
 const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: "📊" },
@@ -30,24 +17,16 @@ const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
 export function AppShell({
   active,
   children,
-  quickAdd,
 }: {
   active: NavKey;
   children: React.ReactNode;
-  /** Enables the floating "+" — omitted on screens with no budget context. */
-  quickAdd?: {
-    buckets: { id: string; name: string }[];
-    todayISO: string;
-    fallbackBucketId: string;
-  };
 }) {
   return (
     <div className="min-h-screen bg-slate-950">
-      {/* Hidden until focused: lets keyboard users jump the five nav items. */}
+      {/* Hidden until focused: lets keyboard users jump the nav. */}
       <a href="#main" className="skip-link">
         Skip to your numbers
       </a>
-      <QuickNav />
       {/* Desktop sidebar */}
       <aside
         aria-label="Main navigation"
@@ -86,14 +65,6 @@ export function AppShell({
       <main id="main" className="pb-24 md:pb-10 md:pl-52">
         {children}
       </main>
-
-      {quickAdd && (
-        <QuickAdd
-          buckets={quickAdd.buckets}
-          todayISO={quickAdd.todayISO}
-          fallbackBucketId={quickAdd.fallbackBucketId}
-        />
-      )}
 
       {/* Mobile bottom tab bar */}
       <nav
