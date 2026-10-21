@@ -45,7 +45,7 @@ const pay = (
   id: string, property_id: string, amount: number, paid: string, period: string | null = null,
 ): RentPaymentRow => ({
   id, property_id, lease_id: null, amount, paid_date: paid, period_month: period,
-  method: null, note: null, created_at: "",
+  status: "received", expected_date: null, method: null, note: null, created_at: "",
 });
 
 // A collects all 12 months of 2026; one January payment arrived late (Feb 3)
@@ -396,5 +396,110 @@ describe("equitySummary", () => {
 describe("yearsWithActivity", () => {
   it("collects every year money moved, newest first, always including now", () => {
     expect(yearsWithActivity(data, 2027)).toEqual([2027, 2026, 2025]);
+  });
+});
+
+describe("yearFinance — pending money (purple, counts toward nothing)", () => {
+  const pendingPay = (
+    id: string, amount: number, expected: string, period: string | null = null,
+  ): RentPaymentRow => ({
+    id, property_id: "A", lease_id: "lA", amount, paid_date: null,
+    period_month: period, status: "pending", expected_date: expected,
+    method: null, note: null, created_at: "",
+  });
+
+  it("a pending rent payment is tracked by expected month but counted nowhere", () => {
+    const base = yearFinance(data, 2026, "A");
+    const withPending = yearFinance(
+      { ...data, rentPayments: [...rentPayments, pendingPay("p1", 1311, "2026-10-31")] },
+      2026,
+      "A",
+    );
+    // Nothing real moved…
+    expect(withPending.rentCollected).toBe(base.rentCollected);
+    expect(withPending.ltrIncome).toBe(base.ltrIncome);
+    expect(withPending.cashFlow).toBe(base.cashFlow);
+    expect(withPending.collectionRate).toBe(base.collectionRate);
+    // …but the promise is visible, in October.
+    expect(withPending.pendingRent).toBe(1311);
+    expect(withPending.months[9].pendingRent).toBe(1311);
+    expect(withPending.months[9].rentCollected).toBe(base.months[9].rentCollected);
+  });
+
+  it("marking it received makes it real money (and no longer pending)", () => {
+    const received: RentPaymentRow = {
+      ...pendingPay("p1", 1311, "2026-10-31"),
+      status: "received",
+      paid_date: "2026-10-28",
+    };
+    const f = yearFinance({ ...data, rentPayments: [...rentPayments, received] }, 2026, "A");
+    expect(f.pendingRent).toBe(0);
+    expect(f.ltrIncome).toBe(1500 * 12 + 1311);
+  });
+
+  it("rentAttribution falls back to the expected date while pending", () => {
+    expect(rentAttribution(pendingPay("p1", 100, "2026-10-31"))).toEqual({
+      year: 2026,
+      month: 10,
+    });
+    // covers-month still wins when set
+    expect(rentAttribution(pendingPay("p2", 100, "2026-10-31", "2026-09-01"))).toEqual({
+      year: 2026,
+      month: 9,
+    });
+  });
+
+  const stay = (
+    id: string, check_in: string, check_out: string, payout: number,
+    status: BookingRow["status"] = "confirmed",
+  ): BookingRow => ({
+    id, property_id: "B", unit_id: "uB2", guest_name: "Guest", platform: "airbnb",
+    check_in, check_out, payout, gross_amount: null, cleaning_fee: null,
+    platform_fee: null, status, external_id: null, source: "csv", note: null,
+    created_at: "",
+  });
+
+  it("a stay is pending through its check-out day and real the day after", () => {
+    const strData = { ...data, bookings: [stay("b1", "2026-10-20", "2026-10-23", 300)] };
+
+    // Mid-stay: promised, not real.
+    const during = yearFinance(strData, 2026, "B", "2026-10-21");
+    expect(during.strIncome).toBe(0);
+    expect(during.pendingRent).toBe(300);
+    expect(during.months[9].pendingRent).toBe(300);
+
+    // Check-out day itself: the guest can still walk the money back.
+    const checkoutDay = yearFinance(strData, 2026, "B", "2026-10-23");
+    expect(checkoutDay.pendingRent).toBe(300);
+    expect(checkoutDay.strIncome).toBe(0);
+
+    // The day after checkout: it happened — the money is real.
+    const after = yearFinance(strData, 2026, "B", "2026-10-24");
+    expect(after.pendingRent).toBe(0);
+    expect(after.strIncome).toBe(300);
+    expect(after.rentCollected).toBe(11000 + 300);
+  });
+
+  it("canceled stays are neither pending nor income", () => {
+    const strData = {
+      ...data,
+      bookings: [stay("b1", "2026-11-01", "2026-11-04", 400, "canceled")],
+    };
+    const f = yearFinance(strData, 2026, "B", "2026-10-21");
+    expect(f.pendingRent).toBe(0);
+    expect(f.strIncome).toBe(0);
+  });
+
+  it("without a today, historical math stays untouched (nothing pends)", () => {
+    const strData = { ...data, bookings: [stay("b1", "2026-12-28", "2027-01-02", 900)] };
+    const f = yearFinance(strData, 2026, "B");
+    expect(f.strIncome).toBe(900);
+    expect(f.pendingRent).toBe(0);
+  });
+
+  it("nights still count toward occupancy while the payout pends", () => {
+    const strData = { ...data, bookings: [stay("b1", "2026-10-20", "2026-10-23", 300)] };
+    const f = yearFinance(strData, 2026, "B", "2026-10-21");
+    expect(f.bookedNights).toBe(3); // the calendar is booked either way
   });
 });

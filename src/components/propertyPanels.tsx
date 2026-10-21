@@ -94,15 +94,22 @@ export function FinanceCards({ f, throughMonth = 12 }: { f: YearFinance; through
       <Card
         label={f.strIncome > 0 ? "Rent + stays" : "Rent collected"}
         sub={
-          f.strIncome > 0
-            ? `${currency.format(f.ltrIncome)} lease rent + ${currency.format(f.strIncome)} from ${f.bookedNights} nights${missedRent > 0 ? ` · ${currency.format(missedRent)} lease rent not collected` : ""}`
-            : f.expectedRent > 0
-              ? missedRent > 0
-                ? `${currency.format(expectedSoFar)} expected so far — ${currency.format(missedRent)} not collected`
-                : throughMonth < 12 && f.expectedRent > expectedSoFar
-                  ? `caught up · ${currency.format(f.expectedRent)} expected by year-end`
-                  : `all of the ${currency.format(f.expectedRent)} expected`
-              : "no leases or stays this year"
+          <>
+            {f.strIncome > 0
+              ? `${currency.format(f.ltrIncome)} lease rent + ${currency.format(f.strIncome)} from ${f.bookedNights} nights${missedRent > 0 ? ` · ${currency.format(missedRent)} lease rent not collected` : ""}`
+              : f.expectedRent > 0
+                ? missedRent > 0
+                  ? `${currency.format(expectedSoFar)} expected so far — ${currency.format(missedRent)} not collected`
+                  : throughMonth < 12 && f.expectedRent > expectedSoFar
+                    ? `caught up · ${currency.format(f.expectedRent)} expected by year-end`
+                    : `all of the ${currency.format(f.expectedRent)} expected`
+                : "no leases or stays this year"}
+            {f.pendingRent > 0 && (
+              <span className="text-violet-300">
+                {` · ${currency.format(f.pendingRent)} pending — counted nowhere until it lands`}
+              </span>
+            )}
+          </>
         }
       >
         <span className="text-emerald-300">{currency.format(f.rentCollected)}</span>

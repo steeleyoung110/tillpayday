@@ -320,9 +320,13 @@ export async function importBookings(formData: FormData): Promise<ImportBookings
 export async function logRentPayment(formData: FormData) {
   const supabase = await createClient();
   const propertyId = str(formData, "property_id");
-  const paidDate = str(formData, "paid_date");
+  const date = str(formData, "paid_date");
   const amount = num(formData, "amount");
-  if (!propertyId || !paidDate || amount <= 0) return;
+  if (!propertyId || !date || amount <= 0) return;
+
+  // Pending = promised money (check in the mail): the date field is when
+  // it's EXPECTED, and the row counts toward nothing until marked received.
+  const pending = str(formData, "status") === "pending";
 
   // "Covers month" arrives as YYYY-MM from a month input; store its first day.
   const period = str(formData, "period_month");
@@ -330,12 +334,29 @@ export async function logRentPayment(formData: FormData) {
     property_id: propertyId,
     lease_id: optStr(formData, "lease_id"),
     amount,
-    paid_date: paidDate,
+    status: pending ? "pending" : "received",
+    paid_date: pending ? null : date,
+    expected_date: pending ? date : null,
     period_month: period ? `${period.slice(0, 7)}-01` : null,
     method: optStr(formData, "method"),
     note: optStr(formData, "note"),
   });
   revalidateProperty(propertyId);
+}
+
+/** The promised money landed: flip a pending payment into a real one. */
+export async function markRentPaymentReceived(formData: FormData) {
+  const supabase = await createClient();
+  const id = str(formData, "id");
+  if (!id) return;
+  const paidDate =
+    str(formData, "paid_date") || new Date().toISOString().slice(0, 10);
+  await supabase
+    .from("rent_payments")
+    .update({ status: "received", paid_date: paidDate })
+    .eq("id", id)
+    .eq("status", "pending");
+  revalidateProperty(str(formData, "property_id"));
 }
 
 export async function deleteRentPayment(formData: FormData) {

@@ -43,12 +43,33 @@ function addMonthsISO(iso: string, n: number): string {
 
 const CADENCE_MONTHS = { monthly: 1, quarterly: 3, yearly: 12 } as const;
 
-/** The month a rent payment counts toward. */
-export function rentAttribution(p: Pick<RentPaymentRow, "paid_date" | "period_month">): {
+/**
+ * The month a rent payment counts toward: the month it covers when known,
+ * else the month it landed — or, while still pending, the month it's expected.
+ */
+export function rentAttribution(
+  p: Pick<RentPaymentRow, "paid_date" | "period_month"> &
+    Partial<Pick<RentPaymentRow, "expected_date">>,
+): {
   year: number;
   month: number;
 } {
-  return ym(p.period_month ?? p.paid_date);
+  return ym(p.period_month ?? p.paid_date ?? p.expected_date ?? "1970-01-01");
+}
+
+/**
+ * Is this booking's money real yet? A stay counts as PENDING through its
+ * check-out day and becomes real income the day AFTER checkout — a guest can
+ * still cancel or claw back mid-stay (ask the pest-allegation refund).
+ * Canceled stays are neither. Without a `today`, nothing is pending (pure
+ * historical math).
+ */
+export function isBookingPending(
+  b: Pick<BookingRow, "check_out" | "status">,
+  todayISO?: string,
+): boolean {
+  if (!todayISO || b.status === "canceled") return false;
+  return todayISO <= b.check_out;
 }
 
 export interface MonthFinance {
@@ -56,6 +77,11 @@ export interface MonthFinance {
   month: number;
   /** All income that landed: lease rent + short-term stay payouts. */
   rentCollected: number;
+  /**
+   * Money promised but not real yet: pending rent payments (by expected
+   * month) + payouts of stays that haven't finished. Counts toward nothing.
+   */
+  pendingRent: number;
   /** Short-term nights of stays falling inside this month. */
   bookedNights: number;
   /** All property expenses (operating + capex). */
@@ -78,6 +104,11 @@ export interface YearFinance {
   ltrIncome: number;
   /** Short-term booking payouts only (counted in their check-in month). */
   strIncome: number;
+  /**
+   * Promised-but-not-landed money for the year: pending rent payments plus
+   * payouts of stays not yet finished. Shown in purple; in no other total.
+   */
+  pendingRent: number;
   /** Short-term nights that fall inside this year. */
   bookedNights: number;
   /** What active leases said should arrive (long-term only). */
@@ -174,6 +205,7 @@ export function yearFinance(
   const months: MonthFinance[] = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     rentCollected: 0,
+    pendingRent: 0,
     bookedNights: 0,
     expenses: 0,
     debtService: 0,
@@ -182,10 +214,17 @@ export function yearFinance(
   }));
 
   let rentCollected = 0;
+  let pendingRent = 0;
   for (const p of rents) {
     const at = rentAttribution(p);
     if (at.year !== year) continue;
     const amt = Number(p.amount);
+    if (p.status === "pending") {
+      // Promised money: visible, never counted.
+      pendingRent = round2(pendingRent + amt);
+      months[at.month - 1].pendingRent = round2(months[at.month - 1].pendingRent + amt);
+      continue;
+    }
     rentCollected = round2(rentCollected + amt);
     months[at.month - 1].rentCollected = round2(months[at.month - 1].rentCollected + amt);
   }
@@ -202,11 +241,20 @@ export function yearFinance(
     const at = ym(b.check_in);
     if (at.year === year) {
       const amt = Number(b.payout);
-      strIncome = round2(strIncome + amt);
-      rentCollected = round2(rentCollected + amt);
-      months[at.month - 1].rentCollected = round2(
-        months[at.month - 1].rentCollected + amt,
-      );
+      if (isBookingPending(b, scheduleThrough)) {
+        // The stay hasn't finished — payout is a promise until the day
+        // after checkout, so it rides in purple, outside every total.
+        pendingRent = round2(pendingRent + amt);
+        months[at.month - 1].pendingRent = round2(
+          months[at.month - 1].pendingRent + amt,
+        );
+      } else {
+        strIncome = round2(strIncome + amt);
+        rentCollected = round2(rentCollected + amt);
+        months[at.month - 1].rentCollected = round2(
+          months[at.month - 1].rentCollected + amt,
+        );
+      }
     }
     // Count each night (a night belongs to the day it starts on).
     const start = new Date(`${b.check_in}T00:00:00Z`);
@@ -318,6 +366,7 @@ export function yearFinance(
     rentCollected,
     ltrIncome,
     strIncome,
+    pendingRent,
     bookedNights,
     expectedRent,
     collectionRate: expectedRent > 0 ? round2(rentCollected / expectedRent * 100) / 100 : null,

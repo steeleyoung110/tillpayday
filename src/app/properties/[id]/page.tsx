@@ -27,6 +27,7 @@ import {
   endLease,
   logMortgagePayment,
   logRentPayment,
+  markRentPaymentReceived,
   setPropertyArchived,
   setRentalShare,
   setUnitRentalType,
@@ -40,6 +41,7 @@ import { balanceLabel, leaseBalance } from "@/lib/property/tenancy";
 import { getPortfolioData } from "@/lib/property/data";
 import {
   equitySummary,
+  isBookingPending,
   loanSplitEstimate,
   yearFinance,
   yearsWithActivity,
@@ -157,11 +159,13 @@ export default async function PropertyPage({
   const bookings = data.bookings.filter(
     (b) => b.property_id === id && b.status !== "canceled",
   );
+  // A stay is PENDING (purple, counts toward nothing) through its check-out
+  // day; it becomes real income the day after the guest leaves.
   const upcomingStays = bookings
-    .filter((b) => b.check_out >= todayISO)
+    .filter((b) => isBookingPending(b, todayISO))
     .sort((a, b) => a.check_in.localeCompare(b.check_in));
   const pastStays = bookings
-    .filter((b) => b.check_out < todayISO)
+    .filter((b) => !isBookingPending(b, todayISO))
     .sort((a, b) => b.check_in.localeCompare(a.check_in));
   const showStays = strUnits.length > 0 || bookings.length > 0;
   const defaultCheckOut = (() => {
@@ -526,15 +530,21 @@ export default async function PropertyPage({
             {upcomingStays.length > 0 && (
               <>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Schedule
+                  {"Schedule — "}
+                  <span className="normal-case text-violet-300">
+                    purple payouts are pending until the day after checkout
+                  </span>
                 </h3>
                 <ul className="mt-2 space-y-1.5">
                   {upcomingStays.map((b) => (
                     <li key={b.id} className="flex items-center justify-between text-sm">
                       <span className="text-slate-200">
                         {`${fmtDate(b.check_in)} → ${fmtDate(b.check_out)} · ${nightsBetween(b.check_in, b.check_out)} nights`}
+                        <span className="text-violet-300">
+                          {` · ${currencyCents.format(Number(b.payout))} pending`}
+                        </span>
                         <span className="text-slate-400">
-                          {` · ${currencyCents.format(Number(b.payout))}${b.guest_name ? ` · ${b.guest_name}` : ""} · ${PLATFORM_LABELS[b.platform]}`}
+                          {`${b.guest_name ? ` · ${b.guest_name}` : ""} · ${PLATFORM_LABELS[b.platform]}`}
                         </span>
                       </span>
                       <InstantAction
@@ -610,7 +620,7 @@ export default async function PropertyPage({
 
         {/* Rent ledger */}
         <Panel title="Rent received">
-          <form action={logRentPayment} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <form action={logRentPayment} className="grid grid-cols-2 gap-2 sm:grid-cols-6">
             <input type="hidden" name="property_id" value={id} />
             <MoneyInput
               name="amount"
@@ -619,13 +629,17 @@ export default async function PropertyPage({
               className={inputCls}
               ariaLabel="Rent amount received"
             />
+            <select name="status" className={inputCls} defaultValue="received" aria-label="Received or pending">
+              <option value="received">received</option>
+              <option value="pending">pending — expected on…</option>
+            </select>
             <input
               type="date"
               name="paid_date"
               defaultValue={todayISO}
               required
               className={inputCls}
-              aria-label="Date received"
+              aria-label="Date received (or expected, if pending)"
             />
             <select name="lease_id" className={inputCls} aria-label="Which lease" defaultValue={activeLeases[0]?.id ?? ""}>
               <option value="">{units.length > 1 ? "which unit?" : "lease"}</option>
@@ -642,27 +656,55 @@ export default async function PropertyPage({
             <button type="submit" className={`${btnCls} self-end`}>
               Log rent
             </button>
+            <p className="col-span-2 text-xs text-slate-500 sm:col-span-6">
+              Pending = promised money (a check in the mail, assistance approved). It
+              shows in purple and counts toward nothing — not income, not the
+              tenant&apos;s balance — until you mark it received.
+            </p>
           </form>
 
           <ul className="mt-4 space-y-1.5">
             {rents.length === 0 && (
               <li className="text-sm text-slate-400">No rent logged yet.</li>
             )}
-            {rents.slice(0, 12).map((r) => (
-              <li key={r.id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-300">
-                  {`${currencyCents.format(Number(r.amount))} · ${fmtDate(r.paid_date)}${r.period_month ? ` (covers ${r.period_month.slice(0, 7)})` : ""}${leaseLabel(r.lease_id) ? ` · ${leaseLabel(r.lease_id)}` : ""}`}
-                </span>
-                <InstantAction
-                  action={deleteRentPayment}
-                  values={{ id: r.id, property_id: id }}
-                  message="Rent entry deleted."
-                  className={delCls}
-                >
-                  delete
-                </InstantAction>
-              </li>
-            ))}
+            {rents.slice(0, 12).map((r) => {
+              const pending = r.status === "pending";
+              const when = pending
+                ? `expected ${fmtDate(r.expected_date ?? todayISO)}`
+                : fmtDate(r.paid_date ?? r.created_at.slice(0, 10));
+              return (
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className={pending ? "text-violet-300" : "text-slate-300"}>
+                    {pending && (
+                      <span className="mr-2 rounded-full bg-violet-500/15 px-2 py-0.5 text-xs font-semibold text-violet-300">
+                        Pending
+                      </span>
+                    )}
+                    {`${currencyCents.format(Number(r.amount))} · ${when}${r.period_month ? ` (covers ${r.period_month.slice(0, 7)})` : ""}${leaseLabel(r.lease_id) ? ` · ${leaseLabel(r.lease_id)}` : ""}${r.note ? ` — ${r.note}` : ""}`}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    {pending && (
+                      <InstantAction
+                        action={markRentPaymentReceived}
+                        values={{ id: r.id, property_id: id, paid_date: todayISO }}
+                        message="It landed — the payment now counts as received today."
+                        className="text-xs font-semibold text-violet-300 transition hover:text-emerald-300"
+                      >
+                        mark received
+                      </InstantAction>
+                    )}
+                    <InstantAction
+                      action={deleteRentPayment}
+                      values={{ id: r.id, property_id: id }}
+                      message="Rent entry deleted."
+                      className={delCls}
+                    >
+                      delete
+                    </InstantAction>
+                  </span>
+                </li>
+              );
+            })}
             {rents.length > 12 && (
               <li className="text-xs text-slate-500">{`${rents.length - 12} older entries not shown`}</li>
             )}

@@ -30,7 +30,7 @@ export interface LeaseBalance {
  */
 export function leaseBalance(
   lease: Pick<LeaseRow, "rent_amount" | "due_day" | "start_date" | "end_date" | "status">,
-  payments: Pick<RentPaymentRow, "amount">[],
+  payments: (Pick<RentPaymentRow, "amount"> & Partial<Pick<RentPaymentRow, "status">>)[],
   todayISO: string,
 ): LeaseBalance {
   const rent = Number(lease.rent_amount);
@@ -57,7 +57,11 @@ export function leaseBalance(
   }
 
   const expected = round2(monthsDue * rent);
-  const collected = round2(payments.reduce((s, p) => s + Number(p.amount), 0));
+  // Pending payments are promises, not money — a check "in the mail" does
+  // not make a tenant less behind until it clears.
+  const collected = round2(
+    payments.reduce((s, p) => (p.status === "pending" ? s : s + Number(p.amount)), 0),
+  );
   const owed = round2(expected - collected);
   return {
     expected,

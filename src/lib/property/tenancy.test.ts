@@ -54,3 +54,20 @@ describe("leaseBalance", () => {
     expect(b.expected).toBe(0);
   });
 });
+
+describe("leaseBalance — pending payments", () => {
+  it("a pending payment does not make the tenant less behind", () => {
+    const l = {
+      rent_amount: 1000, due_day: 1, start_date: "2026-01-01",
+      end_date: null, status: "active" as const,
+    };
+    const today = "2026-03-15"; // 3 months due
+    const real = { amount: 1000 };
+    const promised = { amount: 1311, status: "pending" as const };
+    const before = leaseBalance(l, [real], today);
+    const withPending = leaseBalance(l, [real, promised], today);
+    expect(before.owed).toBe(2000);
+    expect(withPending.owed).toBe(2000); // the check hasn't cleared
+    expect(leaseBalance(l, [real, { ...promised, status: "received" }], today).owed).toBe(689);
+  });
+});

@@ -27,9 +27,11 @@ export function PropertyCashFlowChart({ months }: { months: MonthFinance[] }) {
   const data = months.map((m) => ({
     name: MONTHS[m.month - 1],
     "Rent in": m.rentCollected,
+    Pending: m.pendingRent ?? 0,
     "Money out": Math.round((m.expenses + m.debtService) * 100) / 100,
     "Cash flow": m.cashFlow,
   }));
+  const hasPending = data.some((d) => d.Pending > 0);
 
   return (
     <div className="h-72 w-full" role="img" aria-label="Monthly rent in, money out, and cash flow">
@@ -60,7 +62,26 @@ export function PropertyCashFlowChart({ months }: { months: MonthFinance[] }) {
             cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
           />
           <ReferenceLine y={0} stroke="#475569" />
-          <Bar dataKey="Rent in" fill="#34d399" radius={[3, 3, 0, 0]} maxBarSize={22} />
+          {/* Pending (purple) stacks on top of real rent: the bar's full
+              height is what the month COULD bring; the green part is what's
+              actually landed. Purple counts toward no other number. */}
+          <Bar
+            dataKey="Rent in"
+            stackId="in"
+            fill="#34d399"
+            radius={hasPending ? [0, 0, 0, 0] : [3, 3, 0, 0]}
+            maxBarSize={22}
+          />
+          {hasPending && (
+            <Bar
+              dataKey="Pending"
+              stackId="in"
+              fill="#a78bfa"
+              fillOpacity={0.9}
+              radius={[3, 3, 0, 0]}
+              maxBarSize={22}
+            />
+          )}
           <Bar dataKey="Money out" fill="#fb7185" radius={[3, 3, 0, 0]} maxBarSize={22} />
           <Line
             type="monotone"

@@ -144,9 +144,18 @@ export interface RentPaymentRow {
   property_id: string;
   lease_id: string | null;
   amount: number;
-  paid_date: string;
+  /** When the money actually landed; null while the payment is pending. */
+  paid_date: string | null;
   /** First of the month this payment covers (null = counts in its paid month). */
   period_month: string | null;
+  /**
+   * received = money in hand, counts everywhere.
+   * pending  = promised (check in the mail, assistance approved) — shown in
+   *            purple, counts toward nothing until marked received.
+   */
+  status: "received" | "pending";
+  /** When a pending payment is expected to land (required while pending). */
+  expected_date: string | null;
   method: string | null;
   note: string | null;
   created_at: string;
