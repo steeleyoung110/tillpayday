@@ -10,6 +10,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { isISODate as isDate } from "@/lib/ops/board";
 import { addDaysISO } from "@/lib/property/compliance";
 
 export interface ActionResult {
@@ -18,7 +19,6 @@ export interface ActionResult {
 }
 const FAIL: ActionResult = { ok: false, error: "That didn't save. Check your connection and try again." };
 
-const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
 function str(form: FormData, key: string, max = 500): string {
   return String(form.get(key) ?? "").trim().slice(0, max);
 }

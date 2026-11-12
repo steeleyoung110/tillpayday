@@ -396,7 +396,7 @@ export default async function PropertyPage({
                         ariaLabel={`Monthly rent for ${u.label}`}
                       />
                       <input
-                        type="date"
+                        type="date" min="2000-01-01" max="2100-12-31"
                         name="start_date"
                         defaultValue={todayISO}
                         required
@@ -411,7 +411,7 @@ export default async function PropertyPage({
                       />
                       <label className="block text-xs text-slate-400">
                         lease ends (optional)
-                        <input type="date" name="end_date" className={`mt-0.5 ${inputCls}`} />
+                        <input type="date" min="2000-01-01" max="2100-12-31" name="end_date" className={`mt-0.5 ${inputCls}`} />
                       </label>
                       <label className="block text-xs text-slate-400">
                         due day
@@ -599,8 +599,8 @@ export default async function PropertyPage({
                 <input type="hidden" name="unit_id" value={strUnits[0].id} />
               )}
               <input name="guest_name" placeholder="guest (optional)" className={inputCls} aria-label="Guest name" />
-              <input type="date" name="check_in" defaultValue={todayISO} required className={inputCls} aria-label="Check-in" />
-              <input type="date" name="check_out" defaultValue={defaultCheckOut} required className={inputCls} aria-label="Check-out" />
+              <input type="date" min="2000-01-01" max="2100-12-31" name="check_in" defaultValue={todayISO} required className={inputCls} aria-label="Check-in" />
+              <input type="date" min="2000-01-01" max="2100-12-31" name="check_out" defaultValue={defaultCheckOut} required className={inputCls} aria-label="Check-out" />
               <MoneyInput name="payout" placeholder="payout" required className={inputCls} ariaLabel="Payout" />
               <select name="platform" className={inputCls} defaultValue="direct" aria-label="Platform">
                 {Object.entries(PLATFORM_LABELS).map(([v, label]) => (
@@ -725,11 +725,11 @@ export default async function PropertyPage({
               </select>
               <label className="block text-xs text-slate-400">
                 first payment due
-                <input type="date" name="start_date" required defaultValue={todayISO} className={`mt-0.5 ${inputCls}`} />
+                <input type="date" min="2000-01-01" max="2100-12-31" name="start_date" required defaultValue={todayISO} className={`mt-0.5 ${inputCls}`} />
               </label>
               <label className="block text-xs text-slate-400">
                 ends (optional)
-                <input type="date" name="end_date" className={`mt-0.5 ${inputCls}`} />
+                <input type="date" min="2000-01-01" max="2100-12-31" name="end_date" className={`mt-0.5 ${inputCls}`} />
               </label>
               <button type="submit" className={`${btnCls} self-end`}>
                 Add plan
@@ -754,7 +754,7 @@ export default async function PropertyPage({
               <option value="pending">pending — expected on…</option>
             </select>
             <input
-              type="date"
+              type="date" min="2000-01-01" max="2100-12-31"
               name="paid_date"
               defaultValue={todayISO}
               required
@@ -843,7 +843,7 @@ export default async function PropertyPage({
               ariaLabel="Expense amount"
             />
             <input
-              type="date"
+              type="date" min="2000-01-01" max="2100-12-31"
               name="expense_date"
               defaultValue={todayISO}
               required
@@ -953,7 +953,7 @@ export default async function PropertyPage({
                       ariaLabel="Payment amount"
                     />
                     <input
-                      type="date"
+                      type="date" min="2000-01-01" max="2100-12-31"
                       name="paid_date"
                       defaultValue={todayISO}
                       required
@@ -990,7 +990,7 @@ export default async function PropertyPage({
                       <MoneyInput name="original_amount" placeholder="original loan" className={inputCls} ariaLabel="Original loan amount" />
                       <label className="block text-xs text-slate-400">
                         payoff date
-                        <input type="date" name="payoff_date" className={`mt-0.5 ${inputCls}`} />
+                        <input type="date" min="2000-01-01" max="2100-12-31" name="payoff_date" className={`mt-0.5 ${inputCls}`} />
                       </label>
                       <button type="submit" className={`${btnCls} self-end`}>
                         Save details
@@ -1015,7 +1015,7 @@ export default async function PropertyPage({
               <MoneyInput name="monthly_payment" placeholder="payment / mo" required className={inputCls} ariaLabel="Monthly payment" />
               <label className="block text-xs text-slate-400">
                 first payment
-                <input type="date" name="start_date" className={`mt-0.5 ${inputCls}`} aria-label="First payment date" />
+                <input type="date" min="2000-01-01" max="2100-12-31" name="start_date" className={`mt-0.5 ${inputCls}`} aria-label="First payment date" />
               </label>
               <MoneyInput name="current_balance" placeholder="balance (optional)" className={inputCls} ariaLabel="Current balance, optional" />
               <label className="block text-xs text-slate-400">

@@ -20,8 +20,12 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const isoOf = (d: Date) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 const parse = (iso: string) => new Date(`${iso.slice(0, 10)}T00:00:00Z`);
 
+/** A YYYY-MM-DD date in a believable range (typing in a date field can yield year 0525). */
 export const isISODate = (s: unknown): s is string =>
-  typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  typeof s === "string" &&
+  /^\d{4}-\d{2}-\d{2}$/.test(s) &&
+  Number(s.slice(0, 4)) >= 2000 &&
+  Number(s.slice(0, 4)) <= 2100;
 
 export function addDays(iso: string, n: number): string {
   const d = parse(iso);

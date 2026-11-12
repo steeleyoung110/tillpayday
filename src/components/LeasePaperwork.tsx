@@ -68,7 +68,7 @@ function RenewForm({ lease, onDone }: { lease: LeaseVM; onDone: () => void }) {
       <div className="grid grid-cols-2 gap-3">
         <label className="grid gap-1 text-xs text-slate-400">
           New end date
-          <input type="date" name="end_date" required={!mtm} disabled={mtm} className={inputCls} />
+          <input type="date" min="2000-01-01" max="2100-12-31" name="end_date" required={!mtm} disabled={mtm} className={inputCls} />
         </label>
         <label className="grid gap-1 text-xs text-slate-400">
           Monthly rent
@@ -225,7 +225,7 @@ export function ReportSettingsForm({ propertyId, reports }: { propertyId: string
       </label>
       <label className="grid gap-1 text-xs text-slate-400">
         Starting with
-        <input type="date" name="report_start" defaultValue={reports?.start ?? ""} className={inputCls} />
+        <input type="date" min="2000-01-01" max="2100-12-31" name="report_start" defaultValue={reports?.start ?? ""} className={inputCls} />
       </label>
       <label className="grid gap-1 text-xs text-slate-400">
         Days to upload after period ends

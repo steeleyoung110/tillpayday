@@ -1223,7 +1223,7 @@ function TaskForm({
         </label>
         <label className={labelCls}>
           Due
-          <input type="date" name="due_date" defaultValue={task?.due_date ?? ""} className={inputCls} />
+          <input type="date" min="2000-01-01" max="2100-12-31" name="due_date" defaultValue={task?.due_date ?? ""} className={inputCls} />
         </label>
         <label className={labelCls}>
           Repeats
@@ -1516,7 +1516,7 @@ function InstallmentRow({
                 </label>
                 <label className={labelCls}>
                   {mode === "yes" ? "Date received" : "Expected on"}
-                  <input type="date" name="date" required defaultValue={mode === "yes" ? today : inst.date > today ? inst.date : today} className={inputCls} />
+                  <input type="date" min="2000-01-01" max="2100-12-31" name="date" required defaultValue={mode === "yes" ? today : inst.date > today ? inst.date : today} className={inputCls} />
                 </label>
                 {mode === "yes" && (
                   <label className={labelCls}>

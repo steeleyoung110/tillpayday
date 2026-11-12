@@ -115,7 +115,7 @@ export default async function PropertiesPage() {
             </label>
             <label className="block text-xs text-slate-400">
               Purchase date
-              <input type="date" name="purchase_date" className={`mt-1 ${inputCls}`} />
+              <input type="date" min="2000-01-01" max="2100-12-31" name="purchase_date" className={`mt-1 ${inputCls}`} />
             </label>
             <label className="block text-xs text-slate-400">
               Purchase price

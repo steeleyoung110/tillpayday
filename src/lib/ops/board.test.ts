@@ -3,6 +3,7 @@ import {
   addMonths,
   buildInstallments,
   dayOf,
+  isISODate,
   lineCounts,
   nextDue,
   rentCounts,
@@ -67,6 +68,12 @@ describe("repeating tasks", () => {
 });
 
 describe("dates", () => {
+  it("only accepts believable years (a typed date can come out as year 0525)", () => {
+    expect(isISODate("2026-11-23")).toBe(true);
+    expect(isISODate("0525-11-23")).toBe(false);
+    expect(isISODate("3026-11-23")).toBe(false);
+    expect(isISODate("2026-11")).toBe(false);
+  });
   it("clamps month math to the month's last day", () => {
     expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
     expect(addMonths("2026-02-28", 1, 31)).toBe("2026-03-31");
