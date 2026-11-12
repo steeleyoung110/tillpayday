@@ -3,15 +3,18 @@ import { NavLink } from "@/components/NavLink";
 
 /**
  * App navigation frame: Dashboard (all properties combined), Board (tasks
- * and rent at a glance), Properties (one at a time), Settings. Sidebar on desktop, bottom tab bar on mobile.
+ * and rent at a glance), Properties (one at a time), Stocks (brokerage
+ * accounts, kept apart from the property money), Settings. Sidebar on
+ * desktop, bottom tab bar on mobile.
  */
 
-export type NavKey = "dashboard" | "board" | "properties" | "settings";
+export type NavKey = "dashboard" | "board" | "properties" | "stocks" | "settings";
 
 const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: "📊" },
   { key: "board", href: "/board", label: "Board", icon: "📋" },
   { key: "properties", href: "/properties", label: "Properties", icon: "🏠" },
+  { key: "stocks", href: "/stocks", label: "Stocks", icon: "📈" },
   { key: "settings", href: "/settings", label: "Settings", icon: "⚙️" },
 ];
 

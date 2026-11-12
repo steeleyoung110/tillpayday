@@ -169,6 +169,30 @@ const FIXTURES: {
     mutate: { file_name: "hijacked" },
     original: "RLS probe",
   },
+  {
+    table: "stock_accounts",
+    row: () => ({ key: "rls-probe", name: "RLS probe" }),
+    mutate: { name: "hijacked" },
+    original: "RLS probe",
+  },
+  {
+    table: "stock_lots",
+    row: (ids) => ({ account_id: ids.get("stock_accounts"), symbol: "CPRT", shares: 1, note: "RLS probe" }),
+    mutate: { note: "hijacked" },
+    original: "RLS probe",
+  },
+  {
+    table: "stock_dividends",
+    row: (ids) => ({
+      account_id: ids.get("stock_accounts"),
+      symbol: "KO",
+      pay_date: "2020-01-01",
+      amount: 1,
+      source: "manual",
+    }),
+    mutate: { pay_date: "2021-02-02" },
+    original: "2020-01-01",
+  },
 ];
 
 const TIMEOUT = 30_000;

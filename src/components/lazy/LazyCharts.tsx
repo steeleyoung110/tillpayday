@@ -26,3 +26,25 @@ export const LazyPropertyCashFlowChart = dynamic(
 ) as (props: {
   months: import("@/lib/property/finance").MonthFinance[];
 }) => React.ReactElement;
+
+type StockCharts = typeof import("@/components/stocks/StockCharts");
+
+export const LazyHoldingsDonut = dynamic(
+  () => import("@/components/stocks/StockCharts").then((m) => m.HoldingsDonut),
+  { ssr: false, loading: () => <ChartFallback className="h-64" /> },
+) as StockCharts["HoldingsDonut"];
+
+export const LazyValueChart = dynamic(
+  () => import("@/components/stocks/StockCharts").then((m) => m.ValueChart),
+  { ssr: false, loading: () => <ChartFallback className="h-56" /> },
+) as StockCharts["ValueChart"];
+
+export const LazyDividendMonthsChart = dynamic(
+  () => import("@/components/stocks/StockCharts").then((m) => m.DividendMonthsChart),
+  { ssr: false, loading: () => <ChartFallback className="h-64" /> },
+) as StockCharts["DividendMonthsChart"];
+
+export const LazyIncomeTrendChart = dynamic(
+  () => import("@/components/stocks/StockCharts").then((m) => m.IncomeTrendChart),
+  { ssr: false, loading: () => <ChartFallback className="h-48" /> },
+) as StockCharts["IncomeTrendChart"];

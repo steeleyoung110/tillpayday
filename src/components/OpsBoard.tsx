@@ -328,8 +328,8 @@ function AutoLine({
   );
 }
 
-export function OpsBoard(props: BoardProps) {
-  const { today, sections, lines, tasks, installments, properties, people, paperwork, userId, focusId } = props;
+export function OpsBoard(props: BoardProps & { extra?: React.ReactNode }) {
+  const { today, sections, lines, tasks, installments, properties, people, paperwork, userId, focusId, extra } = props;
   const [person, setPerson] = useState("all");
   const [view, setView] = useState<View>("all");
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -670,6 +670,9 @@ export function OpsBoard(props: BoardProps) {
           )}
         </div>
       </section>
+
+      {/* Server-rendered extras (the stocks dropdown) — main board only */}
+      {!focus && extra}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
