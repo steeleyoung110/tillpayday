@@ -17,7 +17,7 @@ const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
 const fmt = (iso: string, year = true) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}) });
 const inputCls =
-  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
+  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-teal-500 focus:outline-none";
 
 async function call(action: (fd: FormData) => Promise<ActionResult>, fd: FormData, ok: string): Promise<boolean> {
   try {
@@ -31,7 +31,7 @@ async function call(action: (fd: FormData) => Promise<ActionResult>, fd: FormDat
 }
 
 const CHIP: Record<LeaseState, string> = {
-  in_progress: "bg-sky-500/15 text-sky-300",
+  in_progress: "bg-teal-500/15 text-teal-300",
   due_soon: "bg-amber-500/15 text-amber-300",
   past_due: "bg-rose-500/15 text-rose-300",
   complete: "bg-emerald-500/15 text-emerald-300",
@@ -197,7 +197,7 @@ export function ReportPeriods({
         );
       })}
       {limit && reports.periods.length > limit && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="w-fit text-sm text-sky-300 hover:underline">
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="w-fit text-sm text-teal-300 hover:underline">
           {showAll ? "Show fewer" : `Show all ${reports.periods.length} periods`}
         </button>
       )}

@@ -143,7 +143,7 @@ function fmtDay(iso: string, withYear = false): string {
 }
 
 const inputCls =
-  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none";
+  "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-teal-500 focus:outline-none";
 const labelCls = "grid gap-1 text-xs text-slate-400";
 const btnPrimary =
   "rounded-lg bg-emerald-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:opacity-50";
@@ -179,7 +179,7 @@ function fdOf(values: Record<string, string>): FormData {
 // ---------------------------------------------------------------------------
 
 const TILE_BASE =
-  "inline-flex h-7 min-w-[54px] items-center justify-center rounded px-2 text-[15px] font-bold tabular-nums text-white transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400";
+  "inline-flex h-7 min-w-[54px] items-center justify-center rounded px-2 text-[15px] font-bold tabular-nums text-white transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-400";
 
 function Tile({
   n,
@@ -210,7 +210,7 @@ function Tile({
     );
   }
   const color =
-    n === 0 ? "bg-[#5aa83a]" : bucket === "red" ? "bg-[#e0484d]" : bucket === "orange" ? "bg-[#ea8a05]" : "bg-[#2f63cf]";
+    n === 0 ? "bg-[#5aa83a]" : bucket === "red" ? "bg-[#e0484d]" : bucket === "orange" ? "bg-[#ea8a05]" : "bg-slate-600";
   return (
     <button type="button" onClick={onClick} className={`${TILE_BASE} ${color} hover:brightness-110`} aria-label={`${label}: ${n}`}>
       {n === 0 ? <Icon name="thumb" className="h-4 w-4" /> : n}
@@ -254,10 +254,10 @@ type Dialog =
   | null;
 
 const LEASE_INFO =
-  "Red: the lease ended and hasn't been renewed. Orange: it ends within 2 months. Blue: leases that need something, including a missing signed copy.";
+  "Red: the lease ended and hasn't been renewed. Orange: it ends within 2 months. Gray: leases that need something, including a missing signed copy.";
 const RENT_INFO =
-  "Red: a payment past due that isn't marked received. Orange: due in the next 7 days. Blue: every payment not yet received.";
-const STAYS_INFO = "Orange: guests arriving in the next 7 days. Blue: every upcoming stay.";
+  "Red: a payment past due that isn't marked received. Orange: due in the next 7 days. Gray: every payment not yet received.";
+const STAYS_INFO = "Orange: guests arriving in the next 7 days. Gray: every upcoming stay.";
 
 function shortDay(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -306,7 +306,7 @@ function AutoLine({
   return (
     <li className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
       <div className="flex items-start justify-between gap-2">
-        <button type="button" onClick={onOpen} className="flex items-center gap-1.5 text-left text-[15px] font-semibold text-sky-300 hover:underline">
+        <button type="button" onClick={onOpen} className="flex items-center gap-1.5 text-left text-[15px] font-semibold text-teal-300 hover:underline">
           <Icon name={icon} className="h-4 w-4 shrink-0" />
           {title}
         </button>
@@ -368,7 +368,7 @@ export function OpsBoard(props: BoardProps) {
       <div className="mx-auto max-w-2xl px-6 pt-10">
         <h1 className="text-2xl font-bold text-white">Board</h1>
         <p className="mt-2 text-slate-400">
-          One column per property and business, with red for overdue, orange for due soon and blue for everything
+          One column per property and business, with red for overdue, orange for due soon and gray for everything
           open. Start with a column for each of your properties.
         </p>
         <button type="button" className={`${btnPrimary} mt-5`} onClick={() => run(createStarterBoard, {}, "Board created.")}>
@@ -493,7 +493,7 @@ export function OpsBoard(props: BoardProps) {
         key={s.id}
         className={`overflow-visible rounded-lg bg-slate-900 shadow-lg shadow-black/20 ring-1 ring-slate-800 ${detailed ? "mx-auto w-full max-w-3xl" : ""}`}
       >
-        <header className="flex items-center gap-2 rounded-t-lg bg-[#2357c4] px-3 py-2.5 text-white">
+        <header className="flex items-center gap-2 rounded-t-lg bg-[#17675d] px-3 py-2.5 text-white">
           <Icon name={s.icon} className="h-5 w-5 shrink-0" />
           <h2 className="min-w-0 flex-1 text-[15px] font-bold uppercase tracking-wide">
             {detailed ? (
@@ -519,7 +519,7 @@ export function OpsBoard(props: BoardProps) {
             return (
               <li key={l.id} className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
                 <div className="flex items-start justify-between gap-2">
-                  <button type="button" onClick={() => setDialog({ kind: "line", id: l.id, bucket: "open" })} className="text-left text-[15px] font-semibold text-sky-300 hover:underline">
+                  <button type="button" onClick={() => setDialog({ kind: "line", id: l.id, bucket: "open" })} className="text-left text-[15px] font-semibold text-teal-300 hover:underline">
                     {l.name}
                   </button>
                   <InfoTip text={l.info || defaultInfo(l.dated)} label={`About ${l.name}`} />
@@ -597,7 +597,7 @@ export function OpsBoard(props: BoardProps) {
                   aria-pressed={view === k}
                   onClick={() => setView(k)}
                   className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                    view === k ? "bg-[#2f63cf] text-white" : "text-slate-400 hover:text-white"
+                    view === k ? "bg-[#17675d] text-white" : "text-slate-400 hover:text-white"
                   }`}
                 >
                   {label}
@@ -630,9 +630,9 @@ export function OpsBoard(props: BoardProps) {
       {/* Snapshot strip */}
       <section aria-label="Today's snapshot" className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-900 p-3">
         <div className="flex min-w-[180px] items-center gap-2 pr-2 sm:border-r sm:border-slate-800">
-          <Icon name="camera" className="h-6 w-6 text-sky-400" />
+          <Icon name="camera" className="h-6 w-6 text-teal-400" />
           <div>
-            <h2 className="text-base font-bold text-sky-300">Today&apos;s snapshot</h2>
+            <h2 className="text-base font-bold text-teal-300">Today&apos;s snapshot</h2>
             <p className="text-xs text-slate-400">{`${fmtDay(today)} · ${person === "all" ? "Everyone" : person === "__none" ? "Unassigned" : person}`}</p>
           </div>
         </div>
@@ -655,7 +655,7 @@ export function OpsBoard(props: BoardProps) {
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
         <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-[#e0484d]" />Overdue</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-[#ea8a05]" />{`Due within ${SOON_DAYS} days`}</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-[#2f63cf]" />All open</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm bg-slate-600" />All open</span>
         <span className="inline-flex items-center gap-1.5"><span className="inline-flex h-3 w-5 items-center justify-center rounded-sm bg-[#5aa83a] text-white"><Icon name="thumb" className="h-2.5 w-2.5" /></span>Nothing waiting</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-3 w-5 rounded-sm border border-slate-700 bg-slate-800" />NA = not tracked</span>
       </div>
@@ -705,7 +705,7 @@ export function OpsBoard(props: BoardProps) {
             {(paperwork.leases[openPid] ?? []).map((l) => (
               <LeaseCard key={l.id} lease={l} userId={userId} />
             ))}
-            <Link href={`/properties/${openPid}`} className="text-sm font-semibold text-sky-300 hover:underline">
+            <Link href={`/properties/${openPid}`} className="text-sm font-semibold text-teal-300 hover:underline">
               Property page →
             </Link>
           </div>
@@ -731,7 +731,7 @@ export function OpsBoard(props: BoardProps) {
       {openPid && dialog?.kind === "stays" && paperwork.stays[openPid] && (
         <Modal title={`${propName(openPid)} bookings`} eyebrow="Upcoming stays" onClose={() => setDialog(null)}>
           <StayList stays={paperwork.stays[openPid]} today={today} />
-          <Link href={`/properties/${openPid}`} className="mt-4 inline-block text-sm font-semibold text-sky-300 hover:underline">
+          <Link href={`/properties/${openPid}`} className="mt-4 inline-block text-sm font-semibold text-teal-300 hover:underline">
             Add stays or import a booking CSV on the property page →
           </Link>
         </Modal>
@@ -770,8 +770,8 @@ function rentSummary(insts: Installment[], props: BoardProps): string {
 
 function defaultInfo(dated: boolean): string {
   return dated
-    ? `Red: past due. Orange: due in the next ${SOON_DAYS} days. Blue: every open task. A thumbs-up means nothing is in that box.`
-    : "Blue: every open task. This line has no due dates, so red and orange show NA.";
+    ? `Red: past due. Orange: due in the next ${SOON_DAYS} days. Gray: every open task. A thumbs-up means nothing is in that box.`
+    : "Gray: every open task. This line has no due dates, so red and orange show NA.";
 }
 
 function Pill({ label, value, tone }: { label: string; value: string; tone?: "red" | "orange" | "ok" }) {
@@ -973,7 +973,7 @@ function Modal({
       >
         <div className="sticky top-0 z-10 border-b border-slate-800 bg-slate-900 px-5 pb-3 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{eyebrow}</p>
-          <h2 className="mt-1 pr-10 text-xl font-bold text-sky-300">{title}</h2>
+          <h2 className="mt-1 pr-10 text-xl font-bold text-teal-300">{title}</h2>
           <button
             ref={closeRef}
             type="button"
@@ -1045,7 +1045,7 @@ function TaskDrawer({
     [
       ["red", "Overdue", "bg-[#e0484d]"],
       ["orange", `Due in ${SOON_DAYS} days`, "bg-[#ea8a05]"],
-      ["open", "All open", "bg-[#2f63cf]"],
+      ["open", "All open", "bg-slate-500"],
       ["done", "Done, 30 days", "bg-[#5aa83a]"],
     ] as [Bucket, string, string][]
   ).filter(([k]) => dated || k === "open" || k === "done");
@@ -1172,7 +1172,7 @@ function DueText({ task, today, dated }: { task: OpsTaskRow; today: string; date
   if (n < 0) return <span className="font-semibold text-[#ff6b6f]">{`Overdue ${-n} day${n === -1 ? "" : "s"} · ${fmtDay(task.due_date)}`}</span>;
   if (n === 0) return <span className="font-semibold text-[#f5a524]">Due today</span>;
   if (n <= SOON_DAYS) return <span className="font-semibold text-[#f5a524]">{`Due ${fmtDay(task.due_date)}`}</span>;
-  return <span className="font-semibold text-sky-300">{`Due ${fmtDay(task.due_date)}`}</span>;
+  return <span className="font-semibold text-teal-300">{`Due ${fmtDay(task.due_date)}`}</span>;
 }
 
 function TaskForm({
@@ -1386,10 +1386,10 @@ function RentDialog({
       )}
 
       <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-800 pt-4 text-sm">
-        <Link href={`/properties/${propertyId}`} className="font-semibold text-sky-300 hover:underline">
+        <Link href={`/properties/${propertyId}`} className="font-semibold text-teal-300 hover:underline">
           Open the full ledger →
         </Link>
-        <a href={`/properties/${propertyId}/export`} className="font-semibold text-sky-300 hover:underline">
+        <a href={`/properties/${propertyId}/export`} className="font-semibold text-teal-300 hover:underline">
           Download Excel
         </a>
       </div>
@@ -1418,7 +1418,7 @@ function InstallmentRow({
   const b = installmentBucket(inst, today);
   const n = diffDays(today, inst.date);
   const when = n < 0 ? `${-n} day${n === -1 ? "" : "s"} past due` : n === 0 ? "due today" : `due in ${n} day${n === 1 ? "" : "s"}`;
-  const stripe = b === "red" ? "border-l-[#e0484d]" : b === "orange" ? "border-l-[#ea8a05]" : "border-l-[#2f63cf]";
+  const stripe = b === "red" ? "border-l-[#e0484d]" : b === "orange" ? "border-l-[#ea8a05]" : "border-l-slate-500";
 
   return (
     <li className={`rounded-xl border border-slate-800 border-l-4 ${stripe} bg-slate-950/50`}>
