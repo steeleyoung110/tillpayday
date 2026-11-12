@@ -34,6 +34,7 @@ import {
   updateMortgage,
   updatePropertyValue,
 } from "@/app/propertyActions";
+import { addRentSchedule, deleteRentSchedule, endRentSchedule } from "@/app/opsActions";
 import { BookingCsvImport } from "@/components/BookingCsvImport";
 import { PropertyDocs, type PropertyDoc } from "@/components/PropertyDocs";
 import { nightsBetween } from "@/lib/property/bookingCsv";
@@ -52,6 +53,7 @@ import {
   PROPERTY_TYPE_LABELS,
   type ExpenseCategory,
 } from "@/lib/property/rows";
+import { FREQUENCY_LABELS, type RentScheduleRow } from "@/lib/ops/rows";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -152,6 +154,14 @@ export default async function PropertyPage({
       }),
   );
 
+  // Payment plans: when a lease's money is expected, if not monthly.
+  const { data: scheduleRows } = await supabase
+    .from("rent_schedules")
+    .select("*")
+    .eq("property_id", id)
+    .order("start_date");
+  const schedules = (scheduleRows as RentScheduleRow[]) ?? [];
+
   const depositsHeld = activeLeases.reduce((s, l) => s + Number(l.deposit_amount), 0);
   const rentalShare = Number(property.rental_share ?? 100);
 
@@ -197,7 +207,15 @@ export default async function PropertyPage({
                 .join(" · ")}
             </p>
           </div>
-          <YearPicker years={years} active={year} basePath={`/properties/${id}`} />
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={`/properties/${id}/export`}
+              className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm font-semibold text-slate-200 transition hover:border-emerald-500 hover:text-emerald-300"
+            >
+              Download Excel
+            </a>
+            <YearPicker years={years} active={year} basePath={`/properties/${id}`} />
+          </div>
         </div>
 
         {/* Value / debt / equity, with an inline value update. */}
@@ -615,6 +633,79 @@ export default async function PropertyPage({
                 )}
               </ul>
             )}
+          </Panel>
+        )}
+
+        {/* Payment plans */}
+        {leases.length > 0 && (
+          <Panel title="Payment plan">
+            <p className="text-xs text-slate-500">
+              When a tenant pays on a different rhythm than the lease (say $700 every Monday toward monthly rent
+              and a back balance). Rent still counts monthly on the lease, so the balance stays honest; the plan
+              only sets when payments are expected. Each one shows on the Board, where you answer &ldquo;Has it
+              been received?&rdquo;
+            </p>
+            {schedules.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {schedules.map((s) => {
+                  const ended = !!s.end_date && s.end_date < todayISO;
+                  return (
+                    <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                      <span className={ended ? "text-slate-500" : "text-slate-300"}>
+                        {`${currencyCents.format(Number(s.amount))} ${FREQUENCY_LABELS[s.frequency]} from ${fmtDate(s.start_date)}${s.end_date ? ` to ${fmtDate(s.end_date)}` : ""}${leaseLabel(s.lease_id) ? ` · ${leaseLabel(s.lease_id)}` : ""}${s.note ? ` — ${s.note}` : ""}`}
+                      </span>
+                      <span className="flex items-center gap-3">
+                        {!s.end_date && (
+                          <InstantAction
+                            action={endRentSchedule}
+                            values={{ id: s.id, property_id: id }}
+                            message="Plan ended today."
+                            className="text-xs text-slate-400 transition hover:text-amber-300"
+                          >
+                            end plan
+                          </InstantAction>
+                        )}
+                        <InstantAction
+                          action={deleteRentSchedule}
+                          values={{ id: s.id, property_id: id }}
+                          message="Plan deleted. Payments already logged stay in the ledger."
+                          className={delCls}
+                        >
+                          delete
+                        </InstantAction>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <form action={addRentSchedule} className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-6">
+              <input type="hidden" name="property_id" value={id} />
+              <select name="lease_id" required className={inputCls} aria-label="Which lease" defaultValue={activeLeases[0]?.id ?? leases[0]?.id ?? ""}>
+                {leases.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {`${leaseLabel(l.id) ?? "Lease"} (${l.start_date.slice(0, 7)})`}
+                  </option>
+                ))}
+              </select>
+              <MoneyInput name="amount" placeholder="amount" required className={inputCls} ariaLabel="Payment amount" />
+              <select name="frequency" defaultValue="weekly" className={inputCls} aria-label="How often">
+                <option value="weekly">every week</option>
+                <option value="biweekly">every 2 weeks</option>
+                <option value="monthly">every month</option>
+              </select>
+              <label className="block text-xs text-slate-400">
+                first payment due
+                <input type="date" name="start_date" required defaultValue={todayISO} className={`mt-0.5 ${inputCls}`} />
+              </label>
+              <label className="block text-xs text-slate-400">
+                ends (optional)
+                <input type="date" name="end_date" className={`mt-0.5 ${inputCls}`} />
+              </label>
+              <button type="submit" className={`${btnCls} self-end`}>
+                Add plan
+              </button>
+            </form>
           </Panel>
         )}
 

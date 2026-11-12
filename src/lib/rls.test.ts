@@ -128,6 +128,35 @@ const FIXTURES: {
     mutate: { check_in: "2021-01-01" },
     original: "2020-01-01",
   },
+  {
+    table: "ops_sections",
+    row: () => ({ name: "RLS probe" }),
+    mutate: { name: "hijacked" },
+    original: "RLS probe",
+  },
+  {
+    table: "ops_lines",
+    row: (ids) => ({ section_id: ids.get("ops_sections"), name: "RLS probe" }),
+    mutate: { name: "hijacked" },
+    original: "RLS probe",
+  },
+  {
+    table: "ops_tasks",
+    row: (ids) => ({ line_id: ids.get("ops_lines"), title: "RLS probe" }),
+    mutate: { title: "hijacked" },
+    original: "RLS probe",
+  },
+  {
+    table: "rent_schedules",
+    row: (ids) => ({
+      lease_id: ids.get("leases"),
+      property_id: ids.get("properties"),
+      amount: 1,
+      start_date: "2020-01-01",
+    }),
+    mutate: { start_date: "2021-02-02" },
+    original: "2020-01-01",
+  },
 ];
 
 const TIMEOUT = 30_000;

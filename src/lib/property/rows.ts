@@ -158,6 +158,10 @@ export interface RentPaymentRow {
   expected_date: string | null;
   method: string | null;
   note: string | null;
+  /** Set when logged from the board against a payment-plan installment. */
+  schedule_id?: string | null;
+  /** The installment (due date) this payment answers, when logged from the board. */
+  installment_date?: string | null;
   created_at: string;
 }
 

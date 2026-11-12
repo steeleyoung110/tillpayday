@@ -14,12 +14,12 @@ const lease = (over: Partial<LeaseRow> = {}) => ({
 const pay = (amount: number) => ({ amount });
 
 describe("leaseBalance", () => {
-  it("reproduces the Unit 43 ledger: $16,252 paid on 12 months due = $11,348 owed", () => {
-    // Lynda: Nov 2025 – Oct 2026 at $2,300; October due Oct 1; today Oct 1.
-    const b = leaseBalance(lease(), [pay(16252)], "2026-10-01");
+  it("12 months due, $15,500 paid = $12,100 owed", () => {
+    // Example tenant: Nov 2025 – Oct 2026 at $2,300; October due Oct 1; today Oct 1.
+    const b = leaseBalance(lease(), [pay(15500)], "2026-10-01");
     expect(b.monthsDue).toBe(12);
     expect(b.expected).toBe(27600);
-    expect(b.owed).toBe(11348);
+    expect(b.owed).toBe(12100);
     expect(balanceLabel(b)).toBe("behind about 5 months");
   });
 

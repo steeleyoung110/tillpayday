@@ -2,14 +2,15 @@ import Link from "next/link";
 import { NavLink } from "@/components/NavLink";
 
 /**
- * App navigation frame: Dashboard (all properties combined), Properties
- * (one at a time), Settings. Sidebar on desktop, bottom tab bar on mobile.
+ * App navigation frame: Dashboard (all properties combined), Board (tasks
+ * and rent at a glance), Properties (one at a time), Settings. Sidebar on desktop, bottom tab bar on mobile.
  */
 
-export type NavKey = "dashboard" | "properties" | "settings";
+export type NavKey = "dashboard" | "board" | "properties" | "settings";
 
 const ITEMS: { key: NavKey; href: string; label: string; icon: string }[] = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: "📊" },
+  { key: "board", href: "/board", label: "Board", icon: "📋" },
   { key: "properties", href: "/properties", label: "Properties", icon: "🏠" },
   { key: "settings", href: "/settings", label: "Settings", icon: "⚙️" },
 ];
