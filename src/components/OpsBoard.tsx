@@ -235,7 +235,7 @@ function TileRow({
     ? { red: "payments past due", orange: `payments due within ${SOON_DAYS} days`, open: "payments not received" }
     : { red: "overdue", orange: `due within ${SOON_DAYS} days`, open: "open" };
   return (
-    <div className="flex justify-between gap-2">
+    <div className="flex max-w-[360px] justify-between gap-2">
       <Tile n={counts.red} bucket="red" label={`${name}: ${words.red}`} onClick={() => onOpen("red")} neutralZero={neutralZero} />
       <Tile n={counts.orange} bucket="orange" label={`${name}: ${words.orange}`} onClick={() => onOpen("orange")} neutralZero={neutralZero} />
       <Tile n={counts.blue} bucket="open" label={`${name}: ${words.open}`} onClick={() => onOpen("open")} neutralZero={neutralZero} />
