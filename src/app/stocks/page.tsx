@@ -16,7 +16,7 @@ import {
   pctText,
   shortDate,
 } from "@/components/stocks/StocksUI";
-import { PERIODS, PERIOD_LABELS, pieSlices } from "@/lib/stocks/view";
+import { PERIODS, PERIOD_LABELS, holdingSlices } from "@/lib/stocks/view";
 import { loadStocks } from "./load";
 
 /**
@@ -28,7 +28,7 @@ export default async function StocksPortfolioPage() {
   const view = await loadStocks();
   const { total, accounts, asOf, dividends, liveAt } = view;
   const stockValue = total.holdings.reduce((s, h) => s + h.value, 0);
-  const slices = pieSlices(total.holdings.map((h) => ({ label: h.symbol, value: h.value })));
+  const slices = holdingSlices(total.holdings);
   const top = total.holdings[0];
   const cashLike = accounts.reduce((s, a) => s + a.cash + a.crypto, 0);
   const missingCost = accounts.filter((a) => a.holdings.length && a.cost === null).map((a) => a.name);
@@ -74,7 +74,7 @@ export default async function StocksPortfolioPage() {
 
             <div className="grid gap-4 lg:grid-cols-2">
               <Panel title="Breakdown by stock" aside="All accounts, CPRT counted once">
-                <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)]">
                   <LazyHoldingsDonut slices={slices} centerLabel="Stocks" centerValue={money(stockValue)} />
                   <SliceLegend slices={slices} />
                 </div>

@@ -147,19 +147,33 @@ export function StocksHeader({
   );
 }
 
-/** Legend beside a pie: swatch, name, share, dollars. */
+/** Legend beside a pie: swatch, name, price per share, share of the pie, dollars. */
 export function SliceLegend({ slices }: { slices: Slice[] }) {
   return (
-    <ul className="space-y-1.5 text-sm">
-      {slices.map((s) => (
-        <li key={s.label} className="flex items-center gap-2" title={s.members?.join(", ")}>
-          <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} aria-hidden />
-          <span className="min-w-0 flex-1 truncate font-semibold text-slate-200">{s.label}</span>
-          <span className="w-14 text-right tabular-nums text-slate-300">{pctText(s.share)}</span>
-          <span className="w-20 text-right tabular-nums text-slate-400">{money(s.value)}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="text-sm">
+      <div className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+        <span className="w-3 shrink-0" />
+        <span className="min-w-[3.25rem] flex-1">Stock</span>
+        <span className="w-[4.5rem] shrink-0 text-right">Per share</span>
+        <span className="w-12 shrink-0 text-right">Share</span>
+        <span className="w-16 shrink-0 text-right">Value</span>
+      </div>
+      <ul className="space-y-1.5">
+        {slices.map((s) => (
+          <li
+            key={s.label}
+            className="flex items-center gap-2"
+            title={s.members?.join(", ") ?? (s.shares !== undefined ? `${shares(s.shares)} shares` : undefined)}
+          >
+            <span className="h-3 w-3 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} aria-hidden />
+            <span className="min-w-[3.25rem] flex-1 truncate font-semibold text-slate-200">{s.label}</span>
+            <span className="w-[4.5rem] shrink-0 text-right tabular-nums text-slate-300">{s.price ? money(s.price, true) : "—"}</span>
+            <span className="w-12 shrink-0 text-right tabular-nums text-slate-400">{pctText(s.share)}</span>
+            <span className="w-16 shrink-0 text-right tabular-nums text-slate-400">{money(s.value)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

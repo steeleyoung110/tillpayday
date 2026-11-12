@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
-import { LazyHoldingsDonut, LazyValueChart } from "@/components/lazy/LazyCharts";
+import { LazyHoldingsDonut, LazyPriceChart, LazyValueChart } from "@/components/lazy/LazyCharts";
 import { AddLotForm, GoalForm, LotEditor } from "@/components/stocks/StockForms";
 import {
   BROKER_LABELS,
@@ -20,7 +20,7 @@ import {
   shares,
   shortDate,
 } from "@/components/stocks/StocksUI";
-import { pieSlices } from "@/lib/stocks/view";
+import { holdingSlices } from "@/lib/stocks/view";
 import { loadStocks } from "../load";
 
 const SUBTITLES: Record<string, string> = {
@@ -36,7 +36,7 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
   if (!a) notFound();
   const { asOf, liveAt } = view;
   const stockValue = a.holdings.reduce((s, h) => s + h.value, 0);
-  const slices = pieSlices(a.holdings.map((h) => ({ label: h.symbol, value: h.value })));
+  const slices = holdingSlices(a.holdings);
   const upcoming = view.dividends.upcoming.filter((p) => p.accountKey === a.key).slice(0, 6);
   const isEspp = a.kind === "espp";
   const unpricedLots = a.lots.filter((l) => !l.sold && l.purchasePrice === null).length;
@@ -44,6 +44,9 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
   const held = a.holdings[0];
   const breakEven = isEspp && held?.avgCost ? held.avgCost : null;
   const hasSales = a.lots.some((l) => l.sold);
+  // For a one-stock account, put that day's price per share on each value point.
+  const priceOn = new Map(a.priceSeries?.points.map((p) => [p.day, p.price]) ?? []);
+  const valuePoints = a.series.map((p) => ({ ...p, price: priceOn.get(p.day) }));
 
   return (
     <AppShell active="stocks">
@@ -114,7 +117,7 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
             <div className="grid gap-4 lg:grid-cols-2">
               {slices.length > 1 ? (
                 <Panel title="Breakdown by stock">
-                  <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid items-center gap-4 sm:grid-cols-[minmax(0,190px)_minmax(0,1fr)]">
                     <LazyHoldingsDonut slices={slices} centerLabel="Stocks" centerValue={money(stockValue)} />
                     <SliceLegend slices={slices} />
                   </div>
@@ -122,7 +125,7 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
               ) : null}
               <Panel title="Value over time" aside={a.series.length ? `Since ${shortDate(a.series[0].day)}` : undefined}>
                 {a.series.length >= 2 ? (
-                  <LazyValueChart points={a.series} goal={a.goal?.amount ?? null} />
+                  <LazyValueChart points={valuePoints} goal={a.goal?.amount ?? null} priceLabel={a.priceSeries?.symbol} />
                 ) : (
                   <p className="py-16 text-center text-sm text-slate-400">The chart fills in as the daily sync runs.</p>
                 )}
@@ -130,10 +133,16 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
                   <p className="mt-2 text-xs text-slate-500">Days before syncing started are worked out from today&apos;s shares.</p>
                 ) : null}
               </Panel>
-              {isEspp ? (
-                <Panel title="Dividends">
-                  <p className="text-sm text-slate-300">
-                    Copart doesn&apos;t pay a dividend, so this account grows only with the CPRT price and new purchases.
+              {a.priceSeries && a.priceSeries.points.length >= 2 ? (
+                <Panel
+                  title={`${a.priceSeries.symbol} price per share`}
+                  aside={held?.price ? `${money(held.price, true)} now` : undefined}
+                >
+                  <LazyPriceChart points={a.priceSeries.points} symbol={a.priceSeries.symbol} breakEven={breakEven} />
+                  <p className="mt-2 text-xs text-slate-500">
+                    {breakEven
+                      ? `Dashed line: your break-even, ${money(breakEven, true)} a share.${isEspp ? " Copart doesn't pay a dividend, so this account moves only with the price and new purchases." : ""}`
+                      : "Price per share at each day's close."}
                   </p>
                 </Panel>
               ) : null}

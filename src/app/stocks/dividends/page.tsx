@@ -97,14 +97,16 @@ export default async function StocksDividendsPage() {
               </Panel>
             </div>
 
-            <Panel title="By stock" aside="At today's shares and latest announced amount">
+            <Panel title="By stock" aside={`Stock prices ${liveAt ? "live" : `as of the ${shortDate(asOf)} close`} · dividends at the latest announced amount`}>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-sm">
+                <table className="w-full min-w-[880px] text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
                       <th className="py-2 pr-3 font-semibold">Stock</th>
                       <th className="px-3 py-2 text-right font-semibold">Shares</th>
-                      <th className="px-3 py-2 text-right font-semibold">Per share</th>
+                      <th className="px-3 py-2 text-right font-semibold">Stock price</th>
+                      <th className="px-3 py-2 text-right font-semibold">Value</th>
+                      <th className="px-3 py-2 text-right font-semibold">Dividend / share</th>
                       <th className="px-3 py-2 font-semibold">How often</th>
                       <th className="px-3 py-2 text-right font-semibold">Per year</th>
                       <th className="px-3 py-2 text-right font-semibold">Yield</th>
@@ -117,6 +119,8 @@ export default async function StocksDividendsPage() {
                       <tr key={s.symbol} className="border-b border-slate-800/60 last:border-0">
                         <td className="py-2 pr-3 font-bold text-white">{s.symbol}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-300">{shares(s.shares)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-200">{s.price === null ? "—" : money(s.price, true)}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-slate-300">{money(s.value)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-slate-300">{`$${s.perShare.toFixed(s.perShare < 1 ? 4 : 2)}`}</td>
                         <td className="px-3 py-2 text-slate-300">{FREQUENCY_LABEL[s.ppy] ?? "—"}</td>
                         <td className="px-3 py-2 text-right font-semibold tabular-nums text-white">{money(s.annual, true)}</td>

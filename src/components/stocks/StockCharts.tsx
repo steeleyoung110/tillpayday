@@ -41,7 +41,11 @@ export interface DonutSlice {
   value: number;
   share: number;
   color: string;
+  shares?: number;
+  price?: number | null;
 }
+
+const sharesText = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n < 1 ? 4 : n < 100 ? 3 : 0 });
 
 /** Breakdown by stock. 2px surface gaps between slices; hover shows each. */
 export function HoldingsDonut({ slices, centerLabel, centerValue }: { slices: DonutSlice[]; centerLabel: string; centerValue: string }) {
@@ -69,8 +73,10 @@ export function HoldingsDonut({ slices, centerLabel, centerValue }: { slices: Do
             contentStyle={tooltipStyle}
             itemStyle={{ color: "#e2e8f0" }}
             formatter={(value, name, item) => {
-              const share = (item?.payload as DonutSlice | undefined)?.share ?? 0;
-              return [`${fmt(Number(value))} · ${(share * 100).toFixed(1)}%`, String(name)];
+              const s = item?.payload as DonutSlice | undefined;
+              const pct = `${((s?.share ?? 0) * 100).toFixed(1)}%`;
+              const each = s?.price && s.shares !== undefined ? `${sharesText(s.shares)} sh × ${usd2.format(s.price)} = ` : "";
+              return [`${each}${fmt(Number(value))} · ${pct}`, String(name)];
             }}
           />
         </PieChart>
@@ -84,7 +90,18 @@ export function HoldingsDonut({ slices, centerLabel, centerValue }: { slices: Do
 }
 
 /** Account value over time (one series, so no legend; the panel title names it). */
-export function ValueChart({ points, color = "#3987e5", goal }: { points: { day: string; value: number }[]; color?: string; goal?: number | null }) {
+export function ValueChart({
+  points,
+  color = "#3987e5",
+  goal,
+  priceLabel,
+}: {
+  points: { day: string; value: number; price?: number }[];
+  color?: string;
+  goal?: number | null;
+  /** When the account is one stock, its symbol: the tooltip adds that day's price per share. */
+  priceLabel?: string;
+}) {
   const values = points.map((p) => p.value);
   const lo = Math.min(...values);
   const hi = Math.max(...values, goal && goal < Math.max(...values) * 1.3 ? goal : -Infinity);
@@ -110,10 +127,18 @@ export function ValueChart({ points, color = "#3987e5", goal }: { points: { day:
           />
           {goal && goal < hi + pad ? <ReferenceLine y={goal} stroke="#64748b" strokeDasharray="4 4" /> : null}
           <Tooltip
-            contentStyle={tooltipStyle}
-            labelFormatter={(l) => dayLabel(String(l))}
-            formatter={(v) => [fmt(Number(v)), "Value"]}
             cursor={{ stroke: "#475569" }}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0].payload as { value: number; price?: number };
+              return (
+                <div style={{ ...tooltipStyle, padding: "8px 10px" }}>
+                  <p style={{ color: "#94a3b8", marginBottom: 2 }}>{dayLabel(String(label))}</p>
+                  <p>{`Value: ${fmt(p.value)}`}</p>
+                  {priceLabel && p.price ? <p>{`${priceLabel}: ${usd2.format(p.price)} a share`}</p> : null}
+                </div>
+              );
+            }}
           />
           <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#fill-${color.slice(1)})`} dot={false} activeDot={{ r: 4, stroke: SURFACE, strokeWidth: 2 }} isAnimationActive={false} />
         </AreaChart>
@@ -165,6 +190,47 @@ export function IncomeTrendChart({ points }: { points: { day: string; income: nu
           <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v: number) => usd0.format(v)} width={56} domain={["auto", "auto"]} />
           <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => dayLabel(String(l))} formatter={(v) => [usd2.format(Number(v)), "Per year"]} />
           <Area type="monotone" dataKey="income" stroke="#199e70" strokeWidth={2} fill="#199e70" fillOpacity={0.15} dot={false} isAnimationActive={false} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Price per share over time, with a dashed line at what you paid on average. */
+export function PriceChart({
+  points,
+  symbol,
+  breakEven,
+}: {
+  points: { day: string; price: number }[];
+  symbol: string;
+  breakEven?: number | null;
+}) {
+  const prices = points.map((p) => p.price);
+  const lo = Math.min(...prices, breakEven ?? Infinity);
+  const hi = Math.max(...prices, breakEven ?? -Infinity);
+  const pad = Math.max((hi - lo) * 0.12, 0.5);
+  return (
+    <div className="h-56 w-full" role="img" aria-label={`${symbol} price per share from ${usd2.format(prices[0] ?? 0)} to ${usd2.format(prices[prices.length - 1] ?? 0)}`}>
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+          <XAxis dataKey="day" tickFormatter={dayLabel} tick={axisTick} axisLine={{ stroke: "#334155" }} tickLine={false} minTickGap={24} />
+          <YAxis domain={[Math.max(0, lo - pad), hi + pad]} tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(v: number) => usd2.format(v)} width={64} />
+          {breakEven ? (
+            <ReferenceLine
+              y={breakEven}
+              stroke="#94a3b8"
+              strokeDasharray="5 4"
+              label={{ value: `Break-even ${usd2.format(breakEven)}`, position: "insideTopLeft", fill: "#cbd5e1", fontSize: 11 }}
+            />
+          ) : null}
+          <Tooltip
+            contentStyle={tooltipStyle}
+            labelFormatter={(l) => dayLabel(String(l))}
+            formatter={(v) => [`${usd2.format(Number(v))} a share`, symbol]}
+            cursor={{ stroke: "#475569" }}
+          />
+          <Area type="monotone" dataKey="price" stroke="#d95926" strokeWidth={2} fill="#d95926" fillOpacity={0.12} dot={false} activeDot={{ r: 4, stroke: SURFACE, strokeWidth: 2 }} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

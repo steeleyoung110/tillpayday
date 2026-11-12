@@ -142,6 +142,10 @@ export function makeHolding(
   };
 }
 
+/** Pie items for a holdings list: value, shares and price per share. */
+export const holdingSlices = (holdings: Holding[]) =>
+  pieSlices(holdings.map((h) => ({ label: h.symbol, value: h.value, shares: h.shares, price: h.price })));
+
 /** One row per symbol across several holdings lists (the combined portfolio). */
 export function mergeHoldings(lists: Holding[][]): Holding[] {
   const by = new Map<string, Holding>();
@@ -183,17 +187,30 @@ export interface Slice {
   value: number;
   share: number;
   color: string;
+  /** Shares held and price per share (not on "Other"). */
+  shares?: number;
+  price?: number | null;
   /** For "Other": what's folded into it. */
   members?: string[];
 }
 
-export function pieSlices(items: { label: string; value: number }[], max = SERIES_COLORS.length): Slice[] {
+export function pieSlices(
+  items: { label: string; value: number; shares?: number; price?: number | null }[],
+  max = SERIES_COLORS.length,
+): Slice[] {
   const sorted = items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value);
   const total = sorted.reduce((s, i) => s + i.value, 0);
   if (total <= 0) return [];
   const head = sorted.length > max ? sorted.slice(0, max) : sorted;
   const rest = sorted.length > max ? sorted.slice(max) : [];
-  const slices: Slice[] = head.map((i, k) => ({ label: i.label, value: i.value, share: i.value / total, color: SERIES_COLORS[k] }));
+  const slices: Slice[] = head.map((i, k) => ({
+    label: i.label,
+    value: i.value,
+    share: i.value / total,
+    color: SERIES_COLORS[k],
+    ...(i.shares !== undefined ? { shares: i.shares } : {}),
+    ...(i.price !== undefined ? { price: i.price } : {}),
+  }));
   if (rest.length) {
     const v = rest.reduce((s, i) => s + i.value, 0);
     slices.push({ label: `Other (${rest.length})`, value: v, share: v / total, color: OTHER_COLOR, members: rest.map((i) => i.label) });
@@ -388,11 +405,17 @@ export interface AccountView {
   realized: number;
   annualIncome: number;
   series: { day: string; value: number; backfilled: boolean }[];
+  /** Price per share over time, for an account that holds one stock (the ESPP). */
+  priceSeries: { symbol: string; points: { day: string; price: number }[] } | null;
 }
 
 export interface SymbolIncome {
   symbol: string;
   shares: number;
+  /** Stock price per share now, and what the shares are worth. */
+  price: number | null;
+  value: number;
+  /** Dividend per share, per payment. */
   perShare: number;
   ppy: number;
   annual: number;
@@ -571,6 +594,13 @@ export function buildStocks(raw: StocksRaw): StocksView {
         realized: lots.filter((l) => l.sold && l.gain !== null).reduce((sum, l) => sum + (l.gain ?? 0), 0),
         annualIncome,
         series,
+        priceSeries:
+          holdings.length === 1
+            ? {
+                symbol: holdings[0].symbol,
+                points: (idx.get(holdings[0].symbol) ?? []).filter((p) => p.day <= asOf).map((p) => ({ day: p.day, price: p.close })),
+              }
+            : null,
       };
     });
 
@@ -624,6 +654,8 @@ export function buildStocks(raw: StocksRaw): StocksView {
       return {
         symbol: h.symbol,
         shares: h.shares,
+        price: h.price,
+        value: h.value,
         perShare: plan.perShare,
         ppy: plan.ppy,
         annual,

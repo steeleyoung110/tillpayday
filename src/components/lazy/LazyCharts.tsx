@@ -48,3 +48,8 @@ export const LazyIncomeTrendChart = dynamic(
   () => import("@/components/stocks/StockCharts").then((m) => m.IncomeTrendChart),
   { ssr: false, loading: () => <ChartFallback className="h-48" /> },
 ) as StockCharts["IncomeTrendChart"];
+
+export const LazyPriceChart = dynamic(
+  () => import("@/components/stocks/StockCharts").then((m) => m.PriceChart),
+  { ssr: false, loading: () => <ChartFallback className="h-56" /> },
+) as StockCharts["PriceChart"];

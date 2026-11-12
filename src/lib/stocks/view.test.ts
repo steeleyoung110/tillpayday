@@ -76,6 +76,10 @@ describe("pie", () => {
     expect(s[8]).toMatchObject({ label: "Other (3)", value: 92 + 91 + 90, color: OTHER_COLOR });
     expect(s.reduce((t, x) => t + x.share, 0)).toBeCloseTo(1);
   });
+  it("carries shares and price per share onto each slice", () => {
+    const s = pieSlices([{ label: "KO", value: 196, shares: 2, price: 98 }]);
+    expect(s[0]).toMatchObject({ label: "KO", shares: 2, price: 98 });
+  });
   it("drops empty slices and handles nothing at all", () => {
     expect(pieSlices([{ label: "A", value: 0 }])).toEqual([]);
     expect(pieSlices([{ label: "A", value: 5 }])[0].share).toBe(1);
@@ -193,6 +197,14 @@ describe("buildStocks", () => {
     expect(espp.holdings).toHaveLength(1);
     expect(espp.holdings[0]).toMatchObject({ symbol: "CPRT", shares: 150, value: 4800, cost: null });
     expect(espp.lots[0]).toMatchObject({ id: "l1", discount: 450, gain: 100 * 32 - 2550 });
+    expect(espp.priceSeries).toEqual({
+      symbol: "CPRT",
+      points: [
+        { day: "2026-10-30", price: 30 },
+        { day: "2026-11-11", price: 32 },
+      ],
+    });
+    expect(v.accounts[0].priceSeries).toBeNull(); // two stocks: no single price line
     // Lot l1 was bought 11/1, so it isn't in the 10/30 value.
     expect(espp.series).toEqual([
       { day: "2026-10-30", value: 1500, backfilled: false },
@@ -214,6 +226,7 @@ describe("buildStocks", () => {
     expect(d.stillThisYear).toBe(1.06); // KO 12/15
     expect(d.upcoming[0]).toMatchObject({ symbol: "KO", payDate: "2026-12-15", declared: true });
     expect(d.bySymbol[0].nextPay?.payDate).toBe("2026-12-15");
+    expect(d.bySymbol[0]).toMatchObject({ symbol: "KO", price: 98, value: 196, perShare: 0.53 });
     expect(d.incomeTrend).toEqual([{ day: "2026-11-11", income: 4.24 }]);
   });
 
