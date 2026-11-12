@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthSync } from "@/components/AuthSync";
+import { DatePickerOpener } from "@/components/DatePickerOpener";
 import { Toaster } from "@/components/InstantAction";
 import { OfflineBadge } from "@/components/OfflineBadge";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
@@ -43,6 +44,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AuthSync />
+        <DatePickerOpener />
         <ServiceWorkerRegister />
         <OfflineBadge />
         {children}

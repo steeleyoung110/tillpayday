@@ -78,3 +78,26 @@ body {
   font-weight: 700;
   border-radius: 0.5rem;
 }
+
+/* The app is dark on every screen, so native controls should be too. Without
+   this, date fields draw a near-black calendar icon on the dark background —
+   invisible — and on a computer that icon is the only place a click opens the
+   calendar. Printing stays light. */
+:root {
+  color-scheme: dark;
+}
+@media print {
+  :root {
+    color-scheme: light;
+  }
+}
+input[type="date"],
+input[type="month"] {
+  cursor: pointer;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  padding: 2px;
+}
