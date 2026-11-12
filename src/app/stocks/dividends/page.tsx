@@ -1,6 +1,5 @@
 import { AppShell } from "@/components/AppShell";
 import { LazyDividendMonthsChart, LazyIncomeTrendChart } from "@/components/lazy/LazyCharts";
-import { DividendCsvImport } from "@/components/stocks/StockForms";
 import { NoStocksYet, Panel, StatCard, StocksHeader, longDate, money, shares, shortDate } from "@/components/stocks/StocksUI";
 import { addDays } from "@/lib/ops/board";
 import { FREQUENCY_LABEL, type Payment } from "@/lib/stocks/view";
@@ -9,17 +8,15 @@ import { loadStocks } from "../load";
 /**
  * Stocks → Dividends: what the stocks pay a year at today's shares, what's
  * been paid, what's coming, and month by month so you can see where it's
- * heading. Past payouts come from the daily sync and from Robinhood activity
- * reports you import.
+ * heading. Past payouts are recorded by the daily sync, starting November 2026.
  */
 export default async function StocksDividendsPage() {
   const view = await loadStocks();
-  const { asOf, accounts, dividends: d } = view;
+  const { asOf, accounts, dividends: d, liveAt } = view;
   const nameOf = new Map(accounts.map((a) => [a.key, a.name]));
   const year = asOf?.slice(0, 4) ?? "";
   const soon = asOf ? d.upcoming.filter((p) => p.payDate <= addDays(asOf, 60)) : [];
   const next12 = d.upcoming.reduce((s, p) => s + p.amount, 0);
-  const robinhood = accounts.filter((a) => a.broker === "robinhood").map((a) => ({ key: a.key, name: a.name }));
   const recent = d.history.slice(0, 40);
   const older = d.history.slice(40);
 
@@ -32,6 +29,7 @@ export default async function StocksDividendsPage() {
           active="dividends"
           accounts={accounts}
           asOf={asOf}
+          liveAt={liveAt}
         />
         {!asOf ? (
           <NoStocksYet />
@@ -41,24 +39,20 @@ export default async function StocksDividendsPage() {
               <StatCard label="Per year" hint={`${money(d.annualIncome / 12, true)} a month on average, at today's shares`}>
                 {money(d.annualIncome, true)}
               </StatCard>
-              <StatCard label={`Paid in ${year}`} hint={d.hasImported ? "From your imported reports and the daily sync" : "Recorded so far. Import a Robinhood report to fill in the year"}>
+              <StatCard label={`Paid in ${year}`} hint={d.historyFrom ? `Tracked since ${shortDate(d.historyFrom)}` : "Tracking starts with the first payout"}>
                 {money(d.paidThisYear, true)}
               </StatCard>
               <StatCard label={`Still coming in ${year}`} hint="Announced, plus each stock's usual schedule">
                 {money(d.stillThisYear, true)}
               </StatCard>
-              <StatCard label={`${year} expected total`} hint={d.hasImported ? "Paid plus still coming" : "Paid (recorded) plus still coming"}>
+              <StatCard label={`${year} expected total`} hint="Paid since tracking started, plus still coming">
                 {money(d.paidThisYear + d.stillThisYear, true)}
               </StatCard>
             </div>
 
             <Panel title="Month by month" aside="Past 12 months and the next 12">
               <LazyDividendMonthsChart months={d.months} />
-              {!d.hasImported ? (
-                <p className="mt-2 text-xs text-slate-500">
-                  Past months only show what&apos;s been recorded since syncing started. Import a Robinhood activity report below to fill them in.
-                </p>
-              ) : null}
+              <p className="mt-2 text-xs text-slate-500">Paid bars start from November 2026, when tracking began, and fill in as dividends land.</p>
             </Panel>
 
             <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -83,9 +77,7 @@ export default async function StocksDividendsPage() {
                     {`Tracking started ${d.incomeTrend[0] ? shortDate(d.incomeTrend[0].day) : "today"} at ${money(d.annualIncome, true)} a year. Each weekday's sync adds a point, so you'll see this line climb as reinvested dividends and new buys add shares.`}
                   </p>
                 )}
-                {!d.hasImported ? (
-                  <p className="mt-3 text-xs text-slate-500">The last-12-months figure is only what&apos;s been recorded so far.</p>
-                ) : null}
+                <p className="mt-3 text-xs text-slate-500">The last-12-months figure counts from when tracking started, so it grows into a full year.</p>
               </Panel>
 
               <Panel title="Next 60 days" aside={`${soon.length} payments · ${money(soon.reduce((s, p) => s + p.amount, 0), true)}`}>
@@ -159,17 +151,6 @@ export default async function StocksDividendsPage() {
               )}
             </Panel>
 
-            <Panel title="Fill in your history from Robinhood">
-              <ol className="mb-4 list-decimal space-y-1 pl-5 text-sm text-slate-300">
-                <li>In Robinhood: Account → Reports and statements → Account activity report → Generate new report.</li>
-                <li>Pick the account and the dates you want (e.g. Jan 1, 2024 to today). It can take a couple of hours; Robinhood lets you know when it&apos;s ready.</li>
-                <li>Download the CSV and pick it here. Do it once per account (Robinhood and Agentic).</li>
-              </ol>
-              <DividendCsvImport accounts={robinhood} />
-              <p className="mt-3 text-xs text-slate-500">
-                Only dividend lines are kept. Re-importing the same report doesn&apos;t double anything, and an imported payout replaces the daily sync&apos;s estimate of it.
-              </p>
-            </Panel>
           </>
         )}
       </div>
@@ -208,7 +189,7 @@ function PayoutList({
           <span className="w-24 shrink-0 tabular-nums text-slate-400">{longDate(r.payDate)}</span>
           <span className="w-14 shrink-0 font-bold text-white">{r.symbol}</span>
           <span className="min-w-0 flex-1 truncate text-xs text-slate-400">
-            {`${nameOf.get(r.accountKey) ?? r.accountKey}${r.source === "estimated" ? " · estimated from shares held" : r.source === "csv" ? " · from Robinhood report" : ""}`}
+            {`${nameOf.get(r.accountKey) ?? r.accountKey}${r.source === "estimated" ? " · from shares held on the pay date" : ""}`}
           </span>
           <span className="tabular-nums text-slate-100">{money(r.amount, true)}</span>
         </li>

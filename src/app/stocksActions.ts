@@ -3,7 +3,7 @@
 /**
  * Server Actions for the Stocks tab. Read-only toward the brokers: nothing
  * here (or anywhere in the app) can place a trade. These only keep the
- * hand-entered parts — ESPP purchases, imported dividend history, goals.
+ * hand-entered parts — ESPP purchases and sales, and goals.
  * Stocks never touch the property tables, so only /stocks and /board are
  * revalidated.
  */
@@ -11,7 +11,6 @@
 import { revalidatePath } from "next/cache";
 import { isISODate } from "@/lib/ops/board";
 import { createClient } from "@/lib/supabase/server";
-import type { CsvDividend } from "@/lib/stocks/view";
 
 export interface ActionResult {
   ok: boolean;
@@ -82,9 +81,12 @@ export async function updateStockLot(form: FormData): Promise<ActionResult> {
   const id = String(form.get("id") ?? "");
   const shares = num(form, "shares");
   const date = String(form.get("purchase_date") ?? "").trim();
+  const saleDate = String(form.get("sale_date") ?? "").trim();
+  const salePrice = num(form, "sale_price");
   if (!id) return FAIL;
   if (!shares || shares <= 0) return { ok: false, error: "Enter how many shares you bought." };
   if (date && !isISODate(date)) return { ok: false, error: "That purchase date doesn't look right." };
+  if (saleDate && !isISODate(saleDate)) return { ok: false, error: "That sale date doesn't look right." };
   const { error } = await supabase
     .from("stock_lots")
     .update({
@@ -92,7 +94,9 @@ export async function updateStockLot(form: FormData): Promise<ActionResult> {
       purchase_date: date || null,
       purchase_price: num(form, "purchase_price"),
       market_price: num(form, "market_price"),
-      sold: form.get("sold") === "on",
+      sale_date: saleDate || null,
+      sale_price: salePrice,
+      sold: !!saleDate || salePrice !== null,
       note: String(form.get("note") ?? "").trim().slice(0, 200) || null,
     })
     .eq("id", id);
@@ -105,57 +109,6 @@ export async function deleteStockLot(id: string): Promise<ActionResult> {
   const { supabase, user } = await session();
   if (!user || !id) return FAIL;
   const { error } = await supabase.from("stock_lots").delete().eq("id", id);
-  if (error) return FAIL;
-  refresh();
-  return { ok: true };
-}
-
-// ---------------------------------------------------------------------------
-// Dividend history from a Robinhood activity CSV (parsed in the browser)
-// ---------------------------------------------------------------------------
-
-export async function importDividends(
-  accountKey: string,
-  rows: CsvDividend[],
-): Promise<ActionResult & { saved?: number }> {
-  const { supabase, user } = await session();
-  if (!user) return FAIL;
-  const id = await accountId(supabase, accountKey);
-  if (!id) return { ok: false, error: "Couldn't find that account." };
-  const clean = (Array.isArray(rows) ? rows : [])
-    .filter(
-      (r) =>
-        r &&
-        SYMBOL.test(String(r.symbol)) &&
-        isISODate(r.payDate) &&
-        Number.isFinite(Number(r.amount)) &&
-        Number(r.amount) > 0 &&
-        Number(r.amount) < 1_000_000,
-    )
-    .slice(0, 5000)
-    .map((r) => ({
-      account_id: id,
-      symbol: String(r.symbol),
-      pay_date: r.payDate,
-      amount: Math.round(Number(r.amount) * 100) / 100,
-      source: "csv" as const,
-    }));
-  if (!clean.length) return { ok: false, error: "No dividend payments to save." };
-  // Same file twice just rewrites the same rows.
-  const { error } = await supabase
-    .from("stock_dividends")
-    .upsert(clean, { onConflict: "account_id,symbol,pay_date,source" });
-  if (error) return FAIL;
-  refresh();
-  return { ok: true, saved: clean.length };
-}
-
-export async function clearImportedDividends(accountKey: string): Promise<ActionResult> {
-  const { supabase, user } = await session();
-  if (!user) return FAIL;
-  const id = await accountId(supabase, accountKey);
-  if (!id) return FAIL;
-  const { error } = await supabase.from("stock_dividends").delete().eq("account_id", id).eq("source", "csv");
   if (error) return FAIL;
   refresh();
   return { ok: true };

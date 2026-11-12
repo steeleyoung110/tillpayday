@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { AccountView, Change, Changes, Holding, Slice } from "@/lib/stocks/view";
+import { LiveRefresh } from "./LiveRefresh";
 import { PERIODS, PERIOD_LABELS, changePct } from "@/lib/stocks/view";
 
 /**
@@ -21,6 +22,21 @@ const DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", 
 const DATE_Y = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 export const shortDate = (iso: string) => DATE.format(new Date(`${iso}T00:00:00Z`));
 export const longDate = (iso: string) => DATE_Y.format(new Date(`${iso}T00:00:00Z`));
+const LIVE_TIME = new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+/** "Thu 11:42 AM" in New York time. */
+export const liveTime = (iso: string) => LIVE_TIME.format(new Date(iso));
+
+export const BROKER_LABELS: Record<string, string> = {
+  robinhood: "Robinhood",
+  fidelity: "Fidelity",
+  etrade: "E*TRADE",
+  other: "",
+};
+
+/** "Prices live · Thu 11:42 AM" or "Prices as of the Nov 11, 2026 close". */
+export function priceAsOf(asOf: string, liveAt: string | null) {
+  return liveAt ? `Live prices · last trade ${liveTime(liveAt)}` : `Prices as of the ${longDate(asOf)} close`;
+}
 
 /** "▲ $12.34 (0.4%)" in green, "▼ $5.00 (1.2%)" in red, "— $0.00" flat. */
 export function Move({ change, showPct = true, className = "" }: { change: Change; showPct?: boolean; className?: string }) {
@@ -78,12 +94,14 @@ export function StocksHeader({
   active,
   accounts,
   asOf,
+  liveAt = null,
 }: {
   title: string;
   subtitle?: string;
   active: StocksTab;
   accounts: Pick<AccountView, "key" | "name">[];
   asOf: string | null;
+  liveAt?: string | null;
 }) {
   const tabs = [
     { key: "portfolio", href: "/stocks", label: "Portfolio" },
@@ -100,10 +118,14 @@ export function StocksHeader({
           </p>
         </div>
         {asOf ? (
-          <p className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-400">
-            {`Prices as of the ${longDate(asOf)} close · updates every weekday after the market closes`}
+          <p className="flex items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-1 text-xs text-slate-400">
+            {liveAt ? <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-400" aria-hidden /> : null}
+            {liveAt
+              ? `${priceAsOf(asOf, liveAt)} · refreshes every minute while the market's open`
+              : `${priceAsOf(asOf, null)} · updates every weekday after the market closes`}
           </p>
         ) : null}
+        <LiveRefresh enabled={!!liveAt} />
       </div>
       <nav aria-label="Stocks pages" className="-mx-1 flex gap-1 overflow-x-auto pb-1">
         {tabs.map((t) => (

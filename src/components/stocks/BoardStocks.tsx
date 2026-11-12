@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { StocksSummary } from "@/lib/stocks/view";
 import { PERIODS, PERIOD_LABELS } from "@/lib/stocks/view";
-import { Move, longDate, money } from "./StocksUI";
+import { LiveRefresh } from "./LiveRefresh";
+import { Move, longDate, liveTime, money } from "./StocksUI";
 
 /**
  * Stocks dropdown on the Board: each account's value and how much it's up or
@@ -12,13 +13,16 @@ export function BoardStocks({ summary }: { summary: StocksSummary | null }) {
   if (!summary) return null;
   const day = summary.total.changes.day;
   return (
-    <details className="group rounded-xl border border-slate-800 bg-slate-900">
+    <details data-board-stocks className="group rounded-xl border border-slate-800 bg-slate-900">
+      <LiveRefresh enabled={!!summary.liveAt} onlyWhenOpen="details[data-board-stocks]" />
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 [&::-webkit-details-marker]:hidden">
         <span className="text-base font-bold text-teal-300">📈 Stocks</span>
         <span className="text-sm font-semibold text-white tabular-nums">{money(summary.total.value)}</span>
         <span className="text-sm">
           <Move change={day} />
-          <span className="ml-1.5 text-xs text-slate-400">{`day, ${longDate(summary.asOf)} close`}</span>
+          <span className="ml-1.5 text-xs text-slate-400">
+            {summary.liveAt ? `today · live ${liveTime(summary.liveAt)}` : `day, ${longDate(summary.asOf)} close`}
+          </span>
         </span>
         <span className="ml-auto text-xs font-semibold text-slate-400 group-open:hidden">Show accounts ▾</span>
         <span className="ml-auto hidden text-xs font-semibold text-slate-400 group-open:inline">Hide ▴</span>

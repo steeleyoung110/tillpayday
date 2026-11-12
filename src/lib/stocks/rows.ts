@@ -14,7 +14,7 @@ export interface StockAccountRow {
   id: string;
   key: string;
   name: string;
-  broker: "robinhood" | "fidelity" | "other";
+  broker: "robinhood" | "fidelity" | "etrade" | "other";
   kind: StockAccountKind;
   last4: string | null;
   goal_amount: number | string | null;
@@ -43,6 +43,8 @@ export interface StockLotRow {
   market_price: number | string | null;
   sold: boolean;
   note: string | null;
+  sale_date?: string | null;
+  sale_price?: number | string | null;
 }
 
 export interface StockPriceRow {
@@ -70,6 +72,17 @@ export interface DividendInfoRow {
   yield_pct: number | string | null;
 }
 
+/** A live quote fetched while the page loads (Finnhub), layered over the daily closes. */
+export interface LiveQuote {
+  symbol: string;
+  price: number;
+  prevClose: number | null;
+  /** America/New_York trading day the price belongs to. */
+  day: string;
+  /** When the price was last traded (ISO). */
+  at: string;
+}
+
 export interface DividendRow {
   id: string;
   account_id: string;
@@ -90,6 +103,8 @@ export interface StocksRaw {
   values: StockValueRow[];
   dividendInfo: DividendInfoRow[];
   dividends: DividendRow[];
+  /** Live prices, when a market-data key is set up. */
+  live?: LiveQuote[];
 }
 
 export const num = (v: number | string | null | undefined): number => {

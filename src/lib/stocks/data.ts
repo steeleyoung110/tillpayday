@@ -1,6 +1,7 @@
 import { addDays, todayIn } from "@/lib/ops/board";
 import { createClient } from "@/lib/supabase/server";
-import type { StockPriceRow, StocksRaw } from "./rows";
+import { fetchLiveQuotes } from "./live";
+import { num, type StockPriceRow, type StocksRaw } from "./rows";
 import { buildStocks, type StocksView } from "./view";
 
 const PRICE_COLS = "symbol, day, close, prev_close";
@@ -14,7 +15,7 @@ const PRICE_COLS = "symbol, day, close, prev_close";
 export async function getStocksRaw(): Promise<StocksRaw> {
   const supabase = await createClient();
   const since = addDays(todayIn(), -45);
-  const [accounts, positions, lots, recent, values, info, dividends] = await Promise.all([
+  const [accounts, positions, lots, recent, values, info, dividends, settings] = await Promise.all([
     supabase.from("stock_accounts").select("*").order("sort_order"),
     supabase.from("stock_positions").select("account_id, symbol, quantity, avg_cost"),
     supabase.from("stock_lots").select("*"),
@@ -30,6 +31,7 @@ export async function getStocksRaw(): Promise<StocksRaw> {
       .select("id, account_id, symbol, pay_date, amount, shares, per_share, source")
       .order("pay_date", { ascending: false })
       .limit(1000),
+    supabase.from("stock_settings").select("quotes_key").maybeSingle(),
   ]);
 
   const prices = new Map<string, StockPriceRow>();
@@ -57,7 +59,16 @@ export async function getStocksRaw(): Promise<StocksRaw> {
     for (const p of data ?? []) prices.set(`${p.symbol}|${p.day}`, p);
   }
 
+  // Live prices while you're on the site, when a market-data key is set up.
+  const key = (settings.data?.quotes_key as string | null | undefined) || process.env.FINNHUB_API_KEY || null;
+  const held = [
+    ...(positions.data ?? []).filter((p) => num(p.quantity) > 0).map((p) => p.symbol as string),
+    ...(lots.data ?? []).filter((l) => !l.sold && !l.sale_date).map((l) => l.symbol as string),
+  ];
+  const live = key && held.length ? await fetchLiveQuotes(held, key) : [];
+
   return {
+    live,
     accounts: accounts.data ?? [],
     positions: positions.data ?? [],
     lots: lots.data ?? [],

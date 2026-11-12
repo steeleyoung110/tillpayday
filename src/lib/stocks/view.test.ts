@@ -5,12 +5,10 @@ import {
   changePct,
   cleanHistory,
   closeAt,
-  csvMoney,
   dividendMonths,
   dividendPlans,
   makeHolding,
   mergeHoldings,
-  parseRobinhoodDividends,
   paymentsPerYear,
   pieSlices,
   prevCloseAt,
@@ -151,37 +149,6 @@ describe("dividends", () => {
   });
 });
 
-describe("Robinhood activity CSV", () => {
-  const csv = [
-    '"Activity Date","Process Date","Settle Date","Instrument","Description","Trans Code","Quantity","Price","Amount"',
-    '"11/3/2026","11/3/2026","11/3/2026","T","Cash Div: R/D 2026-10-10 P/D 2026-11-03 - 15.01 shares at 0.2775","CDIV","","","$4.17"',
-    '"11/3/2026","11/3/2026","11/4/2026","T","AT&T Dividend Reinvestment","Buy","0.19","22.10","($4.17)"',
-    '"11/10/2026","11/10/2026","11/10/2026","AGNC","Cash Div: R/D 2026-10-31 P/D 2026-11-10 - 10 shares at 0.12","CDIV","","","$1.20"',
-    '"11/10/2026","11/10/2026","11/10/2026","AGNC","Cash Div: second lot","CDIV","","","$1.23"',
-    '"11/27/2026","11/27/2026","11/27/2026","SUHJY","Foreign Tax Withheld","DTAX","","","($0.10)"',
-    '"10/1/2026","10/1/2026","10/1/2026","","ACH Deposit","ACH","","","$100.00"',
-    '',
-    '"","","","","","","","","The data provided is for informational purposes only."',
-  ].join("\n");
-
-  it("keeps cash dividends only, adding same-day rows together", () => {
-    const { rows, error } = parseRobinhoodDividends(csv);
-    expect(error).toBeNull();
-    expect(rows).toEqual([
-      { symbol: "T", payDate: "2026-11-03", amount: 4.17 },
-      { symbol: "AGNC", payDate: "2026-11-10", amount: 2.43 },
-    ]);
-  });
-  it("says so when the file isn't a Robinhood report", () => {
-    expect(parseRobinhoodDividends("date,amount\n1/1/2026,5").error).toMatch(/Robinhood/);
-  });
-  it("reads money the way statements write it", () => {
-    expect(csvMoney("$1,234.56")).toBe(1234.56);
-    expect(csvMoney("($0.12)")).toBe(-0.12);
-    expect(csvMoney("")).toBeNull();
-  });
-});
-
 describe("buildStocks", () => {
   const raw: StocksRaw = {
     accounts: [
@@ -248,7 +215,37 @@ describe("buildStocks", () => {
     expect(d.upcoming[0]).toMatchObject({ symbol: "KO", payDate: "2026-12-15", declared: true });
     expect(d.bySymbol[0].nextPay?.payDate).toBe("2026-12-15");
     expect(d.incomeTrend).toEqual([{ day: "2026-11-11", income: 4.24 }]);
-    expect(d.hasImported).toBe(true);
+  });
+
+  it("counts a sold ESPP lot as realized profit, not as shares held", () => {
+    const sold = buildStocks({
+      ...raw,
+      lots: [
+        ...raw.lots,
+        { id: "l4", account_id: "a3", symbol: "CPRT", purchase_date: "2026-01-02", shares: 10, purchase_price: 25, market_price: null, sold: false, note: null, sale_date: "2026-11-05", sale_price: 33 },
+      ],
+    }).accounts[1];
+    expect(sold.holdings[0].shares).toBe(150);
+    expect(sold.realized).toBeCloseTo(80); // 10 × (33 − 25); the l3 lot has no sale price, so it's left out
+    const l4 = sold.lots.find((l) => l.id === "l4")!;
+    expect(l4).toMatchObject({ sold: true, value: 0, gain: 80 });
+    // Held on 10/30 (before the sale), gone by 11/11.
+    expect(sold.series[0].value).toBe(1500 + 300);
+    expect(sold.series[1].value).toBe(4800);
+  });
+
+  it("lays live prices over the daily closes", () => {
+    const live = buildStocks({
+      ...raw,
+      live: [{ symbol: "KO", price: 100, prevClose: 98, day: "2026-11-12", at: "2026-11-12T16:30:00Z" }],
+    });
+    expect(live.asOf).toBe("2026-11-12");
+    expect(live.liveAt).toBe("2026-11-12T16:30:00Z");
+    const rh = live.accounts[0];
+    expect(rh.changes.day.amount).toBeCloseTo(2 * 2); // KO moved; CPRT has no live quote, so no move today
+    expect(rh.value).toBeCloseTo(200 + 320 + 0.07 + 28.12);
+    expect(rh.series[rh.series.length - 1]).toMatchObject({ day: "2026-11-12", backfilled: false });
+    expect(buildStocks(raw).liveAt).toBeNull();
   });
 
   it("summarises each account for the Board", () => {

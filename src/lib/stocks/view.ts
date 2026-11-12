@@ -13,6 +13,7 @@ import {
   optNum,
   type DividendInfoRow,
   type DividendSource,
+  type LiveQuote,
   type StockAccountKind,
   type StockPriceRow,
   type StocksRaw,
@@ -69,6 +70,8 @@ export function prevCloseAt(idx: PriceIndex, symbol: string, asOf: string): numb
   let i = -1;
   for (let k = 0; k < pts.length; k += 1) if (pts[k].day <= asOf) i = k;
   if (i < 0) return null;
+  // No price for that day itself (didn't trade, or no live quote): no move.
+  if (pts[i].day < asOf) return pts[i].close;
   if (pts[i].prev !== null) return pts[i].prev;
   return i > 0 ? pts[i - 1].close : null;
 }
@@ -295,9 +298,9 @@ export interface PaidDividend {
 }
 
 /**
- * The daily sync records an estimate when a dividend pays; an imported
- * Robinhood statement has the exact amount. When both exist for the same
- * payment (same account and stock, within a week), keep the exact one.
+ * The daily sync records an estimate when a dividend pays. If an exact
+ * amount is ever entered for the same payment (same account and stock,
+ * within a week), keep the exact one.
  */
 export function cleanHistory(rows: PaidDividend[]): PaidDividend[] {
   const exact = rows.filter((r) => r.source !== "estimated");
@@ -341,107 +344,6 @@ export function dividendMonths(paid: PaidDividend[], upcoming: Payment[], asOf: 
 }
 
 // ---------------------------------------------------------------------------
-// Robinhood activity CSV (Account → Reports and statements → Reports)
-// ---------------------------------------------------------------------------
-
-export interface CsvDividend {
-  symbol: string;
-  payDate: string;
-  amount: number;
-}
-
-const DIV_CODES = new Set(["CDIV", "MDIV", "QDIV", "DIV"]);
-
-function cells(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i];
-    if (quoted) {
-      if (ch === '"' && text[i + 1] === '"') {
-        cell += '"';
-        i += 1;
-      } else if (ch === '"') quoted = false;
-      else cell += ch;
-    } else if (ch === '"') quoted = true;
-    else if (ch === ",") {
-      row.push(cell);
-      cell = "";
-    } else if (ch === "\n" || ch === "\r") {
-      if (ch === "\r" && text[i + 1] === "\n") i += 1;
-      row.push(cell);
-      cell = "";
-      if (row.some((c) => c.trim() !== "")) rows.push(row);
-      row = [];
-    } else cell += ch;
-  }
-  row.push(cell);
-  if (row.some((c) => c.trim() !== "")) rows.push(row);
-  return rows;
-}
-
-function csvDate(raw: string): string | null {
-  const s = raw.trim();
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (m) return `${m[3].length === 2 ? `20${m[3]}` : m[3]}-${m[1].padStart(2, "0")}-${m[2].padStart(2, "0")}`;
-  return null;
-}
-
-/** "$1,234.56" → 1234.56, "($0.12)" → -0.12. */
-export function csvMoney(raw: string): number | null {
-  const s = raw.trim();
-  if (!s) return null;
-  const neg = /^\(.*\)$/.test(s) || s.startsWith("-");
-  const n = Number(s.replace(/[()$,\s-]/g, ""));
-  return Number.isFinite(n) ? (neg ? -n : n) : null;
-}
-
-/**
- * Cash dividends from a Robinhood account-activity CSV. Reinvestment buys,
- * tax withholding and fees are left out, and same-day rows for one stock are
- * added together.
- */
-export function parseRobinhoodDividends(text: string): { rows: CsvDividend[]; error: string | null } {
-  const all = cells(text);
-  const headerAt = all.findIndex((r) => {
-    const low = r.map((c) => c.trim().toLowerCase());
-    return low.includes("trans code") && low.includes("amount");
-  });
-  if (headerAt < 0) {
-    return { rows: [], error: "This doesn't look like a Robinhood activity report (no \"Trans Code\" and \"Amount\" columns)." };
-  }
-  const head = all[headerAt].map((c) => c.trim().toLowerCase());
-  const col = (name: string) => head.indexOf(name);
-  const cDate = col("activity date") >= 0 ? col("activity date") : col("process date");
-  const cSym = col("instrument");
-  const cDesc = col("description");
-  const cCode = col("trans code");
-  const cAmt = col("amount");
-  if (cDate < 0 || cSym < 0) return { rows: [], error: "The report is missing its date or instrument column." };
-
-  const sums = new Map<string, CsvDividend>();
-  for (const r of all.slice(headerAt + 1)) {
-    const code = (r[cCode] ?? "").trim().toUpperCase();
-    const desc = cDesc >= 0 ? (r[cDesc] ?? "") : "";
-    const isDiv = DIV_CODES.has(code) || (code.includes("DIV") && /div/i.test(desc));
-    if (!isDiv) continue;
-    const symbol = (r[cSym] ?? "").trim().toUpperCase();
-    const payDate = csvDate(r[cDate] ?? "");
-    const amount = csvMoney(r[cAmt] ?? "");
-    if (!/^[A-Z0-9.\-]{1,12}$/.test(symbol) || !payDate || amount === null || amount <= 0) continue;
-    const key = `${symbol}|${payDate}`;
-    const cur = sums.get(key);
-    sums.set(key, { symbol, payDate, amount: cents((cur?.amount ?? 0) + amount) });
-  }
-  const rows = [...sums.values()].sort((a, b) => (a.payDate < b.payDate ? -1 : 1));
-  return { rows, error: rows.length ? null : "No dividend payments were found in this file." };
-}
-
-// ---------------------------------------------------------------------------
 // The whole view
 // ---------------------------------------------------------------------------
 
@@ -454,8 +356,12 @@ export interface LotView {
   marketPrice: number | null;
   sold: boolean;
   note: string | null;
+  saleDate: string | null;
+  salePrice: number | null;
+  /** Worth now (0 once sold). */
   value: number;
   cost: number | null;
+  /** Unrealized while held; realized (sale price − cost) once sold. */
   gain: number | null;
   /** What the ESPP discount was worth on purchase day. */
   discount: number | null;
@@ -478,6 +384,8 @@ export interface AccountView {
   changes: Changes;
   goal: { amount: number; date: string | null; note: string | null } | null;
   lots: LotView[];
+  /** Profit or loss already locked in by sales (ESPP lots). */
+  realized: number;
   annualIncome: number;
   series: { day: string; value: number; backfilled: boolean }[];
 }
@@ -496,6 +404,8 @@ export interface SymbolIncome {
 export interface StocksView {
   asOf: string | null;
   syncedAt: string | null;
+  /** Set when prices are live (time of the latest live trade). */
+  liveAt: string | null;
   accounts: AccountView[];
   total: {
     value: number;
@@ -516,7 +426,6 @@ export interface StocksView {
     months: MonthBar[];
     incomeTrend: { day: string; income: number }[];
     historyFrom: string | null;
-    hasImported: boolean;
   };
 }
 
@@ -527,9 +436,12 @@ function lotViews(raw: StocksRaw, accountId: string, idx: PriceIndex, asOf: stri
       const shares = num(l.shares);
       const purchasePrice = optNum(l.purchase_price);
       const marketPrice = optNum(l.market_price);
+      const salePrice = optNum(l.sale_price);
+      const sold = l.sold || !!l.sale_date || salePrice !== null;
       const price = closeAt(idx, l.symbol, asOf);
-      const value = price === null ? 0 : shares * price;
+      const value = sold || price === null ? 0 : shares * price;
       const cost = purchasePrice === null ? null : shares * purchasePrice;
+      const gain = cost === null ? null : sold ? (salePrice === null ? null : shares * salePrice - cost) : value - cost;
       return {
         id: l.id,
         symbol: l.symbol,
@@ -537,23 +449,36 @@ function lotViews(raw: StocksRaw, accountId: string, idx: PriceIndex, asOf: stri
         shares,
         purchasePrice,
         marketPrice,
-        sold: l.sold,
+        sold,
         note: l.note,
+        saleDate: l.sale_date ?? null,
+        salePrice,
         value,
         cost,
-        gain: cost === null ? null : value - cost,
+        gain,
         discount: purchasePrice !== null && marketPrice !== null ? shares * (marketPrice - purchasePrice) : null,
       };
     })
     .sort((a, b) => ((a.purchaseDate ?? "") < (b.purchaseDate ?? "") ? 1 : -1));
 }
 
+/** Lay live quotes over the stored daily closes (a live price replaces that day's row). */
+export function withLive(prices: StockPriceRow[], live: LiveQuote[] = []): StockPriceRow[] {
+  if (!live.length) return prices;
+  const at = new Map(prices.map((p) => [`${p.symbol}|${p.day}`, p]));
+  for (const q of live) at.set(`${q.symbol}|${q.day}`, { symbol: q.symbol, day: q.day, close: q.price, prev_close: q.prevClose });
+  return [...at.values()];
+}
+
 export function buildStocks(raw: StocksRaw): StocksView {
-  const idx = priceIndex(raw.prices);
+  const idx = priceIndex(withLive(raw.prices, raw.live));
   const asOf = lastPriceDay(idx);
+  const liveToday = (raw.live ?? []).filter((q) => q.day === asOf);
+  const liveAt = liveToday.length ? liveToday.map((q) => q.at).sort().pop()! : null;
   const empty: StocksView = {
     asOf: null,
     syncedAt: null,
+    liveAt: null,
     accounts: [],
     total: { value: 0, cost: null, gain: null, changes: zeroChanges(), holdings: [], series: [] },
     dividends: {
@@ -567,7 +492,6 @@ export function buildStocks(raw: StocksRaw): StocksView {
       months: [],
       incomeTrend: [],
       historyFrom: null,
-      hasImported: false,
     },
   };
   if (!asOf) return { ...empty, accounts: [] };
@@ -607,7 +531,7 @@ export function buildStocks(raw: StocksRaw): StocksView {
           day,
           backfilled: false,
           value: lots
-            .filter((l) => !l.sold && (!l.purchaseDate || l.purchaseDate <= day))
+            .filter((l) => (!l.purchaseDate || l.purchaseDate <= day) && (!l.sold || (l.saleDate !== null && day < l.saleDate)))
             .reduce((s, l) => s + l.shares * (closeAt(idx, l.symbol, day) ?? 0), 0),
         }));
       } else {
@@ -615,6 +539,11 @@ export function buildStocks(raw: StocksRaw): StocksView {
           .filter((v) => v.account_id === a.id)
           .map((v) => ({ day: v.day, value: num(v.value), backfilled: v.backfilled }))
           .sort((x, y) => (x.day < y.day ? -1 : 1));
+        // Live prices move today's value before the evening sync records it.
+        const last = series[series.length - 1];
+        if (liveAt && holdings.length && last && last.day < asOf) {
+          series.push({ day: asOf, value: Math.round((stockValue + cash + crypto) * 100) / 100, backfilled: false });
+        }
       }
 
       const annualIncome = holdings.reduce((s, h) => {
@@ -639,6 +568,7 @@ export function buildStocks(raw: StocksRaw): StocksView {
         changes: sumChanges(holdings.map((h) => h.changes)),
         goal: goalAmount ? { amount: goalAmount, date: a.goal_date, note: a.goal_note } : null,
         lots,
+        realized: lots.filter((l) => l.sold && l.gain !== null).reduce((sum, l) => sum + (l.gain ?? 0), 0),
         annualIncome,
         series,
       };
@@ -714,6 +644,7 @@ export function buildStocks(raw: StocksRaw): StocksView {
   return {
     asOf,
     syncedAt: raw.accounts.map((a) => a.synced_at).filter((s): s is string => !!s).sort().pop() ?? null,
+    liveAt,
     accounts,
     total: {
       value: accounts.reduce((s, a) => s + a.value, 0),
@@ -736,7 +667,6 @@ export function buildStocks(raw: StocksRaw): StocksView {
         .map(([day, income]) => ({ day, income: cents(income) }))
         .sort((x, y) => (x.day < y.day ? -1 : 1)),
       historyFrom: history.length ? history[history.length - 1].payDate : null,
-      hasImported: history.some((h) => h.source === "csv"),
     },
   };
 }
@@ -744,6 +674,7 @@ export function buildStocks(raw: StocksRaw): StocksView {
 /** What the Board's stocks dropdown shows. */
 export interface StocksSummary {
   asOf: string;
+  liveAt: string | null;
   accounts: { key: string; name: string; value: number; changes: Changes }[];
   total: { value: number; changes: Changes };
 }
@@ -752,6 +683,7 @@ export function stocksSummary(view: StocksView): StocksSummary | null {
   if (!view.asOf || !view.accounts.length) return null;
   return {
     asOf: view.asOf,
+    liveAt: view.liveAt,
     accounts: view.accounts.map((a) => ({ key: a.key, name: a.name, value: a.value, changes: a.changes })),
     total: { value: view.total.value, changes: view.total.changes },
   };

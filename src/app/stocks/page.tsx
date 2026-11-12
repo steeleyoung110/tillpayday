@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { LazyHoldingsDonut, LazyValueChart } from "@/components/lazy/LazyCharts";
 import {
+  BROKER_LABELS,
   Gain,
   HoldingsTable,
   Move,
@@ -25,17 +26,18 @@ import { loadStocks } from "./load";
  */
 export default async function StocksPortfolioPage() {
   const view = await loadStocks();
-  const { total, accounts, asOf, dividends } = view;
+  const { total, accounts, asOf, dividends, liveAt } = view;
   const stockValue = total.holdings.reduce((s, h) => s + h.value, 0);
   const slices = pieSlices(total.holdings.map((h) => ({ label: h.symbol, value: h.value })));
   const top = total.holdings[0];
   const cashLike = accounts.reduce((s, a) => s + a.cash + a.crypto, 0);
   const missingCost = accounts.filter((a) => a.holdings.length && a.cost === null).map((a) => a.name);
+  const realized = accounts.reduce((s, a) => s + a.realized, 0);
 
   return (
     <AppShell active="stocks">
       <div className="mx-auto max-w-screen-xl space-y-6 px-4 pt-6 sm:px-6">
-        <StocksHeader title="Stocks" active="portfolio" accounts={accounts} asOf={asOf} />
+        <StocksHeader title="Stocks" active="portfolio" accounts={accounts} asOf={asOf} liveAt={liveAt} />
         {!asOf ? (
           <NoStocksYet />
         ) : (
@@ -46,7 +48,13 @@ export default async function StocksPortfolioPage() {
               </StatCard>
               <StatCard
                 label="Gain since bought"
-                hint={missingCost.length ? `Leaves out ${missingCost.join(", ")} until its purchase prices are in` : "Value now vs. what you paid"}
+                hint={
+                  missingCost.length
+                    ? `Leaves out ${missingCost.join(", ")} until its purchase prices are in`
+                    : realized
+                      ? `Shares held, vs. what you paid · plus ${money(realized, true)} from ESPP sales`
+                      : "Shares held now, vs. what you paid"
+                }
               >
                 {total.gain === null ? (
                   <Gain value={accounts.filter((a) => a.gain !== null).reduce((s, a) => s + (a.gain ?? 0), 0)} />
@@ -97,10 +105,7 @@ export default async function StocksPortfolioPage() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="font-bold text-white group-hover:underline">{a.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {a.broker === "fidelity" ? "Fidelity" : "Robinhood"}
-                        {a.last4 ? ` ••${a.last4}` : ""}
-                      </p>
+                      <p className="text-xs text-slate-500">{`${BROKER_LABELS[a.broker] ?? ""}${a.last4 ? ` ••${a.last4}` : ""}`}</p>
                     </div>
                     <p className="mt-1 text-2xl font-bold text-white tabular-nums">{money(a.value)}</p>
                     <dl className="mt-2 space-y-1 text-xs">

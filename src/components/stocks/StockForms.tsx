@@ -1,22 +1,13 @@
 "use client";
 
 /**
- * Hand-entered parts of the Stocks tab: ESPP purchases, account goals and
- * importing past dividends from a Robinhood activity report. The CSV is read
- * in the browser; only the dividend rows are sent to the server.
+ * Hand-entered parts of the Stocks tab: ESPP purchases and sales, and
+ * account goals. (Usually Claude records ESPP buys and sells when told.)
  */
 import { useRef, useState, useTransition } from "react";
 import { showToast } from "@/components/InstantAction";
-import {
-  addStockLot,
-  clearImportedDividends,
-  deleteStockLot,
-  importDividends,
-  setStockGoal,
-  updateStockLot,
-  type ActionResult,
-} from "@/app/stocksActions";
-import { parseRobinhoodDividends, type CsvDividend, type LotView } from "@/lib/stocks/view";
+import { addStockLot, deleteStockLot, setStockGoal, updateStockLot, type ActionResult } from "@/app/stocksActions";
+import type { LotView } from "@/lib/stocks/view";
 
 const inputCls =
   "w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-sm text-white outline-none focus:border-emerald-400";
@@ -128,10 +119,16 @@ export function LotEditor({ lot }: { lot: LotView }) {
             <>
               <input type="hidden" name="id" value={lot.id} />
               <LotFields lot={lot} />
-              <label className="flex items-center gap-2 text-sm text-slate-300">
-                <input type="checkbox" name="sold" defaultChecked={lot.sold} className="h-4 w-4 accent-emerald-500" />
-                Sold (stop counting these shares)
-              </label>
+              <div className="grid grid-cols-2 gap-3 sm:w-2/5">
+                <label>
+                  <span className={labelCls}>Sold on (if sold)</span>
+                  <input type="date" name="sale_date" min="2000-01-01" max="2100-12-31" defaultValue={lot.saleDate ?? ""} className={inputCls} />
+                </label>
+                <label>
+                  <span className={labelCls}>Sale price</span>
+                  <input name="sale_price" inputMode="decimal" defaultValue={lot.salePrice ?? ""} placeholder="$ per share" className={inputCls} />
+                </label>
+              </div>
               <div className="flex gap-2">
                 <button type="submit" disabled={saving} className={buttonCls}>
                   {saving ? "Saving…" : "Save"}
@@ -184,97 +181,5 @@ export function GoalForm({ account, amount, date }: { account: string; amount: n
         )}
       </ActionForm>
     </details>
-  );
-}
-
-/**
- * Past dividends from Robinhood: Account → Reports and statements →
- * Reports → generate an account activity report, then pick the CSV here.
- */
-export function DividendCsvImport({ accounts }: { accounts: { key: string; name: string }[] }) {
-  const [account, setAccount] = useState(accounts[0]?.key ?? "");
-  const [rows, setRows] = useState<CsvDividend[] | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const total = rows?.reduce((s, r) => s + r.amount, 0) ?? 0;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <label>
-          <span className={labelCls}>Account</span>
-          <select value={account} onChange={(e) => setAccount(e.target.value)} className={inputCls}>
-            {accounts.map((a) => (
-              <option key={a.key} value={a.key}>
-                {a.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="min-w-0 flex-1">
-          <span className={labelCls}>Robinhood activity report (.csv)</span>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-              const parsed = parseRobinhoodDividends(await file.text());
-              setFileName(file.name);
-              setRows(parsed.rows.length ? parsed.rows : null);
-              setError(parsed.error);
-            }}
-          />
-        </label>
-      </div>
-      {error ? <p className="text-sm text-amber-300">{error}</p> : null}
-      {rows ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-sm text-slate-300">
-          <span>
-            {`${fileName}: ${rows.length} dividend payments, $${total.toFixed(2)} total, ${rows[0].payDate} to ${rows[rows.length - 1].payDate}.`}
-          </span>
-          <button
-            type="button"
-            disabled={pending || !account}
-            className={buttonCls}
-            onClick={() =>
-              start(async () => {
-                const r = await importDividends(account, rows);
-                if (!r.ok) {
-                  setError(r.error ?? "That didn't save.");
-                  return;
-                }
-                showToast(`Saved ${r.saved} payouts 👍`);
-                setRows(null);
-                setFileName(null);
-              })
-            }
-          >
-            {pending ? "Saving…" : "Save to history"}
-          </button>
-        </div>
-      ) : null}
-      <details className="text-xs text-slate-400">
-        <summary className="cursor-pointer font-semibold text-slate-300">Imported the wrong file?</summary>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span>{"Remove everything imported for this account (the daily sync's own entries stay):"}</span>
-          <button
-            type="button"
-            disabled={pending || !account}
-            className={quietCls}
-            onClick={() =>
-              start(async () => {
-                const r = await clearImportedDividends(account);
-                showToast(r.ok ? "Imported payouts removed" : (r.error ?? "That didn't save."));
-              })
-            }
-          >
-            Remove imported payouts
-          </button>
-        </div>
-      </details>
-    </div>
   );
 }
