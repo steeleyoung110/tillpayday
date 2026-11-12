@@ -14,6 +14,7 @@ import {
   addOpsSection,
   addOpsTask,
   clearSampleTasks,
+  completeBillTask,
   completeOpsTask,
   createStarterBoard,
   deleteOpsLine,
@@ -31,6 +32,7 @@ import {
 import { showToast } from "@/components/InstantAction";
 import { LeaseCard, ReportPeriods, ReportSettingsForm } from "@/components/LeasePaperwork";
 import { leaseCounts, reportCounts } from "@/lib/property/compliance";
+import { EXPENSE_CATEGORY_LABELS, type ExpenseCategory } from "@/lib/property/rows";
 import type { LeaseVM, Paperwork, ReportsVM, StaysVM } from "@/lib/property/paperwork";
 import {
   SOON_DAYS,
@@ -42,6 +44,7 @@ import {
   rentCounts,
   snapshot,
   taskBucket,
+  tasksAsOf,
   type Bucket,
   type Installment,
   type TileCounts,
@@ -71,6 +74,10 @@ export interface PlanInfo {
 
 export interface BoardProps {
   userId: string;
+  /** Last week's comparison point (null until the board is a week old). */
+  trend?: { day: string; installments: Installment[] } | null;
+  /** Expense categories a repeating expense already counts, per property. */
+  autoBills?: Record<string, string[]>;
   /** Show just this section, with everything behind each line. */
   focusId?: string;
   paperwork: Paperwork;
@@ -355,6 +362,18 @@ export function OpsBoard(props: BoardProps) {
     const r = paperwork.reports[pid];
     if (r) paperworkLate += reportCounts(r.periods).red;
   }
+  const trend = props.trend ?? null;
+  const prev = trend
+    ? snapshot(
+        tasksAsOf(shownTasks, trend.day),
+        shownLines,
+        person === "all" ? trend.installments.filter((i) => shownPropertyIds.has(i.propertyId)) : [],
+        trend.day,
+      )
+    : null;
+  const prevLate = trend
+    ? [...shownPropertyIds].reduce((n, pid) => n + (paperwork.lateAsOf[pid] ?? 0), 0)
+    : null;
   const samples = tasks.filter((t) => t.is_sample && !t.done_at).length;
   const propName = (pid: string) => properties.find((p) => p.id === pid)?.name ?? "Property";
 
@@ -634,18 +653,19 @@ export function OpsBoard(props: BoardProps) {
           <div>
             <h2 className="text-base font-bold text-teal-300">Today&apos;s snapshot</h2>
             <p className="text-xs text-slate-400">{`${fmtDay(today)} · ${person === "all" ? "Everyone" : person === "__none" ? "Unassigned" : person}`}</p>
+            <p className="text-xs text-slate-500">{trend ? `Arrows compare with ${fmtDay(trend.day)}` : "Week-over-week arrows start once the board is a week old"}</p>
           </div>
         </div>
         <div className="flex flex-1 flex-wrap gap-2">
-          <Pill label="Open tasks" value={String(snap.openTasks)} />
-          <Pill label="Overdue" value={String(snap.overdueTasks)} tone={snap.overdueTasks ? "red" : "ok"} />
-          <Pill label={`Due in ${SOON_DAYS} days`} value={String(snap.dueSoonTasks)} tone={snap.dueSoonTasks ? "orange" : "ok"} />
-          <Pill label="Done last 7 days" value={String(snap.doneLast7)} />
+          <Pill label="Open tasks" value={String(snap.openTasks)} delta={prev && { now: snap.openTasks, prev: prev.openTasks, good: "down" }} />
+          <Pill label="Overdue" value={String(snap.overdueTasks)} tone={snap.overdueTasks ? "red" : "ok"} delta={prev && { now: snap.overdueTasks, prev: prev.overdueTasks, good: "down" }} />
+          <Pill label={`Due in ${SOON_DAYS} days`} value={String(snap.dueSoonTasks)} tone={snap.dueSoonTasks ? "orange" : "ok"} delta={prev && { now: snap.dueSoonTasks, prev: prev.dueSoonTasks, good: "none" }} />
+          <Pill label="Done last 7 days" value={String(snap.doneLast7)} delta={prev && { now: snap.doneLast7, prev: prev.doneLast7, good: "up" }} />
           {person === "all" && shownPropertyIds.size > 0 && (
             <>
-              <Pill label="Rent past due" value={money(snap.rentOverdue)} tone={snap.rentOverdue ? "red" : "ok"} />
-              <Pill label={`Rent due in ${SOON_DAYS} days`} value={money(snap.rentDueSoon)} />
-              <Pill label="Leases & reports past due" value={String(paperworkLate)} tone={paperworkLate ? "red" : "ok"} />
+              <Pill label="Rent past due" value={money(snap.rentOverdue)} tone={snap.rentOverdue ? "red" : "ok"} delta={prev && { now: snap.rentOverdue, prev: prev.rentOverdue, good: "down", money: true }} />
+              <Pill label={`Rent due in ${SOON_DAYS} days`} value={money(snap.rentDueSoon)} delta={prev && { now: snap.rentDueSoon, prev: prev.rentDueSoon, good: "none", money: true }} />
+              <Pill label="Leases & reports past due" value={String(paperworkLate)} tone={paperworkLate ? "red" : "ok"} delta={prevLate !== null ? { now: paperworkLate, prev: prevLate, good: "down" } : null} />
             </>
           )}
         </div>
@@ -676,6 +696,7 @@ export function OpsBoard(props: BoardProps) {
       {openLine && (
         <TaskDrawer
           key={openLine.id}
+          autoBills={props.autoBills ?? {}}
           line={lines.find((l) => l.id === openLine.id)}
           section={sections.find((s) => s.id === lines.find((l) => l.id === openLine.id)?.section_id)}
           tasks={shownTasks.filter((t) => t.line_id === openLine.id)}
@@ -774,13 +795,40 @@ function defaultInfo(dated: boolean): string {
     : "Gray: every open task. This line has no due dates, so red and orange show NA.";
 }
 
-function Pill({ label, value, tone }: { label: string; value: string; tone?: "red" | "orange" | "ok" }) {
+interface Delta {
+  now: number;
+  prev: number;
+  /** Which direction is good news ("none" = neither). */
+  good: "up" | "down" | "none";
+  money?: boolean;
+}
+
+function Pill({ label, value, tone, delta }: { label: string; value: string; tone?: "red" | "orange" | "ok"; delta?: Delta | null }) {
   const valueCls = tone === "red" ? "text-[#ff6b6f]" : tone === "orange" ? "text-[#f5a524]" : tone === "ok" ? "text-[#7cd35a]" : "text-white";
   return (
     <div className="flex min-w-[150px] flex-1 items-center justify-between gap-3 rounded-md bg-slate-800/80 px-3 py-2">
       <span className="text-sm font-semibold text-slate-200">{label}</span>
-      <span className={`rounded-full bg-slate-950 px-2.5 py-0.5 text-sm font-bold tabular-nums ${valueCls}`}>{value}</span>
+      <span className="flex items-center gap-1.5">
+        {delta && <DeltaChip d={delta} />}
+        <span className={`rounded-full bg-slate-950 px-2.5 py-0.5 text-sm font-bold tabular-nums ${valueCls}`}>{value}</span>
+      </span>
     </div>
+  );
+}
+
+function DeltaChip({ d }: { d: Delta }) {
+  const diff = Math.round((d.now - d.prev) * 100) / 100;
+  const fmt = (n: number) => (d.money ? money(Math.abs(n)) : String(Math.abs(n)));
+  if (Math.abs(diff) < 0.005) {
+    return <span className="text-xs font-semibold text-slate-500" title="Same as last week" aria-label="Same as last week">=</span>;
+  }
+  const better = d.good === "none" ? null : (diff < 0) === (d.good === "down");
+  const cls = better === null ? "text-slate-400" : better ? "text-[#7cd35a]" : "text-[#ff6b6f]";
+  const words = `${fmt(diff)} ${diff > 0 ? "more" : "less"} than last week (was ${d.money ? money(d.prev) : d.prev})`;
+  return (
+    <span className={`text-xs font-bold tabular-nums ${cls}`} title={words} aria-label={words}>
+      {`${diff > 0 ? "▲" : "▼"}${fmt(diff)}`}
+    </span>
   );
 }
 
@@ -995,6 +1043,7 @@ function Modal({
 // ---------------------------------------------------------------------------
 
 function TaskDrawer({
+  autoBills,
   line,
   section,
   tasks,
@@ -1005,6 +1054,7 @@ function TaskDrawer({
   person,
   onClose,
 }: {
+  autoBills: Record<string, string[]>;
   line: OpsLineRow | undefined;
   section: OpsSectionRow | undefined;
   tasks: OpsTaskRow[];
@@ -1018,8 +1068,11 @@ function TaskDrawer({
   const [adding, setAdding] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [lineEdit, setLineEdit] = useState(false);
+  const [paying, setPaying] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   if (!line) return null;
+  const billCat = section?.property_id && line.bill_category ? line.bill_category : null;
+  const autoCounted = !!billCat && !!section?.property_id && (autoBills[section.property_id] ?? []).includes(billCat);
 
   const dated = line.dated;
   const groups: Record<Bucket, OpsTaskRow[]> = { red: [], orange: [], open: [], done: [] };
@@ -1088,6 +1141,7 @@ function TaskDrawer({
         {adding ? (
           <TaskForm
             mode="add"
+            bill={!!billCat}
             lineId={line.id}
             people={people}
             initial={{ assignee: defaultWho }}
@@ -1104,7 +1158,14 @@ function TaskDrawer({
             </button>
           </div>
         )}
-        {lineEdit && !adding && <LineSettings line={line} onDeleted={onClose} />}
+        {lineEdit && !adding && <LineSettings line={line} canBill={!!section?.property_id} onDeleted={onClose} />}
+        {billCat && (
+          <p className="mt-3 rounded-lg bg-slate-950/60 px-3 py-2 text-xs text-slate-400">
+            {autoCounted
+              ? `Bill line: this property already counts ${EXPENSE_CATEGORY_LABELS[billCat].toLowerCase()} automatically each month, so checking a bill off just marks it paid, with no second expense.`
+              : `Bill line: checking a bill off asks what you paid and logs it as a ${EXPENSE_CATEGORY_LABELS[billCat].toLowerCase()} expense for this property. Reopening it takes the expense back out.`}
+          </p>
+        )}
       </div>
 
       <ul className="mt-3">
@@ -1123,13 +1184,13 @@ function TaskDrawer({
         {items.map((t) =>
           editId === t.id ? (
             <li key={t.id} className="border-b border-slate-800 py-3">
-              <TaskForm mode="edit" task={t} lineId={line.id} people={people} onDone={() => setEditId(null)} />
+              <TaskForm mode="edit" bill={!!billCat} task={t} lineId={line.id} people={people} onDone={() => setEditId(null)} />
             </li>
           ) : (
             <li key={t.id} className="grid grid-cols-[auto_1fr_auto] items-start gap-3 border-b border-slate-800 py-3">
               <button
                 type="button"
-                onClick={() => (t.done_at ? reopen(t) : complete(t))}
+                onClick={() => (t.done_at ? reopen(t) : billCat ? setPaying((p) => (p === t.id ? null : t.id)) : complete(t))}
                 aria-label={`${t.done_at ? "Reopen" : "Mark done"}: ${t.title}`}
                 className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 transition ${
                   t.done_at
@@ -1150,9 +1211,43 @@ function TaskDrawer({
                       {REPEAT_LABELS[t.repeat]}
                     </span>
                   )}
+                  {t.amount != null && <span className="font-semibold text-slate-200">{money(Number(t.amount))}</span>}
                   {t.done_at && dayOf(t.done_at) && <span>{`Done ${fmtDay(dayOf(t.done_at))}`}</span>}
                 </p>
                 {t.notes && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-400">{t.notes}</p>}
+                {t.done_at && t.expense_id && <p className="mt-1 text-xs text-[#7cd35a]">Logged as an expense</p>}
+                {paying === t.id && !t.done_at && (
+                  <form
+                    action={async (fd) => {
+                      const res = await completeBillTask(fd);
+                      if (res.ok) {
+                        showToast(
+                          res.logged
+                            ? "Paid and logged as an expense."
+                            : "Marked paid. It's already counted automatically, so no second expense.",
+                        );
+                        setPaying(null);
+                      } else showToast(res.error ?? "That didn't save. Try again.");
+                    }}
+                    className="mt-2 flex flex-wrap items-end gap-2 rounded-lg bg-slate-950/70 p-2"
+                  >
+                    <input type="hidden" name="id" value={t.id} />
+                    <label className="grid gap-1 text-xs text-slate-400">
+                      {autoCounted ? "Amount (optional)" : "Amount paid"}
+                      <input name="amount" inputMode="decimal" required={!autoCounted} defaultValue={t.amount != null ? String(t.amount) : ""} placeholder="$0.00" className={`${inputCls} w-28`} />
+                    </label>
+                    <label className="grid gap-1 text-xs text-slate-400">
+                      Paid on
+                      <input type="date" min="2000-01-01" max="2100-12-31" name="paid_date" defaultValue={today} className={`${inputCls} w-40`} />
+                    </label>
+                    <button type="submit" className={btnPrimary}>
+                      {autoCounted ? "Mark paid" : "Log payment"}
+                    </button>
+                    <button type="button" onClick={() => setPaying(null)} className="text-xs text-slate-400 hover:text-white">
+                      Cancel
+                    </button>
+                  </form>
+                )}
               </div>
               <button type="button" onClick={() => setEditId(t.id)} className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white" aria-label={`Edit ${t.title}`}>
                 Edit
@@ -1177,6 +1272,7 @@ function DueText({ task, today, dated }: { task: OpsTaskRow; today: string; date
 
 function TaskForm({
   mode,
+  bill,
   task,
   lineId,
   people,
@@ -1185,6 +1281,7 @@ function TaskForm({
   keepOpen,
 }: {
   mode: "add" | "edit";
+  bill?: boolean;
   task?: OpsTaskRow;
   lineId: string;
   people: string[];
@@ -1235,6 +1332,12 @@ function TaskForm({
           </select>
         </label>
       </div>
+      {bill && (
+        <label className={labelCls}>
+          Usual amount (filled in when you check it off)
+          <input name="amount" inputMode="decimal" defaultValue={task?.amount != null ? String(task.amount) : ""} placeholder="$0.00" className={inputCls} />
+        </label>
+      )}
       <label className={labelCls}>
         Notes
         <textarea name="notes" maxLength={1000} defaultValue={task?.notes ?? ""} rows={2} className={inputCls} />
@@ -1263,7 +1366,7 @@ function TaskForm({
   );
 }
 
-function LineSettings({ line, onDeleted }: { line: OpsLineRow; onDeleted: () => void }) {
+function LineSettings({ line, canBill, onDeleted }: { line: OpsLineRow; canBill: boolean; onDeleted: () => void }) {
   const [, startTransition] = useTransition();
   return (
     <form
@@ -1285,6 +1388,19 @@ function LineSettings({ line, onDeleted }: { line: OpsLineRow; onDeleted: () => 
         <input type="checkbox" name="dated" defaultChecked={line.dated} className="h-4 w-4" />
         Tasks here have due dates (off = red and orange show NA)
       </label>
+      {canBill && (
+        <label className={labelCls}>
+          Checking a task off logs an expense as
+          <select name="bill_category" defaultValue={line.bill_category ?? ""} className={inputCls}>
+            <option value="">Nothing (not a bill line)</option>
+            {(Object.keys(EXPENSE_CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
+              <option key={c} value={c}>
+                {EXPENSE_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" className={btnPrimary}>
           Save line

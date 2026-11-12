@@ -389,6 +389,43 @@ export function rentCounts(insts: Installment[], today: string, soonDays = SOON_
 }
 
 // ---------------------------------------------------------------------------
+// Looking back: the board as it stood on an earlier day
+// ---------------------------------------------------------------------------
+
+/**
+ * Tasks as they stood at the end of `day`: only ones that existed by then,
+ * and anything finished later counts as still open on that day.
+ */
+export function tasksAsOf<T extends Pick<OpsTaskRow, "created_at" | "done_at">>(
+  tasks: T[],
+  day: string,
+  timeZone = "America/New_York",
+): T[] {
+  return tasks
+    .filter((t) => {
+      const made = dayOf(t.created_at, timeZone);
+      return !made || made <= day;
+    })
+    .map((t) => {
+      const done = dayOf(t.done_at, timeZone);
+      return done && done > day ? { ...t, done_at: null } : t;
+    });
+}
+
+/** Rent payments as they stood at the end of `day`. */
+export function paymentsAsOf<P extends Pick<RentPaymentRow, "status" | "paid_date" | "created_at">>(
+  payments: P[],
+  day: string,
+  timeZone = "America/New_York",
+): P[] {
+  return payments.filter((p) =>
+    p.status === "pending"
+      ? (dayOf(p.created_at, timeZone) || "0000-00-00") <= day
+      : !!p.paid_date && p.paid_date <= day,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Snapshot strip
 // ---------------------------------------------------------------------------
 

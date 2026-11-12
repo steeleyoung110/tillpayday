@@ -3,6 +3,8 @@
  * No server dependencies — safe to import from server and browser code.
  */
 
+import type { ExpenseCategory } from "@/lib/property/rows";
+
 export type OpsRepeat = "daily" | "weekly" | "monthly";
 
 export const REPEAT_LABELS: Record<OpsRepeat, string> = {
@@ -43,6 +45,11 @@ export interface OpsLineRow {
   info: string | null;
   /** false = tasks here have no due dates; red/orange show NA. */
   dated: boolean;
+  /**
+   * Bill line: checking a task off asks what was paid and logs a property
+   * expense in this category (null = an ordinary task line).
+   */
+  bill_category?: ExpenseCategory | null;
   sort_order: number;
   created_at: string;
 }
@@ -57,6 +64,10 @@ export interface OpsTaskRow {
   notes: string | null;
   /** null = still open. */
   done_at: string | null;
+  /** Bill lines: the usual amount, prefilled when it's checked off. */
+  amount?: number | null;
+  /** Bill lines: the expense logged when it was checked off. */
+  expense_id?: string | null;
   is_sample: boolean;
   created_at: string;
 }

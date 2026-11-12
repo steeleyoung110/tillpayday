@@ -5,6 +5,8 @@ import {
   dayOf,
   isISODate,
   lineCounts,
+  paymentsAsOf,
+  tasksAsOf,
   nextDue,
   rentCounts,
   scheduleDates,
@@ -245,5 +247,31 @@ describe("snapshot strip", () => {
       rentOverdue: 100,
       rentDueSoon: 700,
     });
+  });
+});
+
+describe("looking back a week", () => {
+  it("rebuilds tasks as they stood: only ones that existed, and later finishes count as open", () => {
+    const ts = [
+      task({ id: "a", created_at: "2026-11-01T12:00:00Z", done_at: null }),
+      task({ id: "b", created_at: "2026-11-01T12:00:00Z", done_at: "2026-11-08T15:00:00Z" }),
+      task({ id: "c", created_at: "2026-11-01T12:00:00Z", done_at: "2026-11-03T15:00:00Z" }),
+      task({ id: "d", created_at: "2026-11-10T12:00:00Z", done_at: null }),
+    ];
+    const then = tasksAsOf(ts, "2026-11-05");
+    expect(then.map((t) => [t.id, t.done_at === null])).toEqual([
+      ["a", true],
+      ["b", true],
+      ["c", false],
+    ]);
+  });
+  it("rebuilds rent payments as they stood", () => {
+    const ps = [
+      { status: "received" as const, paid_date: "2026-11-02", created_at: "2026-11-02T12:00:00Z" },
+      { status: "received" as const, paid_date: "2026-11-09", created_at: "2026-11-09T12:00:00Z" },
+      { status: "pending" as const, paid_date: null, created_at: "2026-11-04T12:00:00Z" },
+      { status: "pending" as const, paid_date: null, created_at: "2026-11-07T12:00:00Z" },
+    ];
+    expect(paymentsAsOf(ps, "2026-11-05")).toHaveLength(2);
   });
 });

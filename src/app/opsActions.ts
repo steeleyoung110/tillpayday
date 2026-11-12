@@ -36,6 +36,7 @@ function money(form: FormData, key: string): number {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
 }
 const REPEATS: OpsRepeat[] = ["daily", "weekly", "monthly"];
+const EXPENSE_CATEGORIES = ["repairs", "maintenance", "capex", "taxes", "insurance", "utilities", "hoa", "management", "legal", "supplies", "travel", "other"];
 const FREQUENCIES: RentFrequency[] = ["weekly", "biweekly", "monthly"];
 
 async function session() {
@@ -188,10 +189,16 @@ export async function updateOpsLine(form: FormData): Promise<ActionResult> {
   const id = str(form, "id", 40);
   const name = str(form, "name", 80);
   if (!id || !name) return { ok: false, error: "Give the line a name." };
-  const { error } = await supabase
-    .from("ops_lines")
-    .update({ name, info: optStr(form, "info", 400), dated: form.get("dated") === "on" || form.get("dated") === "true" })
-    .eq("id", id);
+  const patch: Record<string, unknown> = {
+    name,
+    info: optStr(form, "info", 400),
+    dated: form.get("dated") === "on" || form.get("dated") === "true",
+  };
+  if (form.has("bill_category")) {
+    const cat = str(form, "bill_category", 20);
+    patch.bill_category = (EXPENSE_CATEGORIES as string[]).includes(cat) ? cat : null;
+  }
+  const { error } = await supabase.from("ops_lines").update(patch).eq("id", id);
   if (error) return FAIL;
   revalidateBoard();
   return { ok: true };
@@ -214,13 +221,16 @@ export async function deleteOpsLine(form: FormData): Promise<ActionResult> {
 
 function taskFields(form: FormData) {
   const repeat = str(form, "repeat", 10) as OpsRepeat;
-  return {
+  const fields: Record<string, unknown> = {
     title: str(form, "title", 200),
     assignee: optStr(form, "assignee", 60),
     due_date: optDate(form, "due_date"),
     repeat: REPEATS.includes(repeat) ? repeat : null,
     notes: optStr(form, "notes", 1000),
   };
+  // Bill lines carry a usual amount (prefilled when the bill is checked off).
+  if (form.has("amount")) fields.amount = money(form, "amount") || null;
+  return fields as { title: string } & Record<string, unknown>;
 }
 
 export async function addOpsTask(form: FormData): Promise<ActionResult> {
@@ -275,6 +285,7 @@ export async function completeOpsTask(form: FormData): Promise<ActionResult> {
       due_date: nextDue(t.due_date, t.repeat, todayIn()),
       repeat: t.repeat,
       notes: t.notes,
+      amount: t.amount,
       is_sample: t.is_sample,
     });
   }
@@ -286,10 +297,94 @@ export async function reopenOpsTask(form: FormData): Promise<ActionResult> {
   const { supabase, user } = await session();
   if (!user) return FAIL;
   const id = str(form, "id", 40);
-  const { error } = await supabase.from("ops_tasks").update({ done_at: null }).eq("id", id);
+  const { data: t } = await supabase.from("ops_tasks").select("expense_id").eq("id", id).single();
+  // A bill checked off from the board logged an expense: reopening takes it back out.
+  let propertyId: string | null = null;
+  if (t?.expense_id) {
+    const { data: e } = await supabase.from("property_expenses").select("property_id").eq("id", t.expense_id).single();
+    propertyId = e?.property_id ?? null;
+    await supabase.from("property_expenses").delete().eq("id", t.expense_id);
+  }
+  const { error } = await supabase.from("ops_tasks").update({ done_at: null, expense_id: null }).eq("id", id);
   if (error) return FAIL;
-  revalidateBoard();
+  revalidateBoard(propertyId);
   return { ok: true };
+}
+
+/**
+ * Check off a bill: log what was paid as a property expense in the line's
+ * category (unless a repeating expense already counts that bill), remember the
+ * amount for next time, and put the next copy on the board if it repeats.
+ */
+export async function completeBillTask(form: FormData): Promise<ActionResult & { logged?: boolean }> {
+  const { supabase, user } = await session();
+  if (!user) return FAIL;
+  const id = str(form, "id", 40);
+  const amount = money(form, "amount");
+  const paidOn = optDate(form, "paid_date") ?? todayIn();
+  const { data: t } = await supabase.from("ops_tasks").select("*").eq("id", id).single();
+  if (!t) return FAIL;
+  if (t.done_at) return { ok: true };
+  const { data: line } = await supabase.from("ops_lines").select("bill_category, section_id").eq("id", t.line_id).single();
+  const { data: sec } = line
+    ? await supabase.from("ops_sections").select("property_id").eq("id", line.section_id).single()
+    : { data: null };
+  const category = line?.bill_category as string | null;
+  const propertyId = sec?.property_id as string | null;
+
+  let expenseId: string | null = null;
+  if (category && propertyId) {
+    const { data: auto } = await supabase
+      .from("property_expenses")
+      .select("id")
+      .eq("property_id", propertyId)
+      .eq("category", category)
+      .neq("cadence", "one_time")
+      .lte("expense_date", paidOn)
+      .limit(1);
+    if (!auto?.length) {
+      if (amount <= 0) return { ok: false, error: "Enter what was paid." };
+      const { data: e, error } = await supabase
+        .from("property_expenses")
+        .insert({
+          property_id: propertyId,
+          amount,
+          expense_date: paidOn,
+          category,
+          cadence: "one_time",
+          vendor: String(t.title).slice(0, 120),
+          note: "Logged from the board",
+        })
+        .select("id")
+        .single();
+      if (error || !e) return FAIL;
+      expenseId = e.id;
+    }
+  }
+
+  const keep = amount > 0 ? amount : t.amount;
+  const { error } = await supabase
+    .from("ops_tasks")
+    .update({ done_at: new Date().toISOString(), amount: keep, expense_id: expenseId })
+    .eq("id", id);
+  if (error) {
+    if (expenseId) await supabase.from("property_expenses").delete().eq("id", expenseId);
+    return FAIL;
+  }
+  if (t.repeat && t.due_date) {
+    await supabase.from("ops_tasks").insert({
+      line_id: t.line_id,
+      title: t.title,
+      assignee: t.assignee,
+      due_date: nextDue(t.due_date, t.repeat, todayIn()),
+      repeat: t.repeat,
+      notes: t.notes,
+      amount: keep,
+      is_sample: t.is_sample,
+    });
+  }
+  revalidateBoard(propertyId);
+  return { ok: true, logged: !!expenseId };
 }
 
 export async function clearSampleTasks(): Promise<ActionResult> {

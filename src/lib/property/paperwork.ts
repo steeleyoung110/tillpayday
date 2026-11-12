@@ -13,6 +13,7 @@ import {
   type ReportCadence,
   type ReportPeriod,
 } from "./compliance";
+import { dayOf } from "@/lib/ops/board";
 import type { PortfolioData, PropertyFileRow } from "./rows";
 
 export interface FileVM {
@@ -66,9 +67,12 @@ export interface Paperwork {
   stays: Record<string, StaysVM>;
   /** Properties with at least one short-term unit. */
   shortTerm: string[];
+  /** Past-due leases + rental reports per property, as things stood on `lateDay`. */
+  lateAsOf: Record<string, number>;
+  lateDay: string | null;
 }
 
-export async function getPaperwork(data: PortfolioData, today: string): Promise<Paperwork> {
+export async function getPaperwork(data: PortfolioData, today: string, lateDay: string | null = null): Promise<Paperwork> {
   const supabase = await createClient();
   const { data: fileRows } = await supabase.from("property_files").select("*").order("created_at", { ascending: false });
   const files = (fileRows as PropertyFileRow[]) ?? [];
@@ -91,7 +95,7 @@ export async function getPaperwork(data: PortfolioData, today: string): Promise<
   });
 
   const tenantName = new Map(data.tenants.map((t) => [t.id, t.full_name]));
-  const out: Paperwork = { leases: {}, reports: {}, stays: {}, shortTerm: [] };
+  const out: Paperwork = { leases: {}, reports: {}, stays: {}, shortTerm: [], lateAsOf: {}, lateDay };
 
   for (const p of data.properties) {
     if (p.is_archived) continue;
@@ -150,6 +154,25 @@ export async function getPaperwork(data: PortfolioData, today: string): Promise<
       };
     } else {
       out.reports[p.id] = null;
+    }
+
+    // How the paperwork stood on an earlier day (for the week-over-week trend).
+    if (lateDay) {
+      let late = 0;
+      for (const u of units) {
+        if (u.rental_type === "short_term") continue;
+        const then = currentLease(leases, u.id, lateDay);
+        if (then && leaseStatus(then, lateDay).state === "past_due") late += 1;
+      }
+      if (p.report_cadence && p.report_start) {
+        const uploadedThen = files
+          .filter((f) => f.kind === "rental_report" && f.property_id === p.id && dayOf(f.created_at) <= lateDay)
+          .map((f) => f.period_start ?? "");
+        late += reportPeriods(p.report_cadence, p.report_start, p.report_due_days ?? null, uploadedThen, lateDay).filter(
+          (x) => x.state === "past_due",
+        ).length;
+      }
+      out.lateAsOf[p.id] = late;
     }
 
     if (isShort) {

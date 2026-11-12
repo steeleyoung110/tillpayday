@@ -106,6 +106,12 @@ export default async function PortfolioPage({
             >
               {`${year} report`}
             </Link>
+            <a
+              href={`/properties/tax/${year}`}
+              className="rounded-lg border border-emerald-600/60 px-3 py-1 text-sm font-semibold text-emerald-300 transition hover:border-emerald-400"
+            >
+              {`${year} tax pack (Excel)`}
+            </a>
           </div>
         </div>
 
