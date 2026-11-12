@@ -69,6 +69,12 @@ export interface PropertyRow {
    * equity and debt stay at 100%.
    */
   rental_share: number;
+  /** Short-term units: how often a report of completed stays is uploaded. */
+  report_cadence?: "monthly" | "quarterly" | null;
+  /** First period tracked for rental reports. */
+  report_start?: string | null;
+  /** Days after a period ends before its report is past due (null = default). */
+  report_due_days?: number | null;
   created_at: string;
 }
 
@@ -220,4 +226,18 @@ export interface PortfolioData {
   mortgages: MortgageRow[];
   mortgagePayments: MortgagePaymentRow[];
   bookings: BookingRow[];
+}
+
+/** An upload indexed against a lease (signed copy) or a rental-report period. */
+export interface PropertyFileRow {
+  id: string;
+  property_id: string;
+  kind: "lease" | "rental_report";
+  lease_id: string | null;
+  /** First day of the month/quarter a rental report covers. */
+  period_start: string | null;
+  storage_path: string;
+  file_name: string;
+  size_bytes: number | null;
+  created_at: string;
 }

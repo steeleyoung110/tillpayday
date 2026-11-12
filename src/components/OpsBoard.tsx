@@ -29,6 +29,9 @@ import {
   type ActionResult,
 } from "@/app/opsActions";
 import { showToast } from "@/components/InstantAction";
+import { LeaseCard, ReportPeriods, ReportSettingsForm } from "@/components/LeasePaperwork";
+import { leaseCounts, reportCounts } from "@/lib/property/compliance";
+import type { LeaseVM, Paperwork, ReportsVM, StaysVM } from "@/lib/property/paperwork";
 import {
   SOON_DAYS,
   addDays,
@@ -66,7 +69,11 @@ export interface PlanInfo {
   endDate: string | null;
 }
 
-interface Props {
+export interface BoardProps {
+  userId: string;
+  /** Show just this section, with everything behind each line. */
+  focusId?: string;
+  paperwork: Paperwork;
   today: string;
   sections: OpsSectionRow[];
   lines: OpsLineRow[];
@@ -98,6 +105,10 @@ const ICON_PATHS: Record<string, string> = {
   repeat: "M4 10a6 6 0 0 1 10.2-4.2L17 8.5M17 4v4.5h-4.5M20 14a6 6 0 0 1-10.2 4.2L7 15.5M7 20v-4.5h4.5",
   camera: "M4 7h3l2-3h6l2 3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM12 13m-4 0a4 4 0 1 0 8 0a4 4 0 1 0-8 0",
   dollar: "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6",
+  file: "M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M9 13h6M9 17h6",
+  calendar: "M3 5h18v16H3zM3 10h18M8 3v4M16 3v4",
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M8 21h8",
+  axe: "M4 21l10-10M12.5 7.5l4 4M13 6c2.5-2.5 6-2.5 7.5-1.5-1 1.5-1 5-3.5 7.5z",
 };
 
 function Icon({ name, className = "h-4 w-4" }: { name: string; className?: string }) {
@@ -175,17 +186,27 @@ function Tile({
   bucket,
   label,
   onClick,
+  neutralZero,
 }: {
   n: number | null;
   bucket: "red" | "orange" | "open";
   label: string;
   onClick: () => void;
+  /** Show a plain 0 instead of a thumbs-up (for counts where none isn't good news). */
+  neutralZero?: boolean;
 }) {
   if (n === null) {
     return (
       <span className={`${TILE_BASE} border border-slate-700 bg-slate-800 text-xs text-slate-400`} aria-label={`${label}: not tracked`}>
         NA
       </span>
+    );
+  }
+  if (n === 0 && neutralZero) {
+    return (
+      <button type="button" onClick={onClick} className={`${TILE_BASE} border border-slate-700 bg-slate-800 text-slate-400`} aria-label={`${label}: 0`}>
+        0
+      </button>
     );
   }
   const color =
@@ -197,15 +218,27 @@ function Tile({
   );
 }
 
-function TileRow({ counts, name, onOpen, rent }: { counts: TileCounts; name: string; onOpen: (b: Bucket) => void; rent?: boolean }) {
+function TileRow({
+  counts,
+  name,
+  onOpen,
+  rent,
+  neutralZero,
+}: {
+  counts: TileCounts;
+  name: string;
+  onOpen: (b: Bucket) => void;
+  rent?: boolean;
+  neutralZero?: boolean;
+}) {
   const words = rent
     ? { red: "payments past due", orange: `payments due within ${SOON_DAYS} days`, open: "payments not received" }
     : { red: "overdue", orange: `due within ${SOON_DAYS} days`, open: "open" };
   return (
     <div className="flex justify-between gap-2">
-      <Tile n={counts.red} bucket="red" label={`${name}: ${words.red}`} onClick={() => onOpen("red")} />
-      <Tile n={counts.orange} bucket="orange" label={`${name}: ${words.orange}`} onClick={() => onOpen("orange")} />
-      <Tile n={counts.blue} bucket="open" label={`${name}: ${words.open}`} onClick={() => onOpen("open")} />
+      <Tile n={counts.red} bucket="red" label={`${name}: ${words.red}`} onClick={() => onOpen("red")} neutralZero={neutralZero} />
+      <Tile n={counts.orange} bucket="orange" label={`${name}: ${words.orange}`} onClick={() => onOpen("orange")} neutralZero={neutralZero} />
+      <Tile n={counts.blue} bucket="open" label={`${name}: ${words.open}`} onClick={() => onOpen("open")} neutralZero={neutralZero} />
     </div>
   );
 }
@@ -215,15 +248,87 @@ function TileRow({ counts, name, onOpen, rent }: { counts: TileCounts; name: str
 // ---------------------------------------------------------------------------
 
 type View = "all" | "properties" | "business";
+type Dialog =
+  | { kind: "line"; id: string; bucket: Bucket }
+  | { kind: "rent" | "lease" | "reports" | "stays"; pid: string }
+  | null;
 
-export function OpsBoard(props: Props) {
-  const { today, sections, lines, tasks, installments, properties, people } = props;
+const LEASE_INFO =
+  "Red: the lease ended and hasn't been renewed. Orange: it ends within 2 months. Blue: leases that need something, including a missing signed copy.";
+const RENT_INFO =
+  "Red: a payment past due that isn't marked received. Orange: due in the next 7 days. Blue: every payment not yet received.";
+const STAYS_INFO = "Orange: guests arriving in the next 7 days. Blue: every upcoming stay.";
+
+function shortDay(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function leaseSummary(leases: LeaseVM[]): string {
+  const rank: Record<string, number> = { past_due: 0, due_soon: 1, in_progress: 2, complete: 3 };
+  const l = [...leases].sort((a, b) => rank[a.state] - rank[b.state])[0];
+  if (!l) return "";
+  if (l.state === "past_due") return `Past due · ended ${shortDay(l.end!)}`;
+  if (l.state === "due_soon") return `Due soon · ends ${shortDay(l.end!)}`;
+  return l.end ? `In progress · ends ${shortDay(l.end)}` : "In progress · month-to-month";
+}
+
+function reportSummary(r: ReportsVM | null): string {
+  if (!r) return "Not set up";
+  const late = r.periods.find((p) => p.state === "past_due");
+  if (late) return `${late.label} past due`;
+  const due = r.periods.find((p) => p.state === "due");
+  if (due) return `${due.label} due ${shortDay(due.dueDate)}`;
+  const next = r.periods.find((p) => p.state === "in_progress");
+  return next ? `${r.cadence === "monthly" ? "Monthly" : "Quarterly"} · next ${next.label}` : "Up to date";
+}
+
+function AutoLine({
+  icon,
+  title,
+  summary,
+  info,
+  counts,
+  onOpen,
+  detail,
+  neutralZero,
+  rent,
+}: {
+  icon: string;
+  title: string;
+  summary: string;
+  info: string;
+  counts: TileCounts;
+  onOpen: () => void;
+  detail?: React.ReactNode;
+  neutralZero?: boolean;
+  rent?: boolean;
+}) {
+  return (
+    <li className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <button type="button" onClick={onOpen} className="flex items-center gap-1.5 text-left text-[15px] font-semibold text-sky-300 hover:underline">
+          <Icon name={icon} className="h-4 w-4 shrink-0" />
+          {title}
+        </button>
+        <span className="flex items-start gap-2">
+          <span className="pt-0.5 text-right text-xs text-slate-500">{summary}</span>
+          <InfoTip text={info} label={`About ${title}`} />
+        </span>
+      </div>
+      <TileRow counts={counts} name={title} rent={rent} neutralZero={neutralZero} onOpen={() => onOpen()} />
+      {detail}
+    </li>
+  );
+}
+
+export function OpsBoard(props: BoardProps) {
+  const { today, sections, lines, tasks, installments, properties, people, paperwork, userId, focusId } = props;
   const [person, setPerson] = useState("all");
   const [view, setView] = useState<View>("all");
-  const [openLine, setOpenLine] = useState<{ id: string; bucket: Bucket } | null>(null);
-  const [openRent, setOpenRent] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
   const [editing, setEditing] = useState(false);
   const [, startTransition] = useTransition();
+  const focus = focusId ? sections.find((s) => s.id === focusId) : undefined;
 
   const shownTasks = useMemo(
     () =>
@@ -234,15 +339,24 @@ export function OpsBoard(props: Props) {
           : tasks.filter((t) => t.assignee === person),
     [tasks, person],
   );
-  const shownSections = sections.filter((s) =>
-    view === "all" ? true : view === "properties" ? !!s.property_id : !s.property_id,
-  );
+  const shownSections = focus
+    ? [focus]
+    : sections.filter((s) => (view === "all" ? true : view === "properties" ? !!s.property_id : !s.property_id));
   const shownSectionIds = new Set(shownSections.map((s) => s.id));
   const shownLines = lines.filter((l) => shownSectionIds.has(l.section_id));
-  const shownPropertyIds = new Set(shownSections.map((s) => s.property_id).filter(Boolean));
+  const shownPropertyIds = new Set(shownSections.map((s) => s.property_id).filter((x): x is string => !!x));
   const shownInsts = person === "all" ? installments.filter((i) => shownPropertyIds.has(i.propertyId)) : [];
   const snap = snapshot(shownTasks, shownLines, shownInsts, today);
+  let paperworkLate = 0;
+  for (const pid of shownPropertyIds) {
+    paperworkLate += leaseCounts(
+      (paperwork.leases[pid] ?? []).filter((l) => l.current).map((l) => ({ state: l.state, hasFile: l.files.length > 0 })),
+    ).red;
+    const r = paperwork.reports[pid];
+    if (r) paperworkLate += reportCounts(r.periods).red;
+  }
   const samples = tasks.filter((t) => t.is_sample && !t.done_at).length;
+  const propName = (pid: string) => properties.find((p) => p.id === pid)?.name ?? "Property";
 
   const run = (action: (fd: FormData) => Promise<ActionResult>, values: Record<string, string>, ok?: string) =>
     startTransition(async () => {
@@ -264,45 +378,238 @@ export function OpsBoard(props: Props) {
     );
   }
 
+  const renderSection = (s: OpsSectionRow) => {
+    const pid = s.property_id;
+    const detailed = !!focus;
+    const secLines = lines.filter((l) => l.section_id === s.id);
+    const rentInsts = pid ? installments.filter((i) => i.propertyId === pid) : [];
+    const currentLeases = pid ? (paperwork.leases[pid] ?? []).filter((l) => l.current) : [];
+    const isShort = !!pid && paperwork.shortTerm.includes(pid);
+    const reports = pid ? (paperwork.reports[pid] ?? null) : null;
+    const stays = pid ? paperwork.stays[pid] : undefined;
+    const soonEnd = addDays(today, SOON_DAYS);
+    const autoLines: React.ReactNode[] = [];
+
+    if (pid && person === "all") {
+      if (currentLeases.length > 0) {
+        autoLines.push(
+          <AutoLine
+            key="lease"
+            icon="file"
+            title="Lease"
+            summary={leaseSummary(currentLeases)}
+            info={LEASE_INFO}
+            counts={leaseCounts(currentLeases.map((l) => ({ state: l.state, hasFile: l.files.length > 0 })))}
+            onOpen={() => setDialog({ kind: "lease", pid })}
+            detail={
+              detailed && (
+                <div className="grid gap-2">
+                  {currentLeases.map((l) => (
+                    <LeaseCard key={l.id} lease={l} userId={userId} />
+                  ))}
+                </div>
+              )
+            }
+          />,
+        );
+      }
+      if (isShort) {
+        autoLines.push(
+          <AutoLine
+            key="reports"
+            icon="file"
+            title="Rental reports"
+            summary={reportSummary(reports)}
+            info={
+              reports
+                ? `Upload each ${reports.cadence === "monthly" ? "month's" : "quarter's"} completed rentals. Orange: the period ended and its report is due. Red: past its due date.`
+                : "Set how often you upload completed rentals (monthly or quarterly) on the property page."
+            }
+            counts={reports ? reportCounts(reports.periods) : { red: null, orange: null, blue: 0 }}
+            onOpen={() => setDialog({ kind: "reports", pid })}
+            detail={
+              detailed &&
+              (reports ? (
+                <ReportPeriods propertyId={pid} userId={userId} reports={reports} limit={4} />
+              ) : (
+                <ReportSettingsForm propertyId={pid} reports={null} />
+              ))
+            }
+          />,
+        );
+      }
+      if (rentInsts.length > 0) {
+        const open = rentInsts.filter((i) => i.status !== "paid");
+        autoLines.push(
+          <AutoLine
+            key="rent"
+            icon="dollar"
+            title="Rent collected"
+            summary={rentSummary(rentInsts, props)}
+            info={RENT_INFO}
+            rent
+            counts={rentCounts(rentInsts, today)}
+            onOpen={() => setDialog({ kind: "rent", pid })}
+            detail={
+              detailed && (
+                <ul className="grid gap-1 text-sm">
+                  {open.length === 0 && <li className="text-slate-400">Everything due is received.</li>}
+                  {open.map((i) => (
+                    <li key={i.key}>
+                      <button type="button" onClick={() => setDialog({ kind: "rent", pid })} className="flex w-full justify-between gap-2 rounded-lg bg-slate-950/50 px-3 py-2 text-left hover:bg-slate-800">
+                        <span className="text-slate-200">{`${fmtDay(i.date)} · ${money(i.amount - i.received)}`}</span>
+                        <span className={installmentBucket(i, today) === "red" ? "text-[#ff6b6f]" : "text-[#f5a524]"}>
+                          {installmentBucket(i, today) === "red" ? "past due" : "coming up"}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            }
+          />,
+        );
+      }
+      if (isShort && stays) {
+        const arriving = stays.upcoming.filter((b) => b.checkIn >= today && b.checkIn <= soonEnd).length;
+        autoLines.push(
+          <AutoLine
+            key="stays"
+            icon="calendar"
+            title="Bookings"
+            summary={`${money(stays.monthPayout)} booked ${new Date(`${today}T00:00:00`).toLocaleDateString("en-US", { month: "short" })}`}
+            info={STAYS_INFO}
+            neutralZero
+            counts={{ red: null, orange: arriving, blue: stays.upcoming.length }}
+            onOpen={() => setDialog({ kind: "stays", pid })}
+            detail={detailed && <StayList stays={stays} today={today} />}
+          />,
+        );
+      }
+    }
+
+    return (
+      <article
+        key={s.id}
+        className={`overflow-visible rounded-lg bg-slate-900 shadow-lg shadow-black/20 ring-1 ring-slate-800 ${detailed ? "mx-auto w-full max-w-3xl" : ""}`}
+      >
+        <header className="flex items-center gap-2 rounded-t-lg bg-[#2357c4] px-3 py-2.5 text-white">
+          <Icon name={s.icon} className="h-5 w-5 shrink-0" />
+          <h2 className="min-w-0 flex-1 text-[15px] font-bold uppercase tracking-wide">
+            {detailed ? (
+              s.name
+            ) : (
+              <Link href={`/board/${s.id}`} className="hover:underline">
+                {s.name}
+              </Link>
+            )}
+          </h2>
+          {pid && (
+            <Link href={`/properties/${pid}`} className="shrink-0 rounded px-1.5 text-xs font-semibold text-white/80 hover:bg-white/10 hover:text-white" aria-label={`${s.name} property page`}>
+              Details
+            </Link>
+          )}
+        </header>
+        <ul>
+          {autoLines}
+          {secLines.map((l) => {
+            const openTasks = shownTasks
+              .filter((t) => t.line_id === l.id && !t.done_at)
+              .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"));
+            return (
+              <li key={l.id} className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <button type="button" onClick={() => setDialog({ kind: "line", id: l.id, bucket: "open" })} className="text-left text-[15px] font-semibold text-sky-300 hover:underline">
+                    {l.name}
+                  </button>
+                  <InfoTip text={l.info || defaultInfo(l.dated)} label={`About ${l.name}`} />
+                </div>
+                <TileRow counts={lineCounts(l, shownTasks, today)} name={l.name} onOpen={(b) => setDialog({ kind: "line", id: l.id, bucket: b })} />
+                {detailed && (
+                  <ul className="grid gap-1 text-sm">
+                    {openTasks.length === 0 && <li className="text-slate-500">Nothing open.</li>}
+                    {openTasks.map((t) => (
+                      <li key={t.id}>
+                        <button type="button" onClick={() => setDialog({ kind: "line", id: l.id, bucket: "open" })} className="flex w-full flex-wrap justify-between gap-x-3 rounded-lg bg-slate-950/50 px-3 py-2 text-left hover:bg-slate-800">
+                          <span className="text-slate-200">{t.title}</span>
+                          <span className="flex gap-2 text-xs">
+                            <span className="text-slate-400">{t.assignee || "Unassigned"}</span>
+                            <DueText task={t} today={today} dated={l.dated} />
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            );
+          })}
+          {secLines.length === 0 && autoLines.length === 0 && <li className="px-3 py-4 text-sm text-slate-500">No lines yet.</li>}
+        </ul>
+        {editing && (
+          <ColumnEditor
+            section={s}
+            isFirst={sections[0]?.id === s.id}
+            isLast={sections[sections.length - 1]?.id === s.id}
+            lineCount={secLines.length}
+            run={run}
+          />
+        )}
+      </article>
+    );
+  };
+
+  const openLine = dialog?.kind === "line" ? dialog : null;
+  const openPid = dialog && dialog.kind !== "line" ? dialog.pid : null;
+
   return (
     <div className="space-y-4 px-4 pt-6 sm:px-6">
       {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white">Board</h1>
-          <p className="mt-1 text-sm text-slate-400">Tap any box to see what&apos;s behind it.</p>
+          {focus ? (
+            <>
+              <Link href="/board" className="text-xs text-slate-400 hover:text-slate-200">
+                ← Board
+              </Link>
+              <h1 className="mt-1 text-2xl font-bold text-white">{focus.name}</h1>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-white">Board</h1>
+              <p className="mt-1 text-sm text-slate-400">Tap any box to see what&apos;s behind it. Tap a column&apos;s name for its own page.</p>
+            </>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900 p-0.5" role="group" aria-label="Columns to show">
-            {(
-              [
-                ["all", "All"],
-                ["properties", "Properties"],
-                ["business", "Businesses"],
-              ] as [View, string][]
-            ).map(([k, label]) => (
-              <button
-                key={k}
-                type="button"
-                aria-pressed={view === k}
-                onClick={() => {
-                  setView(k);
-                }}
-                className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
-                  view === k ? "bg-[#2f63cf] text-white" : "text-slate-400 hover:text-white"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {!focus && (
+            <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900 p-0.5" role="group" aria-label="Columns to show">
+              {(
+                [
+                  ["all", "All"],
+                  ["properties", "Properties"],
+                  ["business", "Businesses"],
+                ] as [View, string][]
+              ).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={view === k}
+                  onClick={() => setView(k)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-semibold transition ${
+                    view === k ? "bg-[#2f63cf] text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <label className="flex items-center gap-2 text-sm text-slate-400">
             <span>Showing</span>
             <select
               value={person}
-              onChange={(e) => {
-                setPerson(e.target.value);
-              }}
+              onChange={(e) => setPerson(e.target.value)}
               className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-white"
             >
               <option value="all">Everyone</option>
@@ -334,10 +641,11 @@ export function OpsBoard(props: Props) {
           <Pill label="Overdue" value={String(snap.overdueTasks)} tone={snap.overdueTasks ? "red" : "ok"} />
           <Pill label={`Due in ${SOON_DAYS} days`} value={String(snap.dueSoonTasks)} tone={snap.dueSoonTasks ? "orange" : "ok"} />
           <Pill label="Done last 7 days" value={String(snap.doneLast7)} />
-          {person === "all" && view !== "business" && (
+          {person === "all" && shownPropertyIds.size > 0 && (
             <>
               <Pill label="Rent past due" value={money(snap.rentOverdue)} tone={snap.rentOverdue ? "red" : "ok"} />
               <Pill label={`Rent due in ${SOON_DAYS} days`} value={money(snap.rentDueSoon)} />
+              <Pill label="Leases & reports past due" value={String(paperworkLate)} tone={paperworkLate ? "red" : "ok"} />
             </>
           )}
         </div>
@@ -360,57 +668,9 @@ export function OpsBoard(props: Props) {
       )}
 
       {/* Columns */}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] items-start gap-3 pb-6">
-        {shownSections.map((s) => {
-          const secLines = lines.filter((l) => l.section_id === s.id);
-          const rentInsts = s.property_id ? installments.filter((i) => i.propertyId === s.property_id) : [];
-          return (
-            <article key={s.id} className="overflow-visible rounded-lg bg-slate-900 shadow-lg shadow-black/20 ring-1 ring-slate-800">
-              <header className="flex items-center gap-2 rounded-t-lg bg-[#2357c4] px-3 py-2.5 text-white">
-                <Icon name={s.icon} className="h-5 w-5 shrink-0" />
-                <h2 className="min-w-0 flex-1 text-[15px] font-bold uppercase tracking-wide">
-                  {s.property_id ? (
-                    <Link href={`/properties/${s.property_id}`} className="hover:underline">
-                      {s.name}
-                    </Link>
-                  ) : (
-                    s.name
-                  )}
-                </h2>
-              </header>
-              <ul>
-                {rentInsts.length > 0 && person === "all" && (
-                  <li className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <button type="button" onClick={() => setOpenRent(s.property_id)} className="flex items-center gap-1.5 text-left text-[15px] font-semibold text-sky-300 hover:underline">
-                        <Icon name="dollar" className="h-4 w-4" />
-                        Rent
-                      </button>
-                      <span className="text-xs text-slate-500">{rentSummary(rentInsts, props)}</span>
-                    </div>
-                    <TileRow counts={rentCounts(rentInsts, today)} name={`${s.name} rent`} rent onOpen={() => setOpenRent(s.property_id)} />
-                  </li>
-                )}
-                {secLines.map((l) => (
-                  <li key={l.id} className="grid gap-2 border-b border-slate-800 px-3 pb-3 pt-2.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <button type="button" onClick={() => setOpenLine({ id: l.id, bucket: "open" })} className="text-left text-[15px] font-semibold text-sky-300 hover:underline">
-                        {l.name}
-                      </button>
-                      <InfoTip text={l.info || defaultInfo(l.dated)} label={`About ${l.name}`} />
-                    </div>
-                    <TileRow counts={lineCounts(l, shownTasks, today)} name={l.name} onOpen={(b) => setOpenLine({ id: l.id, bucket: b })} />
-                  </li>
-                ))}
-                {secLines.length === 0 && rentInsts.length === 0 && (
-                  <li className="px-3 py-4 text-sm text-slate-500">No lines yet.</li>
-                )}
-              </ul>
-              {editing && <ColumnEditor section={s} isFirst={sections[0]?.id === s.id} isLast={sections[sections.length - 1]?.id === s.id} lineCount={secLines.length} run={run} />}
-            </article>
-          );
-        })}
-        {editing && <AddColumn properties={properties} sections={sections} />}
+      <div className={focus ? "grid gap-3 pb-6" : "grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] items-start gap-3 pb-6"}>
+        {shownSections.map(renderSection)}
+        {editing && !focus && <AddColumn properties={properties} sections={sections} />}
       </div>
 
       {openLine && (
@@ -420,30 +680,85 @@ export function OpsBoard(props: Props) {
           section={sections.find((s) => s.id === lines.find((l) => l.id === openLine.id)?.section_id)}
           tasks={shownTasks.filter((t) => t.line_id === openLine.id)}
           bucket={openLine.bucket}
-          setBucket={(b) => setOpenLine({ id: openLine.id, bucket: b })}
+          setBucket={(b) => setDialog({ kind: "line", id: openLine.id, bucket: b })}
           today={today}
           people={people}
           person={person}
-          onClose={() => setOpenLine(null)}
+          onClose={() => setDialog(null)}
         />
       )}
-      {openRent && (
+      {openPid && dialog?.kind === "rent" && (
         <RentDialog
-          key={openRent}
-          propertyId={openRent}
-          propertyName={properties.find((p) => p.id === openRent)?.name ?? "Rent"}
-          installments={installments.filter((i) => i.propertyId === openRent)}
+          key={openPid}
+          propertyId={openPid}
+          propertyName={propName(openPid)}
+          installments={installments.filter((i) => i.propertyId === openPid)}
           leases={props.leases}
           plans={props.plans}
           today={today}
-          onClose={() => setOpenRent(null)}
+          onClose={() => setDialog(null)}
         />
+      )}
+      {openPid && dialog?.kind === "lease" && (
+        <Modal title={`${propName(openPid)} lease`} eyebrow="Lease" onClose={() => setDialog(null)}>
+          <div className="grid gap-3">
+            {(paperwork.leases[openPid] ?? []).map((l) => (
+              <LeaseCard key={l.id} lease={l} userId={userId} />
+            ))}
+            <Link href={`/properties/${openPid}`} className="text-sm font-semibold text-sky-300 hover:underline">
+              Property page →
+            </Link>
+          </div>
+        </Modal>
+      )}
+      {openPid && dialog?.kind === "reports" && (
+        <Modal title={`${propName(openPid)} rental reports`} eyebrow="Completed rentals" onClose={() => setDialog(null)}>
+          <div className="grid gap-4">
+            {paperwork.reports[openPid] ? (
+              <ReportPeriods propertyId={openPid} userId={userId} reports={paperwork.reports[openPid]!} limit={8} />
+            ) : (
+              <p className="text-sm text-slate-400">Choose how often you upload completed rentals for this property.</p>
+            )}
+            <details className="rounded-xl border border-slate-800 p-3" open={!paperwork.reports[openPid]}>
+              <summary className="cursor-pointer text-sm font-semibold text-slate-200">Report schedule</summary>
+              <div className="mt-3">
+                <ReportSettingsForm propertyId={openPid} reports={paperwork.reports[openPid] ?? null} />
+              </div>
+            </details>
+          </div>
+        </Modal>
+      )}
+      {openPid && dialog?.kind === "stays" && paperwork.stays[openPid] && (
+        <Modal title={`${propName(openPid)} bookings`} eyebrow="Upcoming stays" onClose={() => setDialog(null)}>
+          <StayList stays={paperwork.stays[openPid]} today={today} />
+          <Link href={`/properties/${openPid}`} className="mt-4 inline-block text-sm font-semibold text-sky-300 hover:underline">
+            Add stays or import a booking CSV on the property page →
+          </Link>
+        </Modal>
       )}
     </div>
   );
 }
 
-function rentSummary(insts: Installment[], props: Props): string {
+function StayList({ stays, today }: { stays: StaysVM; today: string }) {
+  if (stays.upcoming.length === 0) return <p className="text-sm text-slate-400">No upcoming stays on the books.</p>;
+  return (
+    <ul className="grid gap-1 text-sm">
+      {stays.upcoming.map((b) => {
+        const nights = diffDays(b.checkIn, b.checkOut);
+        const here = b.checkIn <= today;
+        return (
+          <li key={b.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-950/50 px-3 py-2">
+            <span className="text-slate-200">{`${shortDay(b.checkIn)} to ${shortDay(b.checkOut)} · ${nights} night${nights === 1 ? "" : "s"}${here ? " · checked in" : ""}`}</span>
+            <span className="text-slate-400">{`${money(b.payout)} · ${b.platform}`}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function rentSummary(insts: Installment[], props: BoardProps): string {
   const plan = insts.find((i) => i.scheduleId)?.scheduleId;
   if (plan && props.plans[plan]) {
     const p = props.plans[plan];

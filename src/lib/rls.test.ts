@@ -157,6 +157,18 @@ const FIXTURES: {
     mutate: { start_date: "2021-02-02" },
     original: "2020-01-01",
   },
+  {
+    table: "property_files",
+    row: (ids) => ({
+      property_id: ids.get("properties"),
+      kind: "rental_report",
+      period_start: "2020-01-01",
+      storage_path: `rls-probe/${ids.get("properties")}/reports/probe.pdf`,
+      file_name: "RLS probe",
+    }),
+    mutate: { file_name: "hijacked" },
+    original: "RLS probe",
+  },
 ];
 
 const TIMEOUT = 30_000;

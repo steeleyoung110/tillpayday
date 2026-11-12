@@ -36,6 +36,8 @@ import {
 } from "@/app/propertyActions";
 import { addRentSchedule, deleteRentSchedule, endRentSchedule } from "@/app/opsActions";
 import { BookingCsvImport } from "@/components/BookingCsvImport";
+import { LeaseCard, ReportPeriods, ReportSettingsForm } from "@/components/LeasePaperwork";
+import { getPaperwork } from "@/lib/property/paperwork";
 import { PropertyDocs, type PropertyDoc } from "@/components/PropertyDocs";
 import { nightsBetween } from "@/lib/property/bookingCsv";
 import { balanceLabel, leaseBalance } from "@/lib/property/tenancy";
@@ -122,12 +124,9 @@ export default async function PropertyPage({
   const tenantName = new Map(data.tenants.map((t) => [t.id, t.full_name]));
   const unitLabel = new Map(units.map((u) => [u.id, u.label]));
 
-  const activeLeases = leases.filter(
-    (l) =>
-      l.status === "active" &&
-      l.start_date <= todayISO &&
-      (l.end_date ?? "9999-12-31") >= todayISO,
-  );
+  // A lease that ran past its end date without being renewed or closed out is
+  // still the tenant's lease (they're still there) — it shows as past due.
+  const activeLeases = leases.filter((l) => l.status === "active" && l.start_date <= todayISO);
   const leaseByUnit = new Map(activeLeases.map((l) => [l.unit_id, l]));
 
   const rents = data.rentPayments.filter((r) => r.property_id === id);
@@ -141,7 +140,7 @@ export default async function PropertyPage({
     .list(`${user.id}/${id}`, { sortBy: { column: "created_at", order: "desc" } });
   const docs: PropertyDoc[] = await Promise.all(
     (fileList ?? [])
-      .filter((f) => f.name)
+      .filter((f) => f.name && f.id)
       .map(async (f) => {
         const { data: signed } = await supabase.storage
           .from("property-docs")
@@ -161,6 +160,11 @@ export default async function PropertyPage({
     .eq("property_id", id)
     .order("start_date");
   const schedules = (scheduleRows as RentScheduleRow[]) ?? [];
+
+  const paperwork = await getPaperwork(data, todayISO);
+  const leaseVMs = paperwork.leases[id] ?? [];
+  const reports = paperwork.reports[id] ?? null;
+  const isShortTerm = paperwork.shortTerm.includes(id);
 
   const depositsHeld = activeLeases.reduce((s, l) => s + Number(l.deposit_amount), 0);
   const rentalShare = Number(property.rental_share ?? 100);
@@ -365,6 +369,11 @@ export default async function PropertyPage({
                       >
                         end lease
                       </InstantAction>
+                      {leaseVMs.find((v) => v.id === lease.id) && (
+                        <div className="mt-2 w-full">
+                          <LeaseCard lease={leaseVMs.find((v) => v.id === lease.id)!} userId={user.id} compact />
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <form
@@ -400,6 +409,10 @@ export default async function PropertyPage({
                         className={inputCls}
                         ariaLabel="Deposit amount"
                       />
+                      <label className="block text-xs text-slate-400">
+                        lease ends (optional)
+                        <input type="date" name="end_date" className={`mt-0.5 ${inputCls}`} />
+                      </label>
                       <label className="block text-xs text-slate-400">
                         due day
                         <input
@@ -632,6 +645,22 @@ export default async function PropertyPage({
                   <li className="text-xs text-slate-500">{`${pastStays.length - 10} older stays not shown — they still count in the yearly numbers`}</li>
                 )}
               </ul>
+            )}
+          </Panel>
+        )}
+
+        {/* Rental reports (short-term units) */}
+        {isShortTerm && (
+          <Panel title="Rental reports">
+            <p className="mb-3 text-xs text-slate-500">
+              Upload each period&apos;s completed rentals (an owner statement or the Inn&apos;s revenue report). A period is
+              due once it ends and past due after its grace days.
+            </p>
+            <ReportSettingsForm propertyId={id} reports={reports} />
+            {reports && (
+              <div className="mt-4">
+                <ReportPeriods propertyId={id} userId={user.id} reports={reports} limit={6} />
+              </div>
             )}
           </Panel>
         )}
