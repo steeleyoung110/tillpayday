@@ -392,6 +392,12 @@ export interface AccountView {
   broker: string;
   last4: string | null;
   syncedAt: string | null;
+  /**
+   * Kept from statements (any broker but Robinhood, not the ESPP): shares and
+   * cash are entered from each statement; the daily sync prices them.
+   */
+  fromStatement: boolean;
+  statementDate: string | null;
   holdings: Holding[];
   cash: number;
   crypto: number;
@@ -450,6 +456,19 @@ export interface StocksView {
     incomeTrend: { day: string; income: number }[];
     historyFrom: string | null;
   };
+}
+
+/** Kept from statements: not synced from Robinhood, and not the lot-based ESPP. */
+export const isStatementAccount = (a: { broker: string; kind: StockAccountKind }) => a.broker !== "robinhood" && a.kind !== "espp";
+
+/** An account's value on `day`: its latest point on or before it, else its first point. */
+export function valueOn(series: { day: string; value: number }[], day: string): number {
+  let best = series[0]?.value ?? 0;
+  for (const p of series) {
+    if (p.day <= day) best = p.value;
+    else break;
+  }
+  return best;
 }
 
 function lotViews(raw: StocksRaw, accountId: string, idx: PriceIndex, asOf: string): LotView[] {
@@ -582,6 +601,8 @@ export function buildStocks(raw: StocksRaw): StocksView {
         broker: a.broker,
         last4: a.last4,
         syncedAt: a.synced_at,
+        fromStatement: isStatementAccount(a),
+        statementDate: a.statement_date ?? null,
         holdings,
         cash,
         crypto,
@@ -604,18 +625,23 @@ export function buildStocks(raw: StocksRaw): StocksView {
       };
     });
 
-  // Combined line: only days every account has a value for.
+  // Combined line. Accounts recorded every day (synced, ESPP) set the days:
+  // only days every one of them has a value for. A statement account joins
+  // each of those days at its latest value on or before it (its first value
+  // before it was added), so adding one doesn't show up as a jump.
   const withSeries = accounts.filter((a) => a.series.length);
+  const daily = withSeries.some((a) => !a.fromStatement) ? withSeries.filter((a) => !a.fromStatement) : withSeries;
+  const filled = withSeries.filter((a) => !daily.includes(a));
   const dayTotals = new Map<string, { n: number; value: number }>();
-  for (const a of withSeries) {
+  for (const a of daily) {
     for (const p of a.series) {
       const cur = dayTotals.get(p.day) ?? { n: 0, value: 0 };
       dayTotals.set(p.day, { n: cur.n + 1, value: cur.value + p.value });
     }
   }
   const totalSeries = [...dayTotals]
-    .filter(([, t]) => t.n === withSeries.length)
-    .map(([day, t]) => ({ day, value: Math.round(t.value * 100) / 100 }))
+    .filter(([, t]) => t.n === daily.length)
+    .map(([day, t]) => ({ day, value: Math.round((t.value + filled.reduce((s, a) => s + valueOn(a.series, day), 0)) * 100) / 100 }))
     .sort((x, y) => (x.day < y.day ? -1 : 1));
 
   const totalCost = accounts.every((a) => a.cost !== null || !a.holdings.length)

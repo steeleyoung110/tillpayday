@@ -20,8 +20,8 @@ import { PERIODS, PERIOD_LABELS, holdingSlices } from "@/lib/stocks/view";
 import { loadStocks } from "./load";
 
 /**
- * Stocks → Portfolio: every account added together (Robinhood, Agentic and
- * the Copart ESPP), the pie by stock, and how it moved today, this week and
+ * Stocks → Portfolio: every account added together (Robinhood, Agentic, the
+ * Copart ESPP and any statement accounts), the pie by stock, and how it moved today, this week and
  * this month. Nothing here feeds the property dashboard or spreadsheets.
  */
 export default async function StocksPortfolioPage() {
@@ -33,6 +33,7 @@ export default async function StocksPortfolioPage() {
   const cashLike = accounts.reduce((s, a) => s + a.cash + a.crypto, 0);
   const missingCost = accounts.filter((a) => a.holdings.length && a.cost === null).map((a) => a.name);
   const realized = accounts.reduce((s, a) => s + a.realized, 0);
+  const statementNames = accounts.filter((a) => a.fromStatement).map((a) => a.name);
 
   return (
     <AppShell active="stocks">
@@ -91,6 +92,9 @@ export default async function StocksPortfolioPage() {
                 <p className="mt-2 text-xs text-slate-500">
                   Days before syncing started are worked out from today&apos;s shares. Deposits show up here; they don&apos;t
                   count in the day / week / month moves.
+                  {statementNames.length
+                    ? ` ${statementNames.join(" and ")} comes from statements: between them it holds at the last known value.`
+                    : ""}
                 </p>
               </Panel>
             </div>

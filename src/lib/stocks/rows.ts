@@ -14,9 +14,11 @@ export interface StockAccountRow {
   id: string;
   key: string;
   name: string;
-  broker: "robinhood" | "fidelity" | "etrade" | "other";
+  broker: "robinhood" | "fidelity" | "etrade" | "ally" | "other";
   kind: StockAccountKind;
   last4: string | null;
+  /** Statement accounts: period end of the statement the shares and cash came from (migration 0044). */
+  statement_date?: string | null;
   goal_amount: number | string | null;
   goal_date: string | null;
   goal_note: string | null;

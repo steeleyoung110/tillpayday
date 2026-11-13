@@ -30,6 +30,7 @@ export const BROKER_LABELS: Record<string, string> = {
   robinhood: "Robinhood",
   fidelity: "Fidelity",
   etrade: "E*TRADE",
+  ally: "Ally Invest",
   other: "",
 };
 

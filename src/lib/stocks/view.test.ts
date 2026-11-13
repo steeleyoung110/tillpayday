@@ -261,6 +261,35 @@ describe("buildStocks", () => {
     expect(buildStocks(raw).liveAt).toBeNull();
   });
 
+  it("adds a statement account: priced daily, joining the combined line without a jump", () => {
+    const withAlly = buildStocks({
+      ...raw,
+      accounts: [
+        ...raw.accounts,
+        { id: "a4", key: "ally", name: "Ally", broker: "ally", kind: "brokerage", last4: "1416", goal_amount: null, goal_date: null, goal_note: null, cash: "214.34", crypto: "0", synced_at: null, sort_order: 4, statement_date: "2026-10-31" },
+      ],
+      positions: [...raw.positions, { account_id: "a4", symbol: "IEF", quantity: "2", avg_cost: null }],
+      prices: [...raw.prices, { symbol: "IEF", day: "2026-10-30", close: 90, prev_close: null }, { symbol: "IEF", day: "2026-11-11", close: 92, prev_close: 91 }],
+      values: [
+        { account_id: "a4", day: "2026-09-30", value: 390, cost_basis: null, annual_income: null, backfilled: false },
+        { account_id: "a4", day: "2026-11-05", value: 396, cost_basis: null, annual_income: null, backfilled: false },
+        ...raw.values,
+      ],
+    });
+    const ally = withAlly.accounts.find((a) => a.key === "ally")!;
+    expect(ally).toMatchObject({ fromStatement: true, statementDate: "2026-10-31", cost: null });
+    expect(ally.value).toBeCloseTo(2 * 92 + 214.34);
+    expect(ally.changes.day.amount).toBeCloseTo(2);
+    expect(withAlly.accounts.find((a) => a.key === "robinhood")!.fromStatement).toBe(false);
+    expect(withAlly.accounts.find((a) => a.key === "espp")!.fromStatement).toBe(false);
+    // Days still come from the daily accounts; Ally adds its value on or before each day.
+    expect(withAlly.total.series).toEqual([
+      { day: "2026-10-30", value: Math.round((v.total.series[0].value + 390) * 100) / 100 },
+      { day: "2026-11-11", value: Math.round((v.total.series[1].value + 396) * 100) / 100 },
+    ]);
+    expect(withAlly.total.value).toBeCloseTo(v.total.value + 2 * 92 + 214.34);
+  });
+
   it("summarises each account for the Board", () => {
     const s = stocksSummary(v)!;
     expect(s.accounts.map((a) => a.key)).toEqual(["robinhood", "espp"]);

@@ -28,6 +28,8 @@ const SUBTITLES: Record<string, string> = {
   agentic: "The active trading account. View only here: this app reads Robinhood once a day and can't trade.",
   espp: "Copart employee stock purchase plan (Morgan Stanley at Work). Updated when you tell Claude about a purchase or sale.",
 };
+const STATEMENT_SUBTITLE =
+  "Kept from the monthly statement: send Claude each new one to update the shares and cash. Prices update with the daily sync.";
 
 /** One account: its value, moves, pie, holdings, and (ESPP) purchases. */
 export default async function StockAccountPage({ params }: { params: Promise<{ account: string }> }) {
@@ -53,7 +55,7 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
       <div className="mx-auto max-w-screen-xl space-y-6 px-4 pt-6 sm:px-6">
         <StocksHeader
           title={`${a.name}${a.last4 ? ` ••${a.last4}` : ""}`}
-          subtitle={`${broker ? `${broker} · ` : ""}${SUBTITLES[a.kind] ?? ""}`}
+          subtitle={`${broker ? `${broker} · ` : ""}${a.fromStatement ? STATEMENT_SUBTITLE : (SUBTITLES[a.kind] ?? "")}`}
           active={a.key}
           accounts={view.accounts}
           asOf={asOf}
@@ -92,16 +94,30 @@ export default async function StockAccountPage({ params }: { params: Promise<{ a
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <StatCard label="Account value" hint={a.syncedAt ? `Synced ${longDate(a.syncedAt.slice(0, 10))}` : undefined}>
+                <StatCard
+                  label="Account value"
+                  hint={
+                    a.fromStatement
+                      ? a.statementDate
+                        ? `Shares and cash from the ${longDate(a.statementDate)} statement`
+                        : "Shares and cash from the last statement"
+                      : a.syncedAt
+                        ? `Synced ${longDate(a.syncedAt.slice(0, 10))}`
+                        : undefined
+                  }
+                >
                   {money(a.value)}
                 </StatCard>
-                <StatCard label="Gain since bought" hint={a.cost ? `Paid ${money(a.cost)}` : "No cost on file"}>
+                <StatCard
+                  label="Gain since bought"
+                  hint={a.cost ? `Paid ${money(a.cost)}` : a.fromStatement ? "The statement doesn't list what was paid" : "No cost on file"}
+                >
                   <Gain value={a.gain} base={a.cost} />
                 </StatCard>
                 <StatCard label="Dividends per year" hint={<Link href="/stocks/dividends" className="hover:underline">At today&apos;s shares →</Link>}>
                   {money(a.annualIncome, true)}
                 </StatCard>
-                <StatCard label="Cash & crypto" hint="Not in the pie">
+                <StatCard label={a.crypto ? "Cash & crypto" : "Cash"} hint="Not in the pie">
                   {money(a.cash + a.crypto, true)}
                 </StatCard>
               </div>
